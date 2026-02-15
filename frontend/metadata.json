@@ -1,0 +1,7 @@
+{
+  "name": "Easy Tech ISP Management",
+  "description": "A comprehensive ISP management and billing system featuring network site management, RADIUS integration, CRM, ticketing, and financial reporting.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
