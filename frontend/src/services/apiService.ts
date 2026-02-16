@@ -264,6 +264,11 @@ export const sitesApi = {
     return response.data;
   },
 
+  getIpam: async (id: string) => {
+    const response = await axiosInstance.get(`/sites/${id}/ipam`);
+    return response.data;
+  },
+
   create: async (siteData: any) => {
     const response = await axiosInstance.post('/sites', siteData);
     return response.data;
@@ -443,6 +448,110 @@ export const smsApi = {
       phone,
       message,
     });
+    return response.data;
+  },
+};
+
+// Dashboard Endpoints
+export const dashboardApi = {
+  getStats: async () => {
+    const response = await axiosInstance.get('/dashboard/stats');
+    return response.data;
+  },
+
+  getRevenueChart: async () => {
+    const response = await axiosInstance.get('/dashboard/revenue-chart');
+    return response.data;
+  },
+};
+
+// Leads Endpoints
+export const leadsApi = {
+  getAll: async (page = 1, perPage = 10, status?: string, search?: string) => {
+    let url = `/leads?page=${page}&per_page=${perPage}`;
+    if (status && status !== 'all') {
+      url += `&status=${status}`;
+    }
+    if (search) {
+      url += `&search=${encodeURIComponent(search)}`;
+    }
+    const response = await axiosInstance.get(url);
+    return response.data;
+  },
+
+  getById: async (id: string) => {
+    const response = await axiosInstance.get(`/leads/${id}`);
+    return response.data;
+  },
+
+  create: async (leadData: any) => {
+    const response = await axiosInstance.post('/leads', leadData);
+    return response.data;
+  },
+
+  update: async (id: string, leadData: any) => {
+    const response = await axiosInstance.put(`/leads/${id}`, leadData);
+    return response.data;
+  },
+
+  delete: async (id: string) => {
+    const response = await axiosInstance.delete(`/leads/${id}`);
+    return response.data;
+  },
+
+  getStats: async () => {
+    const response = await axiosInstance.get('/leads-stats');
+    return response.data;
+  },
+};
+
+// Expenses Endpoints
+export const expensesApi = {
+  getAll: async (page = 1, perPage = 15, category?: string, search?: string, startDate?: string, endDate?: string) => {
+    let url = `/expenses?page=${page}&per_page=${perPage}`;
+    if (category && category !== 'All') {
+      url += `&category=${encodeURIComponent(category)}`;
+    }
+    if (search) {
+      url += `&search=${encodeURIComponent(search)}`;
+    }
+    if (startDate) {
+      url += `&start_date=${startDate}`;
+    }
+    if (endDate) {
+      url += `&end_date=${endDate}`;
+    }
+    const response = await axiosInstance.get(url);
+    return response.data;
+  },
+
+  getById: async (id: string) => {
+    const response = await axiosInstance.get(`/expenses/${id}`);
+    return response.data;
+  },
+
+  create: async (expenseData: any) => {
+    const response = await axiosInstance.post('/expenses', expenseData);
+    return response.data;
+  },
+
+  update: async (id: string, expenseData: any) => {
+    const response = await axiosInstance.put(`/expenses/${id}`, expenseData);
+    return response.data;
+  },
+
+  delete: async (id: string) => {
+    const response = await axiosInstance.delete(`/expenses/${id}`);
+    return response.data;
+  },
+
+  getStats: async (startDate?: string, endDate?: string) => {
+    let url = '/expenses/stats';
+    const params: string[] = [];
+    if (startDate) params.push(`start_date=${startDate}`);
+    if (endDate) params.push(`end_date=${endDate}`);
+    if (params.length > 0) url += `?${params.join('&')}`;
+    const response = await axiosInstance.get(url);
     return response.data;
   },
 };

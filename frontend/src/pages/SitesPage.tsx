@@ -113,7 +113,7 @@ export const SitesPage: React.FC = () => {
       <SiteProvisionModal 
         isOpen={isSiteProvisionOpen} 
         onClose={() => setIsSiteProvisionOpen(false)} 
-        onProvision={() => { setIsSiteProvisionOpen(false); toast("Provisioned"); }} 
+        onSuccess={() => fetchSites()}
        />
       <IPAMModal 
         isOpen={isIPAMOpen} 

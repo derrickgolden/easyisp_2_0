@@ -74,3 +74,70 @@ export const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: stri
     </div>
   );
 };
+
+export const RevenueChart: React.FC<{ data: { label: string, value: number }[] }> = ({ data }) => {
+  const max = Math.max(...data.map(d => d.value)) * 1.2;
+  const height = 150;
+  const width = 400;
+  
+  const points = data.map((d, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - (d.value / max) * height;
+    return `${x},${y}`;
+  }).join(' ');
+
+  const areaPoints = `0,${height} ${points} ${width},${height}`;
+
+  return (
+    <div className="w-full h-48 relative mt-4">
+      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="w-full h-full overflow-visible">
+        <defs>
+          <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        
+        {/* Grid Lines */}
+        <line x1="0" y1={height * 0.25} x2={width} y2={height * 0.25} className="stroke-gray-100 dark:stroke-slate-800" strokeWidth="1" />
+        <line x1="0" y1={height * 0.5} x2={width} y2={height * 0.5} className="stroke-gray-100 dark:stroke-slate-800" strokeWidth="1" />
+        <line x1="0" y1={height * 0.75} x2={width} y2={height * 0.75} className="stroke-gray-100 dark:stroke-slate-800" strokeWidth="1" />
+
+        {/* Area */}
+        <polyline points={areaPoints} fill="url(#chartGradient)" />
+        
+        {/* Line */}
+        <polyline
+        points={points}
+          fill="none"
+          stroke="#3b82f6"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="drop-shadow-lg"
+        />
+        
+        {/* Data Points */}
+        {data.map((d, i) => {
+          const x = (i / (data.length - 1)) * width;
+          const y = height - (d.value / max) * height;
+          return (
+            <g key={i} className="group cursor-pointer">
+              <circle cx={x} cy={y} r="4" fill="white" className="stroke-blue-500 stroke-2" />
+              {i === data.length - 1 && (
+                <circle cx={x} cy={y} r="8" fill="#3b82f6" fillOpacity="0.2" className="animate-ping" />
+              )}
+            </g>
+          );
+          })}
+      </svg>
+      <div className="flex justify-between mt-4">
+        {data.map((d, i) => (
+          <span key={i} className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">
+            {d.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+};

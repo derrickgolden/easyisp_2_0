@@ -35,6 +35,7 @@ class CustomerController extends Controller
                 'last_name',
                 'phone',
                 'email',
+                'balance',
                 'parent_id',
                 'status',
                 'connection_type',

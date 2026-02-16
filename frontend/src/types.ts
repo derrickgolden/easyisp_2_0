@@ -146,9 +146,12 @@ export interface Lead {
   id: string;
   name: string;
   phone: string;
-  address: string;
+  email?: string;
+  address?: string;
   status: 'new' | 'contacted' | 'survey' | 'converted' | 'lost';
+  notes?: string;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface Ticket {

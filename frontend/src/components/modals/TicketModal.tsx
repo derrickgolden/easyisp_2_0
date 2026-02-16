@@ -2,18 +2,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Modal } from '../UI';
 import { Ticket, Customer, Priority, TicketStatus } from '../../types';
-import { customersApi } from '@/src/services/apiService';
+import { customersApi, ticketsApi } from '@/src/services/apiService';
 import { STORAGE_KEYS } from '@/src/constants/storage';
+import { toast } from 'sonner';
 
 interface TicketModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (ticket: Partial<Ticket>) => void;
+  onSave: () => void;
   editingTicket: Partial<Ticket> | null;
 }
 
 export const TicketModal: React.FC<TicketModalProps> = ({
-  isOpen, onClose, onSave,  editingTicket
+  isOpen, onClose, onSave, editingTicket
 }) => {
   const [ticketType, setTicketType] = useState<'customer' | 'general'>('customer');
   const [customerSearch, setCustomerSearch] = useState('');
@@ -25,6 +26,7 @@ export const TicketModal: React.FC<TicketModalProps> = ({
   const [priority, setPriority] = useState<Priority>(Priority.MEDIUM);
   const [status, setStatus] = useState<TicketStatus>(TicketStatus.OPEN);
   const [customers, setCustomers] = useState<Customer[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMERS) || '[]'));
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
         // Load initial data if needed
@@ -84,24 +86,40 @@ export const TicketModal: React.FC<TicketModalProps> = ({
     }
   }, [editingTicket, isOpen, customers]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (ticketType === 'customer' && !selectedCustomer) {
-      alert("Please select a customer or switch to General ticket mode.");
+      toast.error("Please select a customer or switch to General ticket mode.");
       return;
     }
 
-    onSave({
-      ...editingTicket,
-      customer_id: ticketType === 'customer' ? selectedCustomer?.id : undefined,
-      customer_name: ticketType === 'customer' ? `${selectedCustomer?.firstName} ${selectedCustomer?.lastName}` : undefined,
-      subject,
-      description,
-      priority,
-      status,
-      created_at: editingTicket?.created_at || new Date().toISOString().split('T')[0]
-    });
+    setLoading(true);
+    
+    try {
+      const ticketData = {
+        customer_id: ticketType === 'customer' ? selectedCustomer?.id : undefined,
+        subject,
+        description,
+        priority,
+        status,
+      };
+
+      if (editingTicket?.id) {
+        await ticketsApi.update(editingTicket.id, ticketData);
+        toast.success('Ticket updated successfully');
+      } else {
+        await ticketsApi.create(ticketData);
+        toast.success('Service ticket created successfully');
+      }
+      
+      onSave();
+      onClose();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save ticket');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -237,8 +255,12 @@ export const TicketModal: React.FC<TicketModalProps> = ({
           </div>
         </div>
 
-        <button type="submit" className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-xl hover:bg-blue-500 transition-all active:scale-95">
-          {editingTicket?.id ? "Update Action Item" : "Create Service Ticket"}
+        <button 
+          type="submit" 
+          disabled={loading}
+          className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-xl hover:bg-blue-500 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? 'Saving...' : editingTicket?.id ? "Update Action Item" : "Create Service Ticket"}
         </button>
       </form>
     </Modal>

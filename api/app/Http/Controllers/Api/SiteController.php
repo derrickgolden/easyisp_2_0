@@ -86,4 +86,50 @@ class SiteController extends Controller
         $site->delete();
         return response()->json(['message' => 'Site deleted successfully']);
     }
+
+    /**
+     * Get IP allocation map for a site (IPAM)
+     */
+    public function getIpamData($id)
+    {
+        $site = Site::find($id);
+        if (!$site) {
+            return response()->json(['message' => 'Site not found'], 404);
+        }
+
+        // Extract base network from site IP (e.g., 192.168.1.1 -> 192.168.1)
+        $ipParts = explode('.', $site->ip_address);
+        $baseNetwork = implode('.', array_slice($ipParts, 0, 3));
+
+        // Get all customers with IPs in this subnet
+        $customers = \App\Models\Customer::where('site_id', $site->id)
+            ->whereNotNull('ip_address')
+            ->select('id', 'first_name', 'last_name', 'ip_address', 'status', 'radius_username')
+            ->get();
+
+        // Create IP allocation map (last octet -> customer data)
+        $allocations = [];
+        foreach ($customers as $customer) {
+            $customerIpParts = explode('.', $customer->ip_address);
+            $lastOctet = (int) end($customerIpParts);
+            
+            $allocations[$lastOctet] = [
+                'id' => $customer->id,
+                'name' => $customer->first_name . ' ' . $customer->last_name,
+                'username' => $customer->radius_username,
+                'status' => $customer->status,
+                'ip' => $customer->ip_address,
+            ];
+        }
+
+        return response()->json([
+            'site_id' => $site->id,
+            'site_name' => $site->name,
+            'base_network' => $baseNetwork,
+            'subnet' => $baseNetwork . '.0/24',
+            'allocations' => $allocations,
+            'total_allocated' => count($allocations),
+            'total_available' => 254 - count($allocations),
+        ]);
+    }
 }

@@ -31,7 +31,7 @@ class HandleExpiringUsers extends Command
         $this->info("Starting expiration check...");
 
         // Iterate through all active customers
-        Customer::whereIn('status', ['active', 'expired'])->chunk(100, function ($customers) use ($service) {
+        Customer::whereIn('status', ['active', 'expired'])->chunkById(100, function ($customers) use ($service) {
             foreach ($customers as $customer) {
                 $service->syncSubscription($customer);
             }

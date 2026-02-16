@@ -20,18 +20,20 @@ export const TicketsPage: React.FC = () => {
     const fetchTickets = async () => {
       try {
         const ticketsRes = await ticketsApi.getAll();
-        const ticketsList = ticketsRes.data || [];
+        // Backend returns array directly, not { data: [] }
+        const ticketsList = Array.isArray(ticketsRes) ? ticketsRes : (ticketsRes.data || []);
         const data = ticketsList.map((t: any) => ({
           id: t.id.toString(),
           customer_id: t.customer_id?.toString(),
-          customer_name: '',
+          customer_name: t.customer?.first_name && t.customer?.last_name 
+            ? `${t.customer.first_name} ${t.customer.last_name}` 
+            : '',
           subject: t.subject,
           description: t.description,
           priority: t.priority as any,
           status: t.status as any,
           created_at: t.created_at,
         }));
-
         setTickets(data);
         localStorage.setItem(STORAGE_KEYS.TICKETS, JSON.stringify(data));
       } catch (error) {
@@ -40,7 +42,7 @@ export const TicketsPage: React.FC = () => {
     };
 
     fetchTickets();
-  }, [setTickets]);
+  }, []);
   
   const filteredTickets = useMemo(() => {
     return tickets.filter(t => {
@@ -107,6 +109,33 @@ export const TicketsPage: React.FC = () => {
 
   const onAdd = () => { setEditingTicket(null); setIsTicketModalOpen(true); };
   const onEdit = (t: Ticket) => { setEditingTicket(t); setIsTicketModalOpen(true); };
+
+  const handleModalSave = async () => {
+    setIsTicketModalOpen(false);
+    // Refetch tickets to get updated list
+    try {
+      const ticketsRes = await ticketsApi.getAll();
+      // Backend returns array directly, not { data: [] }
+      const ticketsList = Array.isArray(ticketsRes) ? ticketsRes : (ticketsRes.data || []);
+      const data = ticketsList.map((t: any) => ({
+        id: t.id.toString(),
+        customer_id: t.customer_id?.toString(),
+        customer_name: t.customer?.first_name && t.customer?.last_name 
+          ? `${t.customer.first_name} ${t.customer.last_name}` 
+          : '',
+        subject: t.subject,
+        description: t.description,
+        priority: t.priority as any,
+        status: t.status as any,
+        created_at: t.created_at,
+      }));
+
+      setTickets(data);
+      localStorage.setItem(STORAGE_KEYS.TICKETS, JSON.stringify(data));
+    } catch (error) {
+      console.error('Error fetching tickets:', error);
+    }
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
@@ -265,8 +294,8 @@ export const TicketsPage: React.FC = () => {
       <TicketModal 
         isOpen={isTicketModalOpen} 
         onClose={() => setIsTicketModalOpen(false)} 
+        onSave={handleModalSave}
         editingTicket={editingTicket} 
-        onSave={() => setIsTicketModalOpen(false)} 
       />
     </div>
   );

@@ -11,7 +11,10 @@ class TicketController extends Controller
 {
     public function index(Request $request)
     {
-        $tickets = Ticket::where('organization_id', $request->user()->organization_id)->paginate(15);
+        $tickets = Ticket::where('organization_id', $request->user()->organization_id)
+            ->with('customer:id,first_name,last_name,phone')
+            ->orderBy('created_at', 'desc')
+            ->get();
         return response()->json($tickets);
     }
 
@@ -43,7 +46,7 @@ class TicketController extends Controller
 
     public function show($id)
     {
-        $ticket = Ticket::find($id);
+        $ticket = Ticket::with('customer:id,first_name,last_name,phone')->find($id);
         if (!$ticket) {
             return response()->json(['message' => 'Ticket not found'], 404);
         }
@@ -89,7 +92,10 @@ class TicketController extends Controller
 
     public function getByCustomer($customerId)
     {
-        $tickets = Ticket::where('customer_id', $customerId)->paginate(15);
+        $tickets = Ticket::where('customer_id', $customerId)
+            ->with('customer:id,first_name,last_name,phone')
+            ->orderBy('created_at', 'desc')
+            ->paginate(15);
         return response()->json($tickets);
     }
 }

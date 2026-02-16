@@ -29,6 +29,21 @@ class SubscriptionService
             $packagePrice = $customer->package->price; // Assuming relationship exists
 
             if ($customer->balance >= $packagePrice) {
+                $isOnline = DB::connection('radius')->table('radacct')
+                    ->where('username', $customer->radius_username)
+                    ->whereNull('acctstoptime')
+                    ->exists();
+
+                if (!$isOnline) {
+                    Log::info("Auto-Activation skipped for {$customer->radius_username}: user is offline.");
+
+                    if ($customer->status !== 'expired') {
+                        $this->applyExpiredStatus($customer);
+                    }
+
+                    return;
+                }
+
                 return $this->activatePackage($customer, $packagePrice);
             }
 

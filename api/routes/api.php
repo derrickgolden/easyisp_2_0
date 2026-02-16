@@ -12,9 +12,12 @@ use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PayheroPaymentController;
 use App\Http\Controllers\Api\TransactionController;
 use App\Http\Controllers\Api\TicketController;
+use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\RadiusController;
 use App\Http\Controllers\Api\SmsController;
+use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\LeadController;
 use App\Services\CustomerRadiusService;
 
 /*
@@ -53,6 +56,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
     
+    // Dashboard routes
+    Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
+    Route::get('/dashboard/revenue-chart', [DashboardController::class, 'getRevenueChart']);
+    
     // Organization routes
     Route::get('/organization', [OrganizationController::class, 'index']);
     Route::put('/organization', [OrganizationController::class, 'update']);
@@ -63,6 +70,10 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Role management
     Route::apiResource('/roles', RoleController::class);
+    
+    // Lead management
+    Route::apiResource('/leads', LeadController::class);
+    Route::get('/leads-stats', [LeadController::class, 'stats']);
     
     // Customer management
     Route::apiResource('/customers', CustomerController::class);
@@ -85,6 +96,7 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Site management
     Route::apiResource('/sites', SiteController::class);
+    Route::get('/sites/{id}/ipam', [SiteController::class, 'getIpamData']);
     
     // Payment management
     Route::post('/payments/payhero/stkpush', [PayheroPaymentController::class, 'stkPush']);
@@ -102,6 +114,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Ticket management
     Route::apiResource('/tickets', TicketController::class);
     Route::get('/tickets/customer/{customerId}', [TicketController::class, 'getByCustomer']);
+    
+    // Expense management
+    Route::get('/expenses/stats', [ExpenseController::class, 'stats']);
+    Route::apiResource('/expenses', ExpenseController::class);
     
     // RADIUS management routes
     Route::get('/radius/wifi-access/{username}', [RadiusController::class, 'getWifiAccess']);

@@ -1,79 +1,113 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Lead } from '../types';
-import { STORAGE_KEYS } from '../constants/storage';
 import { Card } from '../components/UI';
 import { LeadModal } from '../components/modals/LeadModal';
 import TableScrollModal from '../components/modals/TableScrollModal';
+import { leadsApi } from '../services/apiService';
 
 interface LeadsPageProps {}
 
-const INITIAL_LEADS: Lead[] = [
-  { id: 'l1', name: 'Robert Kamau', phone: '0711223344', address: 'Kahawa Sukari, Near Quickmart', status: 'new', created_at: '2025-01-20' },
-  { id: 'l2', name: 'Sarah Wanjiku', phone: '0755667788', address: 'Zimmerman, Sawa Sawa Apt', status: 'survey', created_at: '2025-01-21' },
-    { id: 'l3', name: 'Sarah Wanjiku', phone: '0755667788', address: 'Zimmerman, Sawa Sawa Apt', status: 'survey', created_at: '2025-01-21' },
-  { id: 'l4', name: 'Sarah Wanjiku', phone: '0755667788', address: 'Zimmerman, Sawa Sawa Apt', status: 'survey', created_at: '2025-01-21' },
-  { id: 'l5', name: 'Sarah Wanjiku', phone: '0755667788', address: 'Zimmerman, Sawa Sawa Apt', status: 'survey', created_at: '2025-01-21' },
-  { id: 'l6', name: 'Sarah Wanjiku', phone: '0755667788', address: 'Zimmerman, Sawa Sawa Apt', status: 'survey', created_at: '2025-01-21' },
-  { id: 'l7', name: 'Sarah Wanjiku', phone: '0755667788', address: 'Zimmerman, Sawa Sawa Apt', status: 'survey', created_at: '2025-01-21' },
-  { id: 'l8', name: 'Sarah Wanjiku', phone: '0755667788', address: 'Zimmerman, Sawa Sawa Apt', status: 'survey', created_at: '2025-01-21' },
-  { id: 'l9', name: 'Sarah Wanjiku', phone: '0755667788', address: 'Zimmerman, Sawa Sawa Apt', status: 'survey', created_at: '2025-01-21' },
-  { id: 'l10', name: 'Sarah Wanjiku', phone: '0755667788', address: 'Zimmerman, Sawa Sawa Apt', status: 'survey', created_at: '2025-01-21' },
-  { id: 'l11', name: 'Sarah Wanjiku', phone: '0755667788', address: 'Zimmerman, Sawa Sawa Apt', status: 'survey', created_at: '2025-01-21' },
-  { id: 'l12', name: 'Sarah Wanjiku', phone: '0755667788', address: 'Zimmerman, Sawa Sawa Apt', status: 'survey', created_at: '2025-01-21' },
-  { id: 'l13', name: 'Sarah Wanjiku', phone: '0755667788', address: 'Zimmerman, Sawa Sawa Apt', status: 'survey', created_at: '2025-01-21' },
-  { id: 'l14', name: 'Sarah Wanjiku', phone: '0755667788', address: 'Zimmerman, Sawa Sawa Apt', status: 'survey', created_at: '2025-01-21' },
-  { id: 'l15', name: 'Sarah Wanjiku', phone: '0755667788', address: 'Zimmerman, Sawa Sawa Apt', status: 'survey', created_at: '2025-01-21' },
-
-];
-
+interface LeadsPageProps {}
 
 export const LeadsPage: React.FC<LeadsPageProps> = ({}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<Lead['status'] | 'all'>('all');
-  const [leads, setLeads] = useState<Lead[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.LEADS) || JSON.stringify(INITIAL_LEADS)));
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Partial<Lead> | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState({
+    total: 0,
+    new: 0,
+    contacted: 0,
+    survey: 0,
+    converted: 0,
+    lost: 0
+  });
 
-  const filteredLeads = useMemo(() => {
-    return leads.filter(l => {
-      const matchesSearch = l.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          l.phone.includes(searchTerm) || 
-                          l.address.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStatus = statusFilter === 'all' || l.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [leads, searchTerm, statusFilter]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / rowsPerPage));
-  const startIndex = (currentPage - 1) * rowsPerPage;
-  const pagedLeads = filteredLeads.slice(startIndex, startIndex + rowsPerPage);
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
+  // Fetch leads from backend
+  const fetchLeads = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await leadsApi.getAll(currentPage, rowsPerPage, statusFilter, searchTerm);
+      setLeads(response.data || []);
+      setTotalPages(response.last_page || 1);
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch leads');
+      console.error('Error fetching leads:', err);
+    } finally {
+      setLoading(false);
     }
-  }, [currentPage, totalPages]);
+  };
 
-  const stats = {
-    total: leads.length,
-    new: leads.filter(l => l.status === 'new').length,
-    survey: leads.filter(l => l.status === 'survey').length,
-    converted: leads.filter(l => l.status === 'converted').length
+  // Fetch stats
+  const fetchStats = async () => {
+    try {
+      const statsData = await leadsApi.getStats();
+      setStats(statsData);
+    } catch (err: any) {
+      console.error('Error fetching stats:', err);
+    }
+  };
+
+  // Fetch leads when filters change
+  useEffect(() => {
+    fetchLeads();
+  }, [currentPage, rowsPerPage, statusFilter, searchTerm]);
+
+  // Fetch stats on mount
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  // Refresh stats after any lead mutation
+  const refreshData = () => {
+    fetchLeads();
+    fetchStats();
   };
 
   const onAdd = () => { setEditingLead(null); setIsLeadModalOpen(true); };
+  
   const onEdit = (l: Lead) => { setEditingLead(l); setIsLeadModalOpen(true); };
-  const onDelete = (id: string) => setLeads(prev => prev.filter(l => l.id !== id));
-  // const onConvert = (lead: Lead) => { setEditingCustomer({ firstName: lead.name.split(' ')[0], lastName: lead.name.split(' ').slice(1).join(' '), phone: lead.phone, location: lead.address, installationFee: 0 }); setIsCustomerModalOpen(true); };
-  const onConvert = (lead: Lead) => {
-    // For demo, we'll just mark as converted. In real app, you'd create a customer record and maybe an order.
-    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, status: 'converted' } : l));
-  }
-  const onStatusChange = (id: string, status: Lead['status']) => setLeads(prev => prev.map(l => l.id === id ? { ...l, status } : l));
+  
+  const onDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this lead?')) return;
+    try {
+      await leadsApi.delete(id);
+      refreshData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete lead');
+    }
+  };
+  
+  const onConvert = async (lead: Lead) => {
+    try {
+      await leadsApi.update(lead.id, { status: 'converted' });
+      refreshData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to convert lead');
+    }
+  };
+  
+  const onStatusChange = async (id: string, status: Lead['status']) => {
+    try {
+      await leadsApi.update(id, { status });
+      refreshData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update status');
+    }
+  };
+
+  const handleModalSave = () => {
+    setIsLeadModalOpen(false);
+    refreshData();
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
@@ -109,6 +143,12 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({}) => {
           <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{stats.converted}</p>
         </div>
       </div>
+
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 rounded-xl p-4 text-red-600 dark:text-red-400">
+          {error}
+        </div>
+      )}
 
       <Card title="Prospect Database" className="border-none shadow-xl overflow-hidden">
         <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
@@ -154,7 +194,19 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({}) => {
               </tr>
             </thead>
             <tbody className="divide-y dark:divide-slate-800">
-              {pagedLeads.length > 0 ? pagedLeads.map((lead) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="py-20 text-center text-gray-400">
+                    <div className="flex justify-center items-center gap-2">
+                      <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Loading leads...
+                    </div>
+                  </td>
+                </tr>
+              ) : leads.length > 0 ? leads.map((lead) => (
                 <tr key={lead.id} className="group hover:bg-gray-50/50 dark:hover:bg-slate-800/50 transition-all">
                   <td className="py-5 px-6">
                     <p className="font-bold text-gray-900 dark:text-white leading-none">{lead.name}</p>
@@ -225,7 +277,7 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({}) => {
         isOpen={isLeadModalOpen} 
         onClose={() => setIsLeadModalOpen(false)} 
         editingLead={editingLead} 
-        onSave={() => setIsLeadModalOpen(false)} 
+        onSave={handleModalSave} 
       />
     </div>
   );

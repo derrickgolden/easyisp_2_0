@@ -5,6 +5,9 @@ import { Expense, ExpenseCategory } from '../types';
 import { STORAGE_KEYS } from '../constants/storage';
 import { ExpenseModal } from '../components/modals/ExpenseModal';
 import { CategoryModal } from '../components/modals/CategoryModal';
+import TableScrollModal from '../components/modals/TableScrollModal';
+import { expensesApi } from '../services/apiService';
+import { toast } from 'sonner';
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   Utilities: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
@@ -27,7 +30,7 @@ const DEFAULT_CATEGORIES: ExpenseCategory[] = [
 ];
 
 export const ExpensesPage: React.FC = () => {
-  const [expenses, setExpenses] = useState<Expense[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.EXPENSES) || '[]'));
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.CATEGORIES) || '[]'));
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -36,23 +39,50 @@ export const ExpensesPage: React.FC = () => {
   const [endDate, setEndDate] = useState('');
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Partial<Expense> | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(15);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetchCategories();
-    fetchExpenses();
   }, []);
 
+  useEffect(() => {
+    fetchExpenses();
+  }, [currentPage, rowsPerPage, searchTerm, categoryFilter, startDate, endDate]);
+
   const fetchExpenses = async () => {
+    setLoading(true);
     try {
-      const raw = localStorage.getItem(STORAGE_KEYS.EXPENSES);
-      const storedExpenses = raw ? JSON.parse(raw) : [];
-      const safeExpenses = Array.isArray(storedExpenses) ? storedExpenses : [];
-      setExpenses(safeExpenses);
-      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(safeExpenses));
+      const response = await expensesApi.getAll(
+        currentPage,
+        rowsPerPage,
+        categoryFilter,
+        searchTerm,
+        startDate,
+        endDate
+      );
+      
+      const expensesList = response.data || [];
+      const formattedExpenses = expensesList.map((exp: any) => ({
+        id: exp.id.toString(),
+        description: exp.description,
+        amount: parseFloat(exp.amount),
+        category: exp.category,
+        date: exp.date,
+        payment_method: exp.payment_method,
+        reference_no: exp.reference_no,
+      }));
+      
+      setExpenses(formattedExpenses);
+      setTotalPages(response.last_page || 1);
     } catch (error) {
       console.error('Error fetching expenses:', error);
+      toast.error('Failed to fetch expenses');
       setExpenses([]);
-      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify([]));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -73,25 +103,40 @@ export const ExpensesPage: React.FC = () => {
   };
     
   
-  const filteredExpenses = useMemo(() => {
-    return expenses.filter(exp => {
-      const matchesSearch = exp.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          exp.reference_no?.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = categoryFilter === 'All' || exp.category === categoryFilter;
-      const matchesStartDate = !startDate || new Date(exp.date) >= new Date(startDate);
-      const matchesEndDate = !endDate || new Date(exp.date) <= new Date(endDate);
-      
-      return matchesSearch && matchesCategory && matchesStartDate && matchesEndDate;
-    });
-  }, [expenses, searchTerm, categoryFilter, startDate, endDate]);
+  const totalSpend = useMemo(() => expenses.reduce((acc, curr) => acc + curr.amount, 0), [expenses]);
 
-  const totalSpend = useMemo(() => filteredExpenses.reduce((acc, curr) => acc + curr.amount, 0), [filteredExpenses]);
+  const onAdd = () => { setEditingExpense(null); setIsExpenseModalOpen(true); };
+  const onEdit = (e: Expense) => { setEditingExpense(e); setIsExpenseModalOpen(true); };
+  
+  const onDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this expense?')) return;
+    
+    try {
+      await expensesApi.delete(id);
+      toast.success('Expense deleted successfully');
+      fetchExpenses();
+    } catch (error) {
+      console.error('Error deleting expense:', error);
+      toast.error('Failed to delete expense');
+    }
+  };
+  
+  const onRefresh = () => fetchExpenses();
+  const onManageCategories = () => setIsCategoryModalOpen(true);
 
-                     const onAdd = () => { setEditingExpense(null); setIsExpenseModalOpen(true); };
-                      const onEdit = (e: Expense) => { setEditingExpense(e); setIsExpenseModalOpen(true); };
-                      const onDelete = (id: string) => setExpenses(prev => prev.filter(e => e.id !== id));
-                      const onRefresh = () => {};
-                      const onManageCategories = () => setIsCategoryModalOpen(true);
+  const handleExpenseSave = async (expenseData: Partial<Expense>) => {
+    try {
+      if (expenseData.id) {
+        await expensesApi.update(expenseData.id, expenseData);
+      } else {
+        await expensesApi.create(expenseData);
+      }
+      fetchExpenses();
+    } catch (error) {
+      console.error('Error saving expense:', error);
+      throw error;
+    }
+  };
 
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
@@ -130,7 +175,7 @@ export const ExpensesPage: React.FC = () => {
            <p className="text-2xl font-black text-red-700 dark:text-red-400">KSH {totalSpend.toLocaleString()}</p>
          </div>
          {['Equipment', 'Utilities', 'Salaries'].map(cat => {
-            const catTotal = filteredExpenses.filter(e => e.category === cat).reduce((acc, curr) => acc + curr.amount, 0);
+            const catTotal = expenses.filter(e => e.category === cat).reduce((acc, curr) => acc + curr.amount, 0);
             return (
               <div key={cat} className="p-6 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-3xl shadow-sm">
                 <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-1">{cat}</p>
@@ -201,7 +246,11 @@ export const ExpensesPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y dark:divide-slate-800">
-              {filteredExpenses.length > 0 ? filteredExpenses.map((exp) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="py-20 text-center text-gray-400">Loading expenses...</td>
+                </tr>
+              ) : expenses.length > 0 ? expenses.map((exp) => (
                 <tr key={exp.id} className="group hover:bg-red-50/30 dark:hover:bg-red-900/10 transition-all">
                   <td className="py-5 px-6">
                     <p className="font-bold text-gray-900 dark:text-white">{exp.description}</p>
@@ -245,18 +294,30 @@ export const ExpensesPage: React.FC = () => {
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={7} className="py-20 text-center text-gray-400 italic">No expenses found matching the selected filters.</td>
+                  <td colSpan={7} className="py-20 text-center text-gray-400 italic">
+                    {searchTerm || categoryFilter !== 'All' || startDate || endDate 
+                      ? 'No expenses found matching the selected filters.'
+                      : 'No expenses recorded yet. Click "Add Expense" to get started.'}
+                  </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+         <TableScrollModal
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          totalPages={totalPages}
+          rowsPerPage={rowsPerPage}
+          setRowsPerPage={setRowsPerPage}
+        />
       </Card>
       <ExpenseModal 
         isOpen={isExpenseModalOpen} 
         onClose={() => setIsExpenseModalOpen(false)} 
-        editingExpense={editingExpense} categories={expenseCategories} 
-        onSave={() => setIsExpenseModalOpen(false)}
+        onSave={handleExpenseSave}
+        editingExpense={editingExpense} 
+        categories={expenseCategories} 
       />
       <CategoryModal 
         isOpen={isCategoryModalOpen} 

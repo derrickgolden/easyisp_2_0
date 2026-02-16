@@ -2,11 +2,12 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../UI';
 import { Expense, ExpenseCategory } from '../../types';
+import { toast } from 'sonner';
 
 interface ExpenseModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (expense: Partial<Expense>) => void;
+  onSave: (expense: Partial<Expense>) => Promise<void>;
   editingExpense: Partial<Expense> | null;
   categories: ExpenseCategory[];
 }
@@ -20,13 +21,14 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState('Bank Transfer');
   const [referenceNo, setReferenceNo] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (editingExpense) {
       setDescription(editingExpense.description || '');
       setAmount(editingExpense.amount?.toString() || '');
       setCategory(editingExpense.category || (categories.length > 0 ? categories[0].name : ''));
-      setDate(editingExpense.date || new Date().toISOString().split('T')[0]);
+      setDate(editingExpense.date ? editingExpense.date.split('T')[0] : new Date().toISOString().split('T')[0]);
       setPaymentMethod(editingExpense.payment_method || 'Bank Transfer');
       setReferenceNo(editingExpense.reference_no || '');
     } else {
@@ -39,17 +41,30 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
     }
   }, [editingExpense, isOpen, categories]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({
-      ...editingExpense,
-      description,
-      amount: parseFloat(amount),
-      category,
-      date,
-      payment_method: paymentMethod,
-      reference_no: referenceNo
-    });
+    setLoading(true);
+
+    try {
+      const payload = {
+        ...editingExpense,
+        description,
+        amount: parseFloat(amount),
+        category,
+        date,
+        payment_method: paymentMethod,
+        reference_no: referenceNo
+      };
+
+      await onSave(payload);
+      toast.success(editingExpense?.id ? 'Expense updated successfully' : 'Expense recorded successfully');
+      onClose();
+    } catch (error) {
+      console.error('Error saving expense:', error);
+      toast.error('Failed to save expense. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -139,8 +154,12 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({
           />
         </div>
 
-        <button type="submit" className="w-full bg-slate-900 dark:bg-white dark:text-slate-900 text-white font-black py-4 rounded-2xl shadow-xl hover:opacity-90 transition-all active:scale-95">
-          {editingExpense?.id ? "Update Audit Record" : "Confirm Expenditure"}
+        <button 
+          type="submit" 
+          disabled={loading}
+          className="w-full bg-slate-900 dark:bg-white dark:text-slate-900 text-white font-black py-4 rounded-2xl shadow-xl hover:opacity-90 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? 'Saving...' : (editingExpense?.id ? "Update Audit Record" : "Confirm Expenditure")}
         </button>
       </form>
     </Modal>
