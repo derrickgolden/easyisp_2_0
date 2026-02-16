@@ -31,7 +31,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
     isp_legal_name: 'EasyTech Network Solutions',
     acronym: '',
     support_hotline: '+254 700 000 000',
-    business_address: 'EasyTech Plaza, 4th Floor, Wing B, Nairobi, Kenya'
+    business_address: 'EasyTech Plaza, 4th Floor, Wing B, Nairobi, Kenya',
+    trial_duration: 30,
+    trial_unit: 'minutes'
   });
 
   // --- PAYMENT GATEWAY ---
@@ -281,6 +283,31 @@ React.useEffect(() => {
                     onChange={e => setGeneralForm({ ...generalForm, support_hotline: e.target.value })}
                     className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold" 
                   />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">
+                    Trial Period
+                  </label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="number" 
+                      min="0"
+                      value={generalForm.trial_duration || ''}
+                      onChange={e => setGeneralForm({ ...generalForm, trial_duration: Number(e.target.value) })}
+                      placeholder="Duration"
+                      className="w-2/3 bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold" 
+                    />
+                    <select 
+                      value={generalForm.trial_unit || 'days'}
+                      onChange={e => setGeneralForm({ ...generalForm, trial_unit: e.target.value })}
+                      className="w-1/3 bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold cursor-pointer"
+                    >
+                      <option value="minutes">Minutes</option>
+                      <option value="hours">Hours</option>
+                      <option value="days">Days</option>
+                    </select>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 ml-1">Default grace period for new connections</p>
                 </div>
                 <div className="md:col-span-2 space-y-2">
                   <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Business Office Address</label>

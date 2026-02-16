@@ -122,6 +122,24 @@ class CustomerController extends Controller
         $radiusPassword = $request->input('radius_password') 
             ?? CustomerRadiusService::generateRadiusPassword();
 
+        // Resolve trial expiry from organization settings (fallback to 30 minutes)
+        $settings = $organization->settings ?? [];
+        $trialSettings = $settings['general'] ?? [];
+        $trialUnit = strtolower($trialSettings['trial_unit'] ?? 'minutes');
+        $trialDuration = (int) ($trialSettings['trial_duration'] ?? 0);
+
+        if ($trialDuration <= 0) {
+            $trialUnit = 'minutes';
+            $trialDuration = 30;
+        }
+
+        $defaultExpiry = match ($trialUnit) {
+            'days', 'day' => now()->addDays($trialDuration),
+            'hours', 'hour' => now()->addHours($trialDuration),
+            'minutes', 'minute', 'mins', 'min' => now()->addMinutes($trialDuration),
+            default => now()->addMinutes(30),
+        };
+
         // Create customer first with a temporary username to get the ID
         $tempUsername = 'temp_' . uniqid();
         $customer = Customer::create(array_merge($request->all(), [
@@ -129,7 +147,7 @@ class CustomerController extends Controller
             'status' => 'active',
             'radius_username' => $tempUsername,
             'radius_password' => $radiusPassword,
-            'expiry_date' => $request->input('expiry_date', now()->addDays(2)),
+            'expiry_date' => $request->input('expiry_date', $defaultExpiry),
         ]));
 
         // Generate final RADIUS username using customer ID and organization acronym
