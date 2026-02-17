@@ -33,7 +33,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
     support_hotline: '+254 700 000 000',
     business_address: 'EasyTech Plaza, 4th Floor, Wing B, Nairobi, Kenya',
     trial_duration: 30,
-    trial_unit: 'minutes'
+    trial_unit: 'minutes',
+    business_logo: ''
   });
 
   // --- PAYMENT GATEWAY ---
@@ -252,6 +253,38 @@ React.useEffect(() => {
           <div className="space-y-6">
             <Card title="Business Identity">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Business Logo</label>
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 flex items-center justify-center overflow-hidden">
+                      {generalForm.business_logo ? (
+                        <img src={generalForm.business_logo} alt="Business Logo" className="w-full h-full object-contain" />
+                      ) : (
+                        <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h18M3 19h18M5 5v14M19 5v14" /></svg>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            setGeneralForm({
+                              ...generalForm,
+                              business_logo: typeof reader.result === 'string' ? reader.result : ''
+                            });
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                        className="block w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1">PNG/JPG recommended. Stored in settings.</p>
+                    </div>
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">ISP Legal Name</label>
                   <input 
@@ -593,6 +626,7 @@ React.useEffect(() => {
             </div>
           </div>
         );
+      
       case 'email-gateway':
         return (
           <div className="space-y-6">

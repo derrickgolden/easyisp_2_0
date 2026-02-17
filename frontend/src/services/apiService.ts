@@ -443,11 +443,24 @@ export const organizationApi = {
 // sms Endpoints
 // SMS Endpoints
 export const smsApi = {
-  send: async (phone: string, message: string) => {
+  send: async (phone: string, message: string, customerId?: number | string) => {
     const response = await axiosInstance.post('/sms/send', {
       phone,
       message,
+      customer_id: customerId,
     });
+    return response.data;
+  },
+
+  sendBulk: async (recipients: Array<{ phone: string; message: string }>) => {
+    const response = await axiosInstance.post('/sms/send-bulk', {
+      recipients,
+    });
+    return response.data;
+  },
+
+  getLogs: async (customerId: number, perPage: number = 5) => {
+    const response = await axiosInstance.get(`/sms/logs?customer_id=${customerId}&per_page=${perPage}`);
     return response.data;
   },
 };
@@ -552,6 +565,44 @@ export const expensesApi = {
     if (endDate) params.push(`end_date=${endDate}`);
     if (params.length > 0) url += `?${params.join('&')}`;
     const response = await axiosInstance.get(url);
+    return response.data;
+  },
+};
+
+// Invoices Endpoints
+export const invoicesApi = {
+  getAll: async (page = 1, perPage = 50, search?: string, status?: string, customerId?: string) => {
+    let url = `/invoices?page=${page}&per_page=${perPage}`;
+    if (search) {
+      url += `&search=${encodeURIComponent(search)}`;
+    }
+    if (status && status !== 'all') {
+      url += `&status=${encodeURIComponent(status)}`;
+    }
+    if (customerId) {
+      url += `&customer_id=${encodeURIComponent(customerId)}`;
+    }
+    const response = await axiosInstance.get(url);
+    return response.data;
+  },
+
+  getById: async (id: string) => {
+    const response = await axiosInstance.get(`/invoices/${id}`);
+    return response.data;
+  },
+
+  create: async (invoiceData: any) => {
+    const response = await axiosInstance.post('/invoices', invoiceData);
+    return response.data;
+  },
+
+  update: async (id: string, invoiceData: any) => {
+    const response = await axiosInstance.put(`/invoices/${id}`, invoiceData);
+    return response.data;
+  },
+
+  delete: async (id: string) => {
+    const response = await axiosInstance.delete(`/invoices/${id}`);
     return response.data;
   },
 };

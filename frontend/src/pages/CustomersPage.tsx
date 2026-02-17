@@ -1,12 +1,13 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Card, Badge } from '../components/UI';
+import { Card, Badge, Modal } from '../components/UI';
 import { Customer, Package, Site } from '../types';
 import { customersApi, packagesApi, sitesApi } from '../services/apiService';
 import { CustomerModal } from '../components/modals/CustomerModal';
 import { STORAGE_KEYS } from '../constants/storage';
 import { useNavigate } from 'react-router-dom';
 import TableScrollModal from '../components/modals/TableScrollModal';
+import BulkSmsModal from '../components/modals/BulkSmsModal';
 
 export const CustomersPage: React.FC = () => {
   const navigate = useNavigate();
@@ -30,6 +31,11 @@ export const CustomersPage: React.FC = () => {
   const [packages, setPackages] = useState<Package[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.PACKAGES) || '[]'));
   const [customers, setCustomers] = useState<Customer[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMERS) || '[]'));
   const [sites, setSites] = useState<Site[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.SITES) || '[]'));
+  const [actionSelectValue, setActionSelectValue] = useState('');
+  const [isBulkSmsOpen, setIsBulkSmsOpen] = useState(false);
+  const [bulkSmsScope, setBulkSmsScope] = useState<'all' | 'filtered' | 'online' | 'expired'>('filtered');
+  const [bulkSmsMessage, setBulkSmsMessage] = useState('');
+  const [bulkSmsIncludeName, setBulkSmsIncludeName] = useState(true);
 
   useEffect(() => {
     fetchSites();
@@ -90,6 +96,14 @@ export const CustomersPage: React.FC = () => {
     };
   }, [customers]);
 
+  const getLocationText = (value: unknown) => {
+    if (typeof value === 'string') return value;
+    if (value && typeof value === 'object' && 'name' in value) {
+      return String((value as { name?: unknown }).name ?? '');
+    }
+    return '';
+  };
+
   const filteredCustomers = useMemo(() => {
     return customers.filter(c => {
       // Basic Search
@@ -105,7 +119,8 @@ export const CustomersPage: React.FC = () => {
       const matchesSite = !siteFilter || c.siteId === siteFilter;
       const matchesStatus = !statusFilter || c.status === statusFilter;
       const matchesPackage = !packageFilter || c.packageId === packageFilter;
-      const matchesLocation = !locationFilter || c.location.toLowerCase().includes(locationFilter.toLowerCase());
+      const locationText = getLocationText(c.location);
+      const matchesLocation = !locationFilter || locationText.toLowerCase().includes(locationFilter.toLowerCase());
       const matchesApartment = !apartmentFilter || c.apartment.toLowerCase().includes(apartmentFilter.toLowerCase());
       const matchesHouseNo = !houseNoFilter || c.houseNo.toLowerCase().includes(houseNoFilter.toLowerCase());
       
@@ -148,6 +163,73 @@ export const CustomersPage: React.FC = () => {
     setEditingCustomer({ connectionType: 'PPPoE', installationFee: 0 }); 
     setIsCustomerModalOpen(true); 
   }
+
+  const handleUploadCustomers = () => {
+    // TODO: Hook up CSV/XLSX upload flow
+  };
+
+  const handleDownloadCustomers = () => {
+    // Prepare CSV data from filtered customers
+    const headers = [
+      'First Name',
+      'Last Name',
+      'Phone',
+      'Email',
+      'Status',
+      'Package',
+      'Expiry Date',
+      'Radius Username',
+      'Radius Password',
+      'Location',
+      'Apartment',
+      'House No',
+      'Connection Type',
+      'Site',
+      'Balance',
+      'Is Online'
+    ];
+
+    const csvRows = [
+      headers.join(','),
+      ...filteredCustomers.map(customer => {
+        const site = sites.find(s => s.id === customer.siteId);
+        return [
+          `"${customer.firstName}"`,
+          `"${customer.lastName}"`,
+          `"${customer.phone}"`,
+          `"${customer.email || ''}"`,
+          `"${customer.status}"`,
+          `"${customer.package?.name || ''}"`,
+          `"${new Date(customer.expiryDate).toISOString().split('T')[0]}"`,
+          `"${customer.radiusUsername}"`,
+          `"${customer.radiusPassword}"`,
+          `"${getLocationText(customer.location)}"`,
+          `"${customer.apartment || ''}"`,
+          `"${customer.houseNo || ''}"`,
+          `"${customer.connectionType || ''}"`,
+          `"${site?.name || ''}"`,
+          `"${customer.balance || 0}"`,
+          `"${customer.isOnline ? 'Yes' : 'No'}"`
+        ].join(',');
+      })
+    ];
+
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `customers_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleBulkSms = () => {
+    setIsBulkSmsOpen(true);
+  };
 
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 pb-20">
@@ -194,31 +276,75 @@ export const CustomersPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-black tracking-tight text-gray-900 dark:text-white">Customer Database</h2>
-          <p className="text-sm text-gray-500">Manage subscribers, connections, and billing status.</p>
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 p-1">
+        {/* Left: Title & Subtitle */}
+        <div className="space-y-1">
+          <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+            Customer Database
+          </h2>
+          <p className="text-sm text-slate-500 font-medium">Manage subscribers, connections, and billing status.</p>
         </div>
-        <div className="flex items-center gap-3">
+
+        {/* Right: Action Group */}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          
+          {/* Filter Button */}
           <button 
             type="button"
             onClick={() => setShowFilters(!showFilters)}
-            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 border ${
+            className={`relative px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 border ${
               showFilters || activeFilterCount > 0 
-              ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-900/20 dark:border-blue-800' 
-              : 'bg-white border-gray-100 dark:bg-slate-900 dark:border-slate-800 text-gray-500 hover:bg-gray-50'
+              ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/20' 
+              : 'bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-800 text-slate-600 hover:border-blue-400 dark:hover:border-blue-500'
             }`}
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
-            Filters {activeFilterCount > 0 && `(${activeFilterCount})`}
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            <span className="hidden sm:inline">Filters</span>
+            {activeFilterCount > 0 && (
+              <span className={`flex items-center justify-center w-5 h-5 text-[10px] rounded-full ${showFilters ? 'bg-white text-blue-600' : 'bg-blue-600 text-white'}`}>
+                {activeFilterCount}
+              </span>
+            )}
           </button>
+
+          {/* Utilities Group (Import/Export/SMS) */}
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl items-center">
+            <button 
+              title="Upload Customers"
+              className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-all"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+            </button>
+            <div className="w-px h-4 bg-slate-300 dark:bg-slate-600 mx-1" />
+            <button 
+              title="Download CSV"
+              onClick={handleDownloadCustomers}
+              className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-all"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+            </button>
+            <div className="w-px h-4 bg-slate-300 dark:bg-slate-600 mx-1" />
+            <button 
+              title="Send Bulk SMS"
+              className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-all"
+              onClick={handleBulkSms}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+            </button>
+          </div>
+
+          {/* Primary Action */}
           <button 
             type="button"
             onClick={onAdd}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2"
+            className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-5 py-2.5 rounded-xl text-sm font-black shadow-lg shadow-blue-500/25 transition-all flex items-center gap-2"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Register Customer
+            <div className="bg-white/20 rounded-lg p-0.5">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+            </div>
+            Register <span className="">Customer</span>
           </button>
         </div>
       </div>
@@ -329,7 +455,7 @@ export const CustomersPage: React.FC = () => {
         </Card>
       )}
 
-      <Card title="Active Subscribers" className="border-none shadow-xl shadow-slate-200/50 dark:shadow-none overflow-hidden">
+      <Card title="Subscribers" className="border-none shadow-xl shadow-slate-200/50 dark:shadow-none overflow-hidden">
         <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
           <div className="relative w-full md:w-96">
             <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
@@ -436,7 +562,7 @@ export const CustomersPage: React.FC = () => {
                       <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">
                         {customer.houseNo && `${customer.houseNo}, `}{customer.apartment}
                         <br  />
-                        <span className="text-gray-400 font-bold uppercase text-[9px] tracking-wider">{customer.location}</span>
+                        <span className="text-gray-400 font-bold uppercase text-[9px] tracking-wider">{getLocationText(customer.location)}</span>
                       </p>
                     </td>
                   </tr>
@@ -466,7 +592,25 @@ export const CustomersPage: React.FC = () => {
         editingCustomer={editingCustomer}
         setEditingCustomer={setEditingCustomer}
         customers={ customers}
-        // onSuccess={onSuccess}
+      />
+
+      <BulkSmsModal
+        isBulkSmsOpen={isBulkSmsOpen}
+        setIsBulkSmsOpen={setIsBulkSmsOpen}
+        filteredCustomers={filteredCustomers}
+        totalCustomers={customers.length}
+        activeFilters={{
+          searchTerm,
+          siteFilter,
+          statusFilter,
+          packageFilter,
+          locationFilter,
+          apartmentFilter,
+          houseNoFilter,
+          connectivityFilter
+        }}
+        packages={packages}
+        sites={sites}
       />
     </div>
   );

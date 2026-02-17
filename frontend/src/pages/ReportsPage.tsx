@@ -86,7 +86,7 @@ export const ReportsPage: React.FC = () => {
   const totalRevenue = filteredData.filteredPayments.reduce((acc, curr) => acc + curr.amount, 0);
   const totalExpenses = filteredData.filteredExpenses.reduce((acc, curr) => acc + curr.amount, 0);
   const netProfit = totalRevenue - totalExpenses;
-console.log(customers);
+
   // Balance-based Metrics
   const customersInArrears = customers.filter(c => c.balance < 0);
   const customersWithSurplus = customers.filter(c => c.balance > 0);

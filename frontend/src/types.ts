@@ -154,6 +154,14 @@ export interface Lead {
   updated_at?: string;
 }
 
+export interface Template {
+  id: string;
+  name: string;
+  content: string;
+  category: 'Billing' | 'SMS' | 'Email' | 'System';
+  isDefault?: boolean;
+}
+
 export interface Ticket {
   id: string;
   customer_id?: string; // Optional for general tickets

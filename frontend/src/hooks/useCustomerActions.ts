@@ -18,40 +18,6 @@ export function useCustomerActions() {
     const [payments, setPayments] = useState<Payment[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.PAYMENTS) || '[]'));
 
     const navigate = useNavigate();
-
-  
-    const handleSendSms = async (customer: Customer) => {
-      if (!smsText.trim()) {
-          alert('Please enter a message');
-          return;
-      }
-  
-      try {
-          setIsSmsModalOpen(false);
-          const originalText = smsText;
-          
-          // Clear text or show loading
-          setSmsText(''); 
-  
-          const response = await smsApi.send(customer.phone, originalText);
-          toast.success(`SMS sent successfully!`);
-          
-      } catch (err: any) {
-          console.error('SMS send error:', err);
-  
-          // 1. Extract the specific error from the Laravel JSON response
-          // This targets the 'error' or 'message' keys you defined in PHP
-          const serverError = err.response?.data?.error || err.response?.data?.message;
-          const fallbackError = err.message || 'Unknown error';
-          
-          // 2. Display the specific reason (e.g., "InvalidPhoneNumber")
-          toast.error(`Failed: ${serverError || fallbackError}`);
-          
-          // 3. Restore the text so the user doesn't lose their draft
-          setSmsText(smsText); 
-          setIsSmsModalOpen(true); // Re-open modal so they can fix the number/text
-      }
-    };
   
     const deleteCustomer = async (customer: Customer) => {
       const hasSubAccounts = customer.subAccounts && customer.subAccounts.length > 0;
@@ -209,7 +175,7 @@ export function useCustomerActions() {
   return {
     state: { smsText, isSmsModalOpen, isCustomerModalOpen, editingCustomer, isDepositModalOpen, 
       isPackageModalOpen, isReconcileModalOpen, payments },
-    actions: { setSmsText, setIsSmsModalOpen, handleSendSms, deleteCustomer, handleEdit, 
+    actions: { setSmsText, setIsSmsModalOpen, deleteCustomer, handleEdit, 
       handlePauseService, handleAddChild, handleStkPush, setIsCustomerModalOpen, setEditingCustomer, 
       setIsDepositModalOpen, setIsPackageModalOpen, setIsReconcileModalOpen, setPayments },
   };

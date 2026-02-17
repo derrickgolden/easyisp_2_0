@@ -1,17 +1,93 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Badge, Modal } from '../components/UI';
-// Fixed: Removed incorrect import of ICONS from ../types as it is not exported there and not used in this file.
 import { Invoice } from '../types';
-import { STORAGE_KEYS } from '../constants/storage';
 import { InvoiceModal } from '../components/modals/InvoiceModal';
+import { invoicesApi, organizationApi } from '../services/apiService';
+import { toast } from 'sonner';
 
 export const InvoicesPage: React.FC = () => {
-  const [invoices, setInvoices] = useState<Invoice[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.INVOICES) || '[]'));
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPrintInv, setSelectedPrintInv] = useState<Invoice | null>(null);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Partial<Invoice> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [orgLogo, setOrgLogo] = useState('');
+  const [orgInitials, setOrgInitials] = useState('ET');
+  const [orgName, setOrgName] = useState('');
+  const [orgPaybill, setOrgPaybill] = useState('');
+  const [orgSupportHotline, setOrgSupportHotline] = useState('');
+  const [orgBusinessAddress, setOrgBusinessAddress] = useState('');
+
+  useEffect(() => {
+    fetchInvoices();
+    fetchOrganizationBranding();
+  }, []);
+
+  useEffect(() => {
+    if (!isInvoiceModalOpen) {
+      fetchInvoices();
+    }
+  }, [isInvoiceModalOpen]);
+
+  const fetchInvoices = async () => {
+    setLoading(true);
+    try {
+      const response = await invoicesApi.getAll();
+      const invoicesList = response.data || [];
+      const formatted = invoicesList.map((inv: any) => ({
+        id: inv.id?.toString() ?? '',
+        invoice_number: inv.invoice_number,
+        customer_id: inv.customer_id?.toString() ?? '',
+        customer_name: inv.customer_name,
+        items: inv.items || [],
+        subtotal: Number(inv.subtotal) || 0,
+        tax: Number(inv.tax) || 0,
+        total: Number(inv.total) || 0,
+        issue_date: inv.issue_date,
+        due_date: inv.due_date,
+        status: inv.status,
+      }));
+      setInvoices(formatted);
+    } catch (error) {
+      console.error('Error fetching invoices:', error);
+      toast.error('Failed to fetch invoices');
+      setInvoices([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchOrganizationBranding = async () => {
+    try {
+      const response = await organizationApi.get();
+      const settings = response?.settings || {};
+      const general = settings.general || {};
+      const paymentGateway = settings['payment-gateway'] || {};
+      const logo = general.business_logo || '';
+      const acronym = response?.acronym || general.acronym || '';
+      const legalName = general.isp_legal_name || response?.name || '';
+
+      const initialsSource = acronym || legalName;
+      const initials = initialsSource
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((word: string) => word[0])
+        .join('')
+        .toUpperCase() || 'ET';
+
+      setOrgLogo(logo);
+      setOrgInitials(initials);
+      setOrgName(legalName);
+      setOrgPaybill(paymentGateway.paybill || paymentGateway.paybill_short_code || '');
+      setOrgSupportHotline(general.support_hotline || '');
+      setOrgBusinessAddress(general.business_address || '');
+    } catch (error) {
+      console.error('Error fetching organization branding:', error);
+    }
+  };
   
   const filteredInvoices = invoices.filter(inv => 
     inv.invoice_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -40,12 +116,20 @@ export const InvoicesPage: React.FC = () => {
     setIsInvoiceModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setInvoices(prev => prev.filter(i => i.id !== id));
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this invoice?')) return;
+    try {
+      await invoicesApi.delete(id);
+      toast.success('Invoice deleted successfully');
+      fetchInvoices();
+    } catch (error) {
+      console.error('Error deleting invoice:', error);
+      toast.error('Failed to delete invoice');
+    }
   };
 
   const handleRefresh = () => {
-    // Implement refresh logic if needed
+    fetchInvoices();
   };
 
   return (
@@ -55,9 +139,21 @@ export const InvoicesPage: React.FC = () => {
         <div className="fixed inset-0 z-[100] bg-white text-black p-12 print:block hidden" id="printable-invoice">
           <div className="flex justify-between items-start border-b-2 border-slate-900 pb-8 mb-8">
             <div>
-              <div className="w-12 h-12 bg-slate-900 text-white rounded-lg flex items-center justify-center font-black text-xl mb-4">ET</div>
-              <h1 className="text-3xl font-black uppercase tracking-tighter">Easy Tech Network Solutions</h1>
+              <div className="w-12 h-12 bg-slate-900 text-white rounded-lg flex items-center justify-center font-black text-xl mb-4 overflow-hidden">
+                {orgLogo ? (
+                  <img src={orgLogo} alt="Company Logo" className="w-full h-full object-contain" />
+                ) : (
+                  orgInitials
+                )}
+              </div>
+              <h1 className="text-3xl font-black uppercase tracking-tighter">{orgName || 'Company Name'}</h1>
               <p className="text-sm font-medium text-slate-500">Official Service Invoice</p>
+              {(orgBusinessAddress || orgSupportHotline) && (
+                <div className="mt-2 text-xs text-slate-500 space-y-1">
+                  {orgBusinessAddress && <p>{orgBusinessAddress}</p>}
+                  {orgSupportHotline && <p>Support: {orgSupportHotline}</p>}
+                </div>
+              )}
             </div>
             <div className="text-right">
               <h2 className="text-5xl font-black text-slate-900 mb-2">INVOICE</h2>
@@ -73,8 +169,8 @@ export const InvoicesPage: React.FC = () => {
             </div>
             <div className="text-right">
               <div className="space-y-1">
-                <p className="text-slate-500 text-sm">Issue Date: <span className="font-bold text-slate-900">{selectedPrintInv.issue_date}</span></p>
-                <p className="text-slate-500 text-sm">Due Date: <span className="font-bold text-slate-900">{selectedPrintInv.due_date}</span></p>
+                <p className="text-slate-500 text-sm">Issue Date: <span className="font-bold text-slate-900">{new Date(selectedPrintInv.issue_date).toLocaleDateString()}</span></p>
+                <p className="text-slate-500 text-sm">Due Date: <span className="font-bold text-slate-900">{new Date(selectedPrintInv.due_date).toLocaleDateString()}</span></p>
                 <p className="text-slate-500 text-sm">Status: <span className="font-bold text-slate-900 uppercase">{selectedPrintInv.status}</span></p>
               </div>
             </div>
@@ -116,7 +212,7 @@ export const InvoicesPage: React.FC = () => {
 
           <div className="mt-20 pt-8 border-t border-slate-200 text-center">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Payment Methods</p>
-            <p className="text-sm font-medium">Pay via M-PESA Paybill: <span className="font-black">174379</span> | Account: <span className="font-black">{selectedPrintInv.customer_id}</span></p>
+            <p className="text-sm font-medium">Pay via M-PESA Paybill: <span className="font-black">{orgPaybill || 'N/A'}</span> | Account: <span className="font-black">{selectedPrintInv.customer_id}</span></p>
             <p className="text-[10px] text-slate-400 mt-6 italic">Thank you for your business. Terms apply.</p>
           </div>
         </div>
@@ -206,7 +302,7 @@ export const InvoicesPage: React.FC = () => {
                     <Badge variant={inv.status}>{inv.status.toUpperCase()}</Badge>
                   </td>
                   <td className="py-5 px-6 text-right">
-                    <div className="flex justify-end items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    <div className="flex justify-end items-center gap-1 transition-all">
                       <button 
                          onClick={() => handleEdit(inv)}
                          className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
@@ -240,7 +336,6 @@ export const InvoicesPage: React.FC = () => {
         isOpen={isInvoiceModalOpen} 
         onClose={() => setIsInvoiceModalOpen(false)} 
         editingInvoice={editingInvoice} 
-        onSave={() => setIsInvoiceModalOpen(false)} 
       />
     </div>
   );

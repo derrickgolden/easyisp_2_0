@@ -3,14 +3,7 @@ import { Badge, Card, Modal } from "../../UI";
 import { organizationApi } from "@/src/services/apiService";
 import { toast } from "sonner";
 import { confirmAction } from "../../../utils/alerts";
-
-interface Template {
-  id: string;
-  name: string;
-  content: string;
-  category: 'Billing' | 'SMS' | 'Email' | 'System';
-  isDefault?: boolean;
-}
+import { Template } from "@/src/types";
 
 const NotesTemplate = () => {
     const [templates, setTemplates] = React.useState<Template[]>([]);
@@ -183,10 +176,10 @@ const NotesTemplate = () => {
                 <div className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-900/20 mb-2">
                     <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">Placeholder Guide</p>
                     <p className="text-[9px] text-blue-500 leading-tight">
-                    Use variables like <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{name}"}</code>, 
-                    <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{expiry}"}</code>, 
-                    <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{price}"}</code>, and 
-                    <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{id}"}</code> for dynamic insertion.
+                    Use variables like <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{FirstName}"}</code>, 
+                    <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{Expiry}"}</code>, 
+                    <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{PaidAmount}"}</code>, and 
+                    <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{PackageName}"}</code> for dynamic insertion. Click tags below to insert them.
                     </p>
                 </div>
 
@@ -227,6 +220,36 @@ const NotesTemplate = () => {
                     </Badge>
                 </div>
                 </div>
+
+                {/* 2. Message Template Variables */}
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Personalization Tags (Click to add)</label>
+                    <div className="flex flex-wrap gap-1.5">
+                        {[
+                        { tag: '{FirstName}', label: 'First Name' },
+                        { tag: '{LastName}', label: 'Last Name' },
+                        { tag: '{Isp}', label: 'ISP Name' },
+                        { tag: '{Expiry}', label: 'Expiry Date' },
+                        { tag: '{PackageName}', label: 'Package' },
+                        { tag: '{PaidAmount}', label: 'Paid Amt' },
+                        { tag: '{PackageAmount}', label: 'Price' },
+                        { tag: '{PhoneNumber}', label: 'Phone' },
+                        ].map(item => (
+                        <button
+                            key={item.tag}
+                            type="button"
+                            onClick={() => setEditingTemplate({
+                                ...editingTemplate, 
+                                content: (editingTemplate?.content || '') + ' ' + item.tag
+                            })}
+                            className="text-[10px] font-bold px-2 py-1 bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 rounded-md hover:bg-blue-600 hover:text-white transition-colors"
+                        >
+                            {item.label}
+                        </button>
+                        ))}
+                    </div>
+                </div>
+
                 <div>
                     <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Content Body</label>
                     <textarea 
@@ -235,7 +258,7 @@ const NotesTemplate = () => {
                     value={editingTemplate?.content || ''} 
                     onChange={e => setEditingTemplate({...editingTemplate, content: e.target.value})}
                     className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-4 mt-1 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white text-sm font-mono leading-relaxed" 
-                    placeholder="Dear {name}, thank you for your payment of KSH {price}..."
+                    placeholder="Dear {FirstName}, thank you for your payment of KSH {PaidAmount}..."
                     />
                 </div>
 

@@ -12,6 +12,8 @@ import { ChangeDateModal } from '../components/modals/ChangeDateModal';
 import { ChangePackageModal } from '../components/modals/ChangePackageModal';
 import { ReconcileMpesaModal } from '../components/modals/ReconcileMpesaModal';
 import PaymentHistoryCard from '../components/cards/customerDetailsCards.tsx/PaymentHistoryCard';
+import SmsModal from '../components/modals/SmsModal';
+import SmsLogsCard from '../components/cards/customerDetailsCards.tsx/SmsLogsCard';
 
 interface CustomerDetailPageProps {}
 
@@ -29,7 +31,7 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
   const lastFetchKeyRef = React.useRef<string | null>(null);
 
   const { state, actions } = useCustomerActions();
-
+console.log('rendering customer detail page with customer:');
   
   const customerPayments = useMemo(() => {
     if (!customer) return [];
@@ -43,13 +45,26 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
     .filter(p => p.status === 'completed')
     .reduce((sum, p) => sum + p.amount, 0), [customerPayments]);
 
-  const daysLeft = useMemo(() => {
-    if (!customer) return 0;
+  const timeRemaining = useMemo(() => {
+    if (!customer) return { value: 0, unit: 'Days' };
+    
     const today = new Date();
     const expiry = new Date(customer.expiryDate);
-    const diffTime = expiry.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays > 0 ? diffDays : 0;
+    const diffMs = expiry.getTime() - today.getTime();
+
+    if (diffMs <= 0) return { value: 0, unit: 'Days' };
+
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMinutes < 60) {
+      return { value: diffMinutes, unit: 'Minutes' };
+    } else if (diffHours < 24) {
+      return { value: diffHours, unit: 'Hours' };
+    } else {
+      return { value: diffDays, unit: 'Days' };
+    }
   }, [customer?.expiryDate]);
 
   const isParentActive = useMemo(() => parent ? parent.status === 'active' : true, [parent?.status]);
@@ -308,9 +323,17 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
                       <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Expiry Date</span>
                       <span className="text-[10px] font-bold text-gray-500">{new Date(customer.expiryDate).toLocaleString()}</span>
                     </div>
-                    <p className={`text-xl font-black ${effectivelyActive ? (daysLeft < 5 ? 'text-red-500 animate-pulse' : 'text-emerald-500') : 'text-slate-400'}`}>
-                      {effectivelyActive ? `${daysLeft} Days Remaining` : 'Service Disconnected'}
-                    </p>
+                    <p className={`text-xl font-black ${
+                    effectivelyActive 
+                      ? (timeRemaining.unit !== 'Days' || timeRemaining.value < 5 
+                          ? 'text-red-500 animate-pulse' 
+                          : 'text-emerald-500') 
+                      : 'text-slate-400'
+                  }`}>
+                    {effectivelyActive 
+                      ? `${timeRemaining.value} ${timeRemaining.unit} Remaining` 
+                      : 'Service Disconnected'}
+                  </p>
                  </div>
 
                  <div className="grid grid-cols-1 gap-2 pt-2">
@@ -495,6 +518,9 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
               </div>
            </Card>
 
+           {/* SMS LOGS CARD */}
+           {customer && <SmsLogsCard customerId={customer.id} />}
+
            {/* PAYMENT HISTORY LEDGER - AT BOTTOM */}
           <div className="lg:hidden">
             <PaymentHistoryCard
@@ -505,46 +531,7 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
       </div>
 
       {/* SMS MODAL */}
-      <Modal isOpen={state.isSmsModalOpen} onClose={() => actions.setIsSmsModalOpen(false)} title={`Compose Transmission to ${customer.firstName}`}>
-         <div className="space-y-4">
-            <div className="p-4 bg-emerald-50 dark:bg-emerald-900/10 rounded-2xl border border-emerald-100 dark:border-emerald-800 flex items-center gap-3">
-               <div className="p-2 bg-emerald-600 rounded-lg text-white">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-               </div>
-               <div>
-                  <p className="text-[10px] font-black uppercase text-emerald-600 tracking-widest leading-none mb-1">Destination Phone</p>
-                  <p className="text-sm font-bold text-gray-900 dark:text-white">{customer.phone}</p>
-               </div>
-            </div>
-            
-            <div>
-               <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1 block mb-2">Message Body</label>
-               <textarea 
-                  value={state.smsText}
-                  onChange={e => actions.setSmsText(e.target.value)}
-                  rows={4}
-                  placeholder="Enter SMS content..."
-                  className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-2xl p-4 text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
-               />
-               <p className="text-[10px] text-right text-gray-400 font-bold mt-1 uppercase tracking-tighter">{state.smsText.length} Characters</p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 pt-2">
-               <button 
-                  onClick={() => actions.setIsSmsModalOpen(false)}
-                  className="py-3 bg-gray-100 dark:bg-slate-800 text-gray-500 text-[10px] font-black uppercase rounded-xl"
-               >
-                  Discard
-               </button>
-               <button 
-                  onClick={() => actions.handleSendSms(customer) }
-                  className="py-3 bg-emerald-600 text-white text-[10px] font-black uppercase rounded-xl shadow-lg shadow-emerald-500/20 active:scale-95"
-               >
-                  Transmit SMS
-               </button>
-            </div>
-         </div>
-      </Modal>
+      <SmsModal state={state} actions={actions} customer={customer} />
 
       <CustomerModal 
         isOpen={state.isCustomerModalOpen}

@@ -3,35 +3,48 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../UI';
 import { Invoice, Customer, InvoiceItem } from '../../types';
 import { STORAGE_KEYS } from '@/src/constants/storage';
-import { customersApi } from '@/src/services/apiService';
+import { customersApi, invoicesApi } from '@/src/services/apiService';
+import { toast } from 'sonner';
 
 interface InvoiceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (invoice: Partial<Invoice>) => void;
   editingInvoice: Partial<Invoice> | null;
 }
 
 export const InvoiceModal: React.FC<InvoiceModalProps> = ({
-  isOpen, onClose, onSave,  editingInvoice
+  isOpen, onClose, editingInvoice
 }) => {
   const [customerId, setCustomerId] = useState('');
   const [items, setItems] = useState<InvoiceItem[]>([{ description: '', amount: 0 }]);
   const [dueDate, setDueDate] = useState('');
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
+  const [includeTax, setIncludeTax] = useState(false);
+  const [status, setStatus] = useState<Invoice['status']>('unpaid');
   const [customers, setCustomers] = useState<Customer[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMERS) || '[]'));
+
+  const normalizeDate = (value?: string) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toISOString().split('T')[0];
+  };
 
   useEffect(() => {
     if (editingInvoice) {
       setCustomerId(editingInvoice.customer_id || '');
       setItems(editingInvoice.items || [{ description: '', amount: 0 }]);
-      setDueDate(editingInvoice.due_date || '');
-      setIssueDate(editingInvoice.issue_date || new Date().toISOString().split('T')[0]);
+      setDueDate(normalizeDate(editingInvoice.due_date));
+      setIssueDate(normalizeDate(editingInvoice.issue_date) || new Date().toISOString().split('T')[0]);
+      setIncludeTax((editingInvoice.tax ?? 0) > 0);
+      setStatus((editingInvoice.status as Invoice['status']) || 'unpaid');
     } else {
       setCustomerId('');
       setItems([{ description: 'Internet Service Fee', amount: 0 }]);
       setDueDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
       setIssueDate(new Date().toISOString().split('T')[0]);
+      setIncludeTax(false);
+      setStatus('unpaid');
     }
   }, [editingInvoice, isOpen]);
 
@@ -69,26 +82,45 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
   };
 
   const subtotal = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-  const tax = subtotal * 0.16; // 16% VAT Example
+  const tax = includeTax ? subtotal * 0.16 : 0; // 16% VAT Example
   const total = subtotal + tax;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const customer = customers.find(c => c.id === customerId);
     if (!customer) return;
 
-    onSave({
+    const normalizedItems = items.map(item => ({
+      description: item.description,
+      amount: Number(item.amount) || 0
+    }));
+
+    const payload = {
       ...editingInvoice,
       customer_id: customerId,
       customer_name: `${customer.firstName} ${customer.lastName}`,
-      items,
+      items: normalizedItems,
       subtotal,
       tax,
       total,
       issue_date: issueDate,
       due_date: dueDate,
-      status: editingInvoice?.status || 'unpaid'
-    });
+      status
+    };
+
+    try {
+      if (editingInvoice?.id) {
+        await invoicesApi.update(editingInvoice.id, payload);
+        toast.success('Invoice updated successfully');
+      } else {
+        await invoicesApi.create(payload);
+        toast.success('Invoice created successfully');
+      }
+      onClose();
+    } catch (error) {
+      console.error('Error saving invoice:', error);
+      toast.error('Failed to save invoice');
+    }
   };
 
   return (
@@ -124,6 +156,34 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
               className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold"
             />
           </div>
+          <div>
+            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Status</label>
+            <select
+              value={status}
+              onChange={e => setStatus(e.target.value as Invoice['status'])}
+              className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold"
+            >
+              <option value="unpaid">Unpaid</option>
+              <option value="paid">Paid</option>
+              <option value="overdue">Overdue</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
+          <div>
+            <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Tax Options</p>
+            <p className="text-xs text-gray-500">Include VAT (16%) on this invoice</p>
+          </div>
+          <label className="inline-flex items-center gap-2 text-xs font-bold text-gray-700 dark:text-gray-200">
+            <input
+              type="checkbox"
+              checked={includeTax}
+              onChange={e => setIncludeTax(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            Include Tax
+          </label>
         </div>
 
         <div className="space-y-3">
@@ -179,7 +239,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
             <span>KSH {subtotal.toLocaleString()}</span>
           </div>
           <div className="flex justify-between items-center text-xs opacity-60 font-bold uppercase tracking-widest border-b border-white/10 pb-4">
-            <span>VAT (16%)</span>
+            <span>{includeTax ? 'VAT (16%)' : 'Tax (Excluded)'}</span>
             <span>KSH {tax.toLocaleString()}</span>
           </div>
           <div className="flex justify-between items-center">

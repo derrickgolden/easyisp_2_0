@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\PayheroPaymentController;
 use App\Http\Controllers\Api\TransactionController;
 use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\ExpenseController;
+use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\RadiusController;
 use App\Http\Controllers\Api\SmsController;
@@ -118,6 +119,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Expense management
     Route::get('/expenses/stats', [ExpenseController::class, 'stats']);
     Route::apiResource('/expenses', ExpenseController::class);
+
+    // Invoice management
+    Route::apiResource('/invoices', InvoiceController::class);
     
     // RADIUS management routes
     Route::get('/radius/wifi-access/{username}', [RadiusController::class, 'getWifiAccess']);
@@ -132,7 +136,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/radius/sync-all-customers', [RadiusController::class, 'syncAllCustomers']);
     Route::get('/radius/customer-status/{customerId}', [RadiusController::class, 'getCustomerRadiusStatus']);
     
-    // SMS sending route
+    // SMS sending routes
     Route::post('/sms/send', [SmsController::class, 'send']);
+    Route::post('/sms/send-bulk', [SmsController::class, 'sendBulk']);
+    Route::get('/sms/logs', [SmsController::class, 'getLogs']);
 
 });
