@@ -29,6 +29,7 @@ class DatabaseSeeder extends Seeder
                 'subscription_tier' => 'pro',
                 'status' => 'active',
                 'settings' => ['theme' => 'dark', 'language' => 'en'],
+                'acronym' => 'ETC',
             ]
         );
 
