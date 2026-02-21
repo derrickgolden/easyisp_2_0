@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Easy Tech ISP Management</title>
+    <link rel="icon" type="image/svg+xml" href="/EasyTech.svg">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        // Global configuration for Tailwind Play CDN
+        window.tailwind.config = {
+          darkMode: 'class',
+          theme: {
+            extend: {
+              colors: {
+                slate: {
+                  950: '#020617',
+                }
+              }
+            }
+          }
+        };
+
+        // Immediate theme application to prevent Flash of Unstyled Content (FOUC)
+        (function() {
+          try {
+            const theme = localStorage.getItem('easy-tech-theme') || 
+                          (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            if (theme === 'dark') {
+              document.documentElement.classList.add('dark');
+            } else {
+              document.documentElement.classList.remove('dark');
+            }
+          } catch (e) {
+            console.error('Theme initialization failed', e);
+          }
+        })();
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        /* Smooth transition for theme switching */
+        .transition-theme {
+            transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+        }
+    </style>
+
+  <link rel="stylesheet" href="/index.css">
+    <script type="importmap">
+    {
+      "imports": {
+        "react/": "https://esm.sh/react@^19.2.3/",
+        "react": "https://esm.sh/react@^19.2.3",
+        "@google/genai": "https://esm.sh/@google/genai@^1.37.0",
+        "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+      }
+    }
+    </script>
+    <script type="module" crossorigin src="/assets/index-D2LvdB8-.js"></script>
+  </head>
+  <body class="bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-gray-100 transition-theme overflow-hidden">
+      <div id="root"></div>
+  </body>
+</html>
+
