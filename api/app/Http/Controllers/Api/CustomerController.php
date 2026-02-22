@@ -11,6 +11,7 @@ use App\Http\Resources\CustomerResource;
 use App\Services\SubscriptionService;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -122,6 +123,9 @@ class CustomerController extends Controller
         $radiusPassword = $request->input('radius_password') 
             ?? CustomerRadiusService::generateRadiusPassword();
 
+        // Use radius password as account password if none provided
+        $accountPassword = $request->input('password') ?? $radiusPassword;
+
         // Resolve trial expiry from organization settings (fallback to 30 minutes)
         $settings = $organization->settings ?? [];
         $trialSettings = $settings['general'] ?? [];
@@ -148,6 +152,7 @@ class CustomerController extends Controller
             'radius_username' => $tempUsername,
             'radius_password' => $radiusPassword,
             'expiry_date' => $request->input('expiry_date', $defaultExpiry),
+            'password' => Hash::make($accountPassword),
         ]));
 
         // Generate final RADIUS username using customer ID and organization acronym

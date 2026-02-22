@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Organization;
+use App\Models\SystemAdmin;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -85,7 +86,7 @@ class AuthController extends Controller
 
         $user->update(['last_login' => now()]);
         $user->load('role');
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $token = $user->createToken('admin-token', ['access-admin'])->plainTextToken;
 
         return response()->json([
             'message' => 'Login successful',
@@ -95,6 +96,66 @@ class AuthController extends Controller
                 'name' => $user->role->name,
                 'permissions' => $user->role->permissions ?? [],
             ] : null,
+            'token' => $token,
+        ], 200);
+    }
+
+    public function loginSystemAdmin(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|string|email',
+            'password' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $admin = SystemAdmin::where('email', $request->email)->first();
+
+        if (!$admin || !Hash::check($request->password, $admin->password)) {
+            throw ValidationException::withMessages([
+                'email' => ['The provided credentials are incorrect.'],
+            ]);
+        }
+
+        $token = $admin->createToken('sys-token', ['access-system'])->plainTextToken;
+
+        return response()->json([
+            'message' => 'Login successful',
+            'user' => $admin,
+            'token' => $token,
+        ], 200);
+    }
+
+    public function loginCustomer(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'identifier' => 'required|string',
+            'password' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $identifier = $request->input('identifier');
+        $customer = \App\Models\Customer::where('email', $identifier)
+            ->orWhere('phone', $identifier)
+            ->orWhere('radius_username', $identifier)
+            ->first();
+
+        if (!$customer || !Hash::check($request->password, $customer->password)) {
+            throw ValidationException::withMessages([
+                'identifier' => ['The provided credentials are incorrect.'],
+            ]);
+        }
+
+        $token = $customer->createToken('customer-token', ['access-portal'])->plainTextToken;
+
+        return response()->json([
+            'message' => 'Login successful',
+            'customer' => $customer,
             'token' => $token,
         ], 200);
     }

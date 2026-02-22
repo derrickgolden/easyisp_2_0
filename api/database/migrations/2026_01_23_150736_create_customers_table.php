@@ -35,6 +35,8 @@ return new class extends Migration
             $table->string('radius_password');
             $table->string('ip_address')->nullable();
             $table->string('mac_address')->nullable();
+            $table->string('password');
+            $table->rememberToken();
             $table->timestamps();
 
             // Composite Unique Constraints

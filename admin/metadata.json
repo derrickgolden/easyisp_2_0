@@ -1,0 +1,5 @@
+{
+  "name": "Easy Tech ISP Admin",
+  "description": "Administrative dashboard for managing organizations, sites, and customers in the Easy Tech ISP billing system.",
+  "requestFramePermissions": []
+}

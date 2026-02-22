@@ -12,8 +12,24 @@ class SiteController extends Controller
 {
     public function index(Request $request)
     {
-        $sites = Site::where('organization_id', $request->user()->organization_id)->paginate(15);
-        return SiteResource::collection($sites);
+        $user = $request->user();
+
+        if ($user->is_super_admin) {
+            $query = Site::with('organization:id,name');
+            if ($request->filled('organization_id')) {
+                $query->where('organization_id', $request->organization_id);
+            }
+            return SiteResource::collection($query->paginate(15));
+        }
+
+        if ($user->organization) {
+            $sites = Site::where('organization_id', $user->organization_id)
+                ->with('organization:id,name')
+                ->paginate(15);
+            return SiteResource::collection($sites);
+        }
+
+        return response()->json(['message' => 'Organization context required'], 403);
     }
 
     public function store(Request $request)

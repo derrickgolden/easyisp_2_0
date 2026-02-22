@@ -40,6 +40,8 @@ Route::get('/health', function () {
 // Public auth routes
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/system/auth/login', [AuthController::class, 'loginSystemAdmin']);
+Route::post('/auth/customer/login', [AuthController::class, 'loginCustomer']);
 
 // Public RADIUS routes (for WiFi authentication)
 Route::post('/radius/authenticate', [RadiusController::class, 'authenticate']);
@@ -51,8 +53,21 @@ Route::post('/payments/c2b/validation', [PaymentController::class, 'c2bValidatio
 Route::post('/payments/c2b/confirmation', [PaymentController::class, 'c2bConfirmation']);
 Route::post('/payments/payhero/stk/callback', [PayheroPaymentController::class, 'stkCallback']);
 
-// Protected routes
-Route::middleware('auth:sanctum')->group(function () {
+// system-admin-only routes
+Route::middleware(['auth:sanctum', 'abilities:access-system'])
+    ->prefix('system')->group(function () {
+        Route::get('/organizations', [OrganizationController::class, 'listAll']);
+        Route::post('/organizations', [OrganizationController::class, 'store']);
+        Route::get('/organizations/{id}', [OrganizationController::class, 'show']);
+        Route::put('/organizations/{id}', [OrganizationController::class, 'updateById']);
+        Route::delete('/organizations/{id}', [OrganizationController::class, 'destroy']);
+
+        // User management
+        Route::apiResource('/users', UserController::class);
+});
+
+// Admin routes
+Route::middleware(['auth:sanctum', 'ability:access-admin'])->group(function () {
     // Auth routes
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
@@ -65,6 +80,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/organization', [OrganizationController::class, 'index']);
     Route::put('/organization', [OrganizationController::class, 'update']);
     Route::get('/organization/{id}', [OrganizationController::class, 'show']);
+    
     
     // User management
     Route::apiResource('/users', UserController::class);
@@ -141,4 +157,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/sms/send-bulk', [SmsController::class, 'sendBulk']);
     Route::get('/sms/logs', [SmsController::class, 'getLogs']);
 
+});
+
+// Customer routes
+Route::middleware(['auth:sanctum', 'ability:access-portal'])->group(function () {
+    Route::get('/my-balance', [CustomerController::class, 'balance']);
 });

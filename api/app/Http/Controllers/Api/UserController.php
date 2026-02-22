@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\SystemAdmin;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -12,8 +13,30 @@ class UserController extends Controller
 {
     public function index(Request $request)
     {
-        $users = $request->user()->organization->users()->paginate(15);
-        return response()->json($users);
+        $user = $request->user();
+
+        if ($user instanceof SystemAdmin) {
+            $query = User::query();
+            if ($request->filled('organization_id')) {
+                $query->where('organization_id', $request->organization_id);
+            }
+            return response()->json($query->paginate(15));
+        }
+
+        if ($user->organization) {
+            $users = $user->organization->users()->paginate(15);
+            return response()->json($users);
+        }
+
+        if ($user->is_super_admin) {
+            $query = User::query();
+            if ($request->filled('organization_id')) {
+                $query->where('organization_id', $request->organization_id);
+            }
+            return response()->json($query->paginate(15));
+        }
+
+        return response()->json(['message' => 'Organization context required'], 403);
     }
 
     public function store(Request $request)
@@ -25,21 +48,36 @@ class UserController extends Controller
             'password' => 'required|string|min:6',
             'role_id' => 'required|exists:roles,id',
             'parent_id' => 'nullable|exists:users,id',
+            'is_super_admin' => 'sometimes|boolean',
             'status' => 'sometimes|in:Active,Inactive',
+            'organization_id' => 'sometimes|nullable|exists:organizations,id',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        $requestUser = $request->user();
+        $organizationId = $requestUser instanceof SystemAdmin
+            ? $request->organization_id
+            : $requestUser->organization_id;
+        if (!$organizationId && $request->filled('organization_id')) {
+            $organizationId = $request->organization_id;
+        }
+
+        if (!$organizationId) {
+            return response()->json(['message' => 'Organization is required'], 422);
+        }
+
         $user = User::create([
-            'organization_id' => $request->user()->organization_id,
+            'organization_id' => $organizationId,
             'name' => $request->name,
             'email' => $request->email,
             'phone' => $request->phone,
             'password' => Hash::make($request->password),
             'role_id' => $request->role_id,
             'parent_id' => $request->parent_id,
+            'is_super_admin' => $request->boolean('is_super_admin', false),
             'status' => $request->status ?? 'Active',
         ]);
 
@@ -70,6 +108,7 @@ class UserController extends Controller
             'phone' => 'nullable|string',
             'password' => 'sometimes|string|min:6',
             'role_id' => 'sometimes|exists:roles,id',
+            'is_super_admin' => 'sometimes|boolean',
             'status' => 'sometimes|in:Active,Inactive',
         ]);
 
