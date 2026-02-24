@@ -17,6 +17,8 @@ return new class extends Migration
             $table->string('name');
             $table->json('permissions'); // Array of permission strings
             $table->timestamps();
+
+            $table->index(['organization_id', 'name']);
         });
     }
 

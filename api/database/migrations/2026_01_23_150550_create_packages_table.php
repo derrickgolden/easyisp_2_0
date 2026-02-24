@@ -38,6 +38,8 @@ return new class extends Migration
             $table->string('min_limit_down')->nullable(); // CIR Download
             
             $table->timestamps();
+
+            $table->index(['organization_id', 'name']);
         });
     }
 

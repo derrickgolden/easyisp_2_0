@@ -19,6 +19,8 @@ return new class extends Migration
             $table->string('ip_address');
             $table->string('radius_secret')->nullable();
             $table->integer('radius_coa_port')->default(3799);
+            $table->boolean('is_online')->default(false);
+            $table->timestamp('last_seen')->nullable();
             $table->boolean('notify_on_down')->default(true);
             $table->string('description')->nullable();
             $table->timestamps();

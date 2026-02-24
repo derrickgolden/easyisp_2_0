@@ -22,6 +22,7 @@ return new class extends Migration
 
             $table->index(['organization_id', 'date']);
             $table->index(['organization_id', 'category']);
+            $table->index('reference_no');
         });
     }
 

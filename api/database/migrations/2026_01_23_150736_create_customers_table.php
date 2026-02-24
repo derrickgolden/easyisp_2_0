@@ -27,8 +27,10 @@ return new class extends Migration
             $table->enum('connection_type', ['PPPoE', 'Static IP', 'DHCP'])->default('PPPoE');
             $table->decimal('installation_fee', 10, 2)->default(0);
             $table->enum('status', ['active', 'expired', 'suspended'])->default('active');
-            $table->date('expiry_date');
+            $table->dateTime('expiry_date')->nullable();
+            $table->dateTime('extension_date')->nullable();
             $table->decimal('balance', 12, 2)->default(0);
+            $table->unsignedInteger('paused_seconds_remaining')->default(0);
             $table->boolean('is_independent')->default(true); // Sub-account billing dependency
             // RADIUS details
             $table->string('radius_username')->unique();
@@ -44,6 +46,9 @@ return new class extends Migration
             // but blocks it from being added twice in Org A.
             $table->index(['organization_id', 'email']);
             $table->index(['organization_id', 'phone']);
+            $table->index(['organization_id', 'status']);
+            $table->index('ip_address');
+            $table->index('mac_address');
         });
     }
 

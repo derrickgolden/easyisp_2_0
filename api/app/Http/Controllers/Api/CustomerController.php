@@ -39,8 +39,8 @@ class CustomerController extends Controller
             ->whereNull('acctstoptime')
             ->pluck('username')
             ->toArray();
-Log::info('Online RADIUS usernames: ' . implode(', ', $onlineUsernames));
-        // 2. Map the status to your customers
+
+            // 2. Map the status to your customers
         $customers->map(function ($customer) use ($onlineUsernames) {
             $customer->is_online = in_array($customer->radius_username, $onlineUsernames) ? 1 : 0;
             return $customer;

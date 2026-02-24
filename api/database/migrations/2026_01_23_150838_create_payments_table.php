@@ -22,6 +22,9 @@ return new class extends Migration
             $table->string('sender_name')->nullable();
             $table->enum('status', ['completed', 'pending', 'reversed'])->default('pending');
             $table->timestamps();
+
+            $table->index('status');
+            $table->index('phone');
         });
     }
 

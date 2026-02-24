@@ -20,6 +20,8 @@ return new class extends Migration
             $table->enum('priority', ['low', 'medium', 'high', 'critical'])->default('medium');
             $table->enum('status', ['open', 'in-progress', 'closed'])->default('open');
             $table->timestamps();
+
+            $table->index('status');
         });
     }
 

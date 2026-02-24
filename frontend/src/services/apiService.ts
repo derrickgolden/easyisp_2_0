@@ -2,6 +2,7 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
+// const API_BASE_URL = 'https://isp.easytech.africa/api'
 
 export interface ApiResponse<T> {
   message?: string;
@@ -440,7 +441,6 @@ export const organizationApi = {
   },
 };
 
-// sms Endpoints
 // SMS Endpoints
 export const smsApi = {
   send: async (phone: string, message: string, customerId?: number | string) => {

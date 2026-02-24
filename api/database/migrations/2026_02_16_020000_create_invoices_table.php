@@ -25,6 +25,8 @@ return new class extends Migration
 
             $table->index(['organization_id', 'customer_id']);
             $table->unique(['organization_id', 'invoice_number']);
+            $table->index('status');
+            $table->index('due_date');
         });
     }
 

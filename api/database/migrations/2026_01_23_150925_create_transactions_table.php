@@ -24,6 +24,8 @@ return new class extends Migration
             $table->decimal('balance_after', 12, 2);
             $table->string('reference_id')->nullable();
             $table->timestamps();
+
+            $table->index('reference_id');
         });
     }
 
