@@ -28,39 +28,23 @@ class CustomerController extends Controller
 
     public function index(Request $request)
     {
-        $customers = $request->user()->organization
-            ->customers()
-            ->select([
-                'id',
-                'first_name',
-                'last_name',
-                'phone',
-                'email',
-                'balance',
-                'parent_id',
-                'status',
-                'connection_type',
-                'radius_username',
-                'radius_password',
-                'expiry_date',
-                'house_no',
-                'apartment',
-                'location',
-                'package_id',
-                'site_id',
-                'created_at',
-            ])
-            ->with(['package:id,name']) // Only fetch package id and name
-            ->addSelect([
-                'is_online' => \DB::connection('radius')
-                    ->table('radacct')
-                    ->select(\DB::raw('CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END'))
-                    ->whereRaw('radacct.username COLLATE utf8mb4_unicode_ci = customers.radius_username')
-                    ->whereNull('acctstoptime')
-                    ->limit(1)
-            ])
+        $customers = $request->user()->organization->customers()
+            ->with(['package:id,name'])
             ->latest()
             ->get();
+
+        // 1. Get all active usernames from the radius connection in one go
+        $onlineUsernames = \DB::connection('radius')
+            ->table('radacct')
+            ->whereNull('acctstoptime')
+            ->pluck('username')
+            ->toArray();
+Log::info('Online RADIUS usernames: ' . implode(', ', $onlineUsernames));
+        // 2. Map the status to your customers
+        $customers->map(function ($customer) use ($onlineUsernames) {
+            $customer->is_online = in_array($customer->radius_username, $onlineUsernames) ? 1 : 0;
+            return $customer;
+        });
 
         return CustomerResource::collection($customers);
     }
