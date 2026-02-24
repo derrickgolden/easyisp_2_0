@@ -46,7 +46,13 @@ class SiteController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $site = Site::create(array_merge($request->all(), [
+        $data = $validator->validated();
+
+        if (empty($data['radius_secret'])) {
+            $data['radius_secret'] = 'p5D031tEhfRNXBwm';
+        }
+
+        $site = Site::create(array_merge($data, [
             'organization_id' => $request->user()->organization_id,
         ]));
 
@@ -84,7 +90,13 @@ class SiteController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $site->update($request->all());
+        $data = $validator->validated();
+
+        if (array_key_exists('radius_secret', $data) && empty($data['radius_secret'])) {
+            unset($data['radius_secret']);
+        }
+
+        $site->update($data);
 
         return response()->json([
             'message' => 'Site updated successfully',
