@@ -11,6 +11,11 @@ use Illuminate\Support\Facades\DB;
 
 class TransactionController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('permission:view-transactions')->except(['store']);
+    }
+
     public function index(Request $request)
     {
         $transactions = Transaction::where('organization_id', $request->user()->organization_id)->paginate(15);

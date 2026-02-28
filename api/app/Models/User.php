@@ -7,10 +7,19 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable, HasRoles {
+        hasPermissionTo as protected spatieHasPermissionTo;
+        checkPermissionTo as protected spatieCheckPermissionTo;
+        hasAnyPermission as protected spatieHasAnyPermission;
+        hasRole as protected spatieHasRole;
+        hasAnyRole as protected spatieHasAnyRole;
+    }
+
+    protected $guard_name = 'sanctum';
 
     /**
      * The attributes that are mass assignable.
@@ -70,5 +79,50 @@ class User extends Authenticatable
     public function subordinates()
     {
         return $this->hasMany(User::class, 'parent_id');
+    }
+
+    public function hasPermissionTo($permission, $guardName = null): bool
+    {
+        if ($this->is_super_admin) {
+            return true;
+        }
+
+        return $this->spatieHasPermissionTo($permission, $guardName);
+    }
+
+    public function checkPermissionTo($permission, $guardName = null): bool
+    {
+        if ($this->is_super_admin) {
+            return true;
+        }
+
+        return $this->spatieCheckPermissionTo($permission, $guardName);
+    }
+
+    public function hasAnyPermission(...$permissions): bool
+    {
+        if ($this->is_super_admin) {
+            return true;
+        }
+
+        return $this->spatieHasAnyPermission(...$permissions);
+    }
+
+    public function hasRole($roles, ?string $guard = null): bool
+    {
+        if ($this->is_super_admin) {
+            return true;
+        }
+
+        return $this->spatieHasRole($roles, $guard);
+    }
+
+    public function hasAnyRole(...$roles): bool
+    {
+        if ($this->is_super_admin) {
+            return true;
+        }
+
+        return $this->spatieHasAnyRole(...$roles);
     }
 }

@@ -10,6 +10,12 @@ use Illuminate\Support\Facades\Validator;
 
 class InvoiceController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('permission:manage-invoices')->except(['index', 'show']);
+        $this->middleware('permission:view-invoices')->only(['index', 'show']);
+    }
+
     public function index(Request $request)
     {
         $user = $request->user();

@@ -5,6 +5,7 @@ import { Invoice } from '../types';
 import { InvoiceModal } from '../components/modals/InvoiceModal';
 import { invoicesApi, organizationApi } from '../services/apiService';
 import { toast } from 'sonner';
+import { usePermissions } from '../hooks/usePermissions';
 
 export const InvoicesPage: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -19,6 +20,7 @@ export const InvoicesPage: React.FC = () => {
   const [orgPaybill, setOrgPaybill] = useState('');
   const [orgSupportHotline, setOrgSupportHotline] = useState('');
   const [orgBusinessAddress, setOrgBusinessAddress] = useState('');
+  const { can } = usePermissions();
 
   useEffect(() => {
     fetchInvoices();
@@ -231,6 +233,7 @@ export const InvoicesPage: React.FC = () => {
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
           </button>
+          {can('manage-invoices') && (
           <button 
             onClick={handleAdd}
             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2"
@@ -238,6 +241,7 @@ export const InvoicesPage: React.FC = () => {
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             Create Invoice
           </button>
+          )}
         </div>
       </div>
 
@@ -282,7 +286,7 @@ export const InvoicesPage: React.FC = () => {
                 <th className="py-4 px-6">Issue Date</th>
                 <th className="py-4 px-6">Due Date</th>
                 <th className="py-4 px-6">Status</th>
-                <th className="py-4 px-6 text-right">Actions</th>
+                {can('manage-invoices') && <th className="py-4 px-6 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y dark:divide-slate-800">
@@ -301,6 +305,7 @@ export const InvoicesPage: React.FC = () => {
                   <td className="py-5 px-6">
                     <Badge variant={inv.status}>{inv.status.toUpperCase()}</Badge>
                   </td>
+                    {can('manage-invoices') && (
                   <td className="py-5 px-6 text-right">
                     <div className="flex justify-end items-center gap-1 transition-all">
                       <button 
@@ -326,6 +331,7 @@ export const InvoicesPage: React.FC = () => {
                       </button>
                     </div>
                   </td>
+                    )}
                 </tr>
               ))}
             </tbody>

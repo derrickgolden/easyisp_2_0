@@ -15,41 +15,18 @@ interface AccessControlPageProps {
   canManageRoles: boolean;
 }
 
-const INITIAL_PERMISSIONS: Permission[] = [
-  { id: 'p1', name: 'manage-sites', description: 'Create, update and delete network sites', group: 'network' },
-  { id: 'p2', name: 'view-network-stats', description: 'View network health and traffic statistics', group: 'network' },
-  { id: 'p3', name: 'manage-radius', description: 'Sync customers and manage RADIUS access', group: 'network' },
-
-  { id: 'p4', name: 'manage-packages', description: 'Create and update service packages and pricing', group: 'billing' },
-  { id: 'p5', name: 'manage-invoices', description: 'Create, update and send invoices', group: 'billing' },
-  { id: 'p6', name: 'manage-payments', description: 'Record and resolve customer payments', group: 'billing' },
-  { id: 'p7', name: 'view-transactions', description: 'View transaction ledger entries', group: 'billing' },
-  { id: 'p8', name: 'manage-expenses', description: 'Track and approve expenses', group: 'billing' },
-  { id: 'p9', name: 'view-reports', description: 'Access financial and operational reports', group: 'billing' },
-
-  { id: 'p10', name: 'manage-customers', description: 'Register and manage customer profiles', group: 'crm' },
-  { id: 'p11', name: 'view-customer-details', description: 'View customer details and usage history', group: 'crm' },
-  { id: 'p12', name: 'manage-leads', description: 'Create and update sales leads', group: 'crm' },
-  { id: 'p13', name: 'support-tickets', description: 'Respond to and close support tickets', group: 'crm' },
-
-  { id: 'p14', name: 'manage-admins', description: 'Create and manage administrator accounts', group: 'system' },
-  { id: 'p15', name: 'manage-roles', description: 'Define roles and permissions', group: 'system' },
-  { id: 'p16', name: 'system-settings', description: 'Change core system configurations', group: 'system' },
-  { id: 'p17', name: 'manage-organization', description: 'Update organization profile and preferences', group: 'system' },
-  { id: 'p18', name: 'view-dashboard', description: 'Access system overview dashboards', group: 'system' },
-];
-
 export const AccessControlPage: React.FC<AccessControlPageProps> = ({ canManageAdmins, canManageRoles }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [editingAdmin, setEditingAdmin] = useState<Partial<AdminUser> | null>(null);
   const [admins, setAdmins] = useState<AdminUser[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.ADMINS) || '[]'));
   const [roles, setRoles] = useState<Role[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.ROLES) || '[]'));
+  const [permissions, setPermissions] = useState<Permission[]>([]);
   const [accessTab, setAccessTab] = useState<'admins' | 'roles'>('admins');
   const [isPermMatrixOpen, setIsPermMatrixOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
-  console.log(roles);
+
   useEffect(() => {
     if (accessTab === 'admins' && !canManageAdmins && canManageRoles) {
       setAccessTab('roles');
@@ -62,7 +39,58 @@ export const AccessControlPage: React.FC<AccessControlPageProps> = ({ canManageA
   useEffect(() => {
     fetchAdmins();
     fetchRoles();
+    fetchPermissions();
   }, []);
+
+  const normalizeRolePermissionNames = (rawPermissions: any[] = []): string[] => {
+    const names = rawPermissions
+      .map((permission) => {
+        if (typeof permission === 'string') return permission;
+
+        if (typeof permission === 'number') {
+          const matchedById = permissions.find(p => p.id === permission.toString());
+          return matchedById?.name ?? '';
+        }
+
+        if (permission && typeof permission === 'object') {
+          if (typeof permission.name === 'string') {
+            return permission.name;
+          }
+
+          if (permission.id !== undefined && permission.id !== null) {
+            const matchedById = permissions.find(p => p.id === permission.id.toString());
+            return matchedById?.name ?? '';
+          }
+        }
+
+        return '';
+      })
+      .filter((permissionName): permissionName is string => Boolean(permissionName));
+
+    return Array.from(new Set(names));
+  };
+
+  const fetchPermissions = async () => {
+    try {
+      const res = await rolesApi.getPermissions();
+      const rawPermissions = res.data || {};
+      const flattenedPermissions = Array.isArray(rawPermissions)
+        ? rawPermissions
+        : Object.values(rawPermissions).flat();
+
+      const normalizedPermissions: Permission[] = (flattenedPermissions as any[]).map((permission) => ({
+        id: permission.id?.toString?.() ?? '',
+        name: permission.name,
+        description: permission.description,
+        group: permission.group,
+      }));
+
+      setPermissions(normalizedPermissions);
+
+    } catch (error) {
+      console.error('Error fetching permissions:', error);
+    }
+  };
 
   const fetchAdmins = async () => {
     try {      
@@ -92,29 +120,20 @@ export const AccessControlPage: React.FC<AccessControlPageProps> = ({ canManageA
   };
 
   const fetchRoles = async () => {
-    // if (!currentUser) return;
-    // const currentUserId = currentUser.id;
-
-    // if (rolesFetchRef.current.inFlight) return;
-    // if (rolesFetchRef.current.userId === currentUserId && roles.length > 0) return;
-
-    // rolesFetchRef.current.inFlight = true;
     try {
       const rolesRes = await rolesApi.getAll();
       const rolesList = rolesRes.data || [];
       const data = rolesList.map((r: any) => ({
         id: r.id.toString(),
         name: r.name,
-        permissions: r.permissions || [],
+        permissions: normalizeRolePermissionNames(r.permissions || []),
       }));
       setRoles(data);
       localStorage.setItem(STORAGE_KEYS.ROLES, JSON.stringify(data));
-      // rolesFetchRef.current.userId = currentUserId;
+
     } catch (error) {
       console.error('Error fetching roles:', error);
-    } finally {
-      // rolesFetchRef.current.inFlight = false;
-    }
+    } 
   };
 
   const filteredAdmins = admins.filter(a => 
@@ -128,13 +147,13 @@ export const AccessControlPage: React.FC<AccessControlPageProps> = ({ canManageA
 
   const onEditRole = (r: Role) => { setEditingRole(r); setIsPermMatrixOpen(true); }
 
-  const onTogglePermission = (roleId: string, permId: string) => {
+  const onTogglePermission = (roleId: string, permissionName: string) => {
     if (!editingRole || editingRole.id !== roleId) return;
 
-    const hasPerm = editingRole.permissions.includes(permId);
+    const hasPerm = editingRole.permissions.includes(permissionName);
     const updatedPerms = hasPerm
-      ? editingRole.permissions.filter(p => p !== permId)
-      : [...editingRole.permissions, permId];
+      ? editingRole.permissions.filter(p => p !== permissionName)
+      : [...editingRole.permissions, permissionName];
 
     setEditingRole({
       ...editingRole,
@@ -146,16 +165,18 @@ export const AccessControlPage: React.FC<AccessControlPageProps> = ({ canManageA
     if (!editingRole) return;
 
     try {
+      console.log('Updating role with permissions:', editingRole);
       const response = await rolesApi.update(editingRole.id, {
         name: editingRole.name,
         permissions: editingRole.permissions,
       });
 
       const updated = response?.role ?? response?.data ?? response;
+      console.log('Updated role response:', updated);
       const updatedRole: Role = {
         id: updated?.id?.toString?.() ?? editingRole.id,
         name: updated?.name ?? editingRole.name,
-        permissions: updated?.permissions ?? editingRole.permissions,
+        permissions: normalizeRolePermissionNames(updated?.permissions ?? editingRole.permissions),
       };
 
       setRoles(prev => {
@@ -343,9 +364,9 @@ export const AccessControlPage: React.FC<AccessControlPageProps> = ({ canManageA
               </div>
               <div className="space-y-4 pt-2">
                 <div className="flex flex-wrap gap-1.5 h-20 overflow-hidden relative">
-                  {role.permissions.map(pId => (
-                    <span key={pId} className="text-[10px] bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400 px-2 py-1 rounded-md font-medium">
-                      {INITIAL_PERMISSIONS.find(p => p.id === pId)?.name}
+                  {role.permissions.map((permName) => (
+                    <span key={permName} className="text-[10px] bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400 px-2 py-1 rounded-md font-medium">
+                      {permissions.find(p => p.name === permName)?.name ?? permName}
                     </span>
                   ))}
                   <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white dark:from-slate-900 to-transparent"></div>
@@ -389,7 +410,7 @@ export const AccessControlPage: React.FC<AccessControlPageProps> = ({ canManageA
         isOpen={isPermMatrixOpen} 
         onClose={() => setIsPermMatrixOpen(false)} 
         editingRole={editingRole} 
-        permissions={INITIAL_PERMISSIONS} 
+        permissions={permissions} 
         onTogglePermission={onTogglePermission} 
         onCommit={onCommitPermissions} 
       />   

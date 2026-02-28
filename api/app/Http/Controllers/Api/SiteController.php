@@ -31,6 +31,11 @@ class SiteController extends Controller
 
         return response()->json(['message' => 'Organization context required'], 403);
     }
+    public function __construct()
+    {
+        $this->middleware('permission:manage-sites')->except(['index', 'show', 'getIpamData']);
+        $this->middleware('permission:view-network-stats')->only(['index', 'show', 'getIpamData']);
+    }
 
     public function store(Request $request)
     {

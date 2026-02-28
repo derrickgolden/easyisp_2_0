@@ -33,7 +33,7 @@ export interface Permission {
 export interface Role {
   id: string;
   name: string;
-  permissions: string[]; // IDs of permissions
+  permissions: string[]; // Permission names
 }
 
 export interface AdminUser {

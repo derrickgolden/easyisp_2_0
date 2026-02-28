@@ -16,6 +16,7 @@ class PayheroPaymentController extends Controller
     private $baseUrl = 'https://backend.payhero.co.ke/api/v2/payments';
     
     public function __construct(){
+        $this->middleware('permission:stk-push')->only(['stkPush']);
         $this->apiUsername = env('API_USERNAME');
         $this->apiPassword = env('API_PASSWORD');
     }

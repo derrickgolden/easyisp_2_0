@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Card, Modal } from "../../UI";
 import { customersApi } from '../../../services/apiService';
 import { toast } from 'sonner';
+import { usePermissions } from '@/src/hooks/usePermissions';
 
 export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
     const [uptime, setUptime] = useState<string>('Offline');
@@ -11,6 +12,7 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
     const currentDelay = useRef(2000); // Use ref to persist delay across renders
     const startTimeIso = technicalSpecs?.start_time;
     const isOnline = technicalSpecs?.is_online;
+    const { can } = usePermissions();
 
     useEffect(() => {
       if (!startTimeIso) {
@@ -161,11 +163,20 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => onResetMAC(customer.id)} 
-                      className="w-1/2 py-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
-                        Flush MAC
+                      {
+                        can('flash-mac-binding') && (
+                          <button onClick={() => onResetMAC(customer.id)} 
+                            className="w-1/2 py-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded-xl text-[9px] 
+                            font-black uppercase tracking-widest transition-all">
+                              Flush MAC
+                          </button>
+                        )
+                      }
+                      <button onClick={() => setIsAccountingModalOpen(true)} 
+                        className="flex-1 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-xl text-[9px] 
+                        font-black uppercase tracking-widest transition-all">
+                          Sess Details
                       </button>
-                       <button onClick={() => setIsAccountingModalOpen(true)} className="flex-1 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">Sess Details</button>
                     </div>
 
                  </div>

@@ -6,6 +6,7 @@ import { customersApi, packagesApi } from '../../services/apiService';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { STORAGE_KEYS } from '@/src/constants/storage';
+import { usePermissions } from '@/src/hooks/usePermissions';
 
 interface CustomerModalProps {
   isOpen: boolean;
@@ -25,7 +26,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const lastValidStateRef = useRef<Partial<Customer> | null>(null);
   const [packages, setPackages] = useState<Package[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.PACKAGES) || '[]'));
-
+  const { can } = usePermissions();
   const isSubAccount = !!editingCustomer?.parentId;
   const potentialParents = customers.filter(c => c.id !== editingCustomer?.id && !c.parentId);
 
@@ -362,7 +363,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
 
         <button 
           type="submit" 
-          disabled={isLoading}
+          disabled={!can('manage-customers') || !can('create-customers') || isLoading}
           className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl mt-4 hover:bg-blue-500 shadow-xl shadow-blue-600/20 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
         >
           {isLoading ? (

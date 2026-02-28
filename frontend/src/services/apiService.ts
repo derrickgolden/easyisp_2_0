@@ -1,5 +1,6 @@
 // API Configuration
 import axios, { AxiosInstance, AxiosError } from 'axios';
+import { get } from 'http';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 // const API_BASE_URL = 'https://isp.easytech.africa/api'
@@ -99,7 +100,9 @@ export const authApi = {
 
   logout: async () => {
     try {
+      console.log("ApiService: Logging out...");
       await axiosInstance.post('/auth/logout');
+      console.log("ApiService: Logged out...");
     } finally {
       setAuthToken(null);
     }
@@ -153,6 +156,11 @@ export const rolesApi = {
 
   delete: async (id: string) => {
     const response = await axiosInstance.delete(`/roles/${id}`);
+    return response.data;
+  },
+
+  getPermissions: async () => {
+    const response = await axiosInstance.get('/permissions');
     return response.data;
   },
 };

@@ -9,6 +9,12 @@ use Illuminate\Support\Facades\Validator;
 
 class TicketController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('permission:manage-tickets')->except(['index', 'show', 'getByCustomer']);
+        $this->middleware('permission:view-tickets')->only(['index', 'show', 'getByCustomer']);
+    }
+
     public function index(Request $request)
     {
         $tickets = Ticket::where('organization_id', $request->user()->organization_id)

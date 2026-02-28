@@ -5,6 +5,7 @@ import { Card } from '../components/UI';
 import { LeadModal } from '../components/modals/LeadModal';
 import TableScrollModal from '../components/modals/TableScrollModal';
 import { leadsApi } from '../services/apiService';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface LeadsPageProps {}
 
@@ -21,14 +22,8 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({}) => {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [stats, setStats] = useState({
-    total: 0,
-    new: 0,
-    contacted: 0,
-    survey: 0,
-    converted: 0,
-    lost: 0
-  });
+  const [stats, setStats] = useState({ total: 0, new: 0, contacted: 0, survey: 0, converted: 0, lost: 0 });
+  const { can } = usePermissions();
 
   // Fetch leads from backend
   const fetchLeads = async () => {
@@ -116,13 +111,17 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({}) => {
           <h2 className="text-2xl font-black tracking-tight text-gray-900 dark:text-white">Leads & Prospects</h2>
           <p className="text-sm text-gray-500">Track and convert potential subscribers into the network.</p>
         </div>
-        <button 
-          onClick={onAdd}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-          New Prospect
-        </button>
+        {
+          can('manage-leads') && (
+            <button 
+              onClick={onAdd}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              New Prospect
+            </button>
+          )
+        }
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -190,7 +189,7 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({}) => {
                 <th className="py-4 px-6">Service Address</th>
                 <th className="py-4 px-6">Status</th>
                 <th className="py-4 px-6">Created</th>
-                <th className="py-4 px-6 text-right">Action</th>
+                {can('manage-leads') && <th className="py-4 px-6 text-right">Action</th>}
               </tr>
             </thead>
             <tbody className="divide-y dark:divide-slate-800">
@@ -231,6 +230,7 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({}) => {
                     </select>
                   </td>
                   <td className="py-5 px-6 text-xs text-gray-400">{lead.created_at}</td>
+                  {can('manage-leads') && (
                   <td className="py-5 px-6 text-right">
                     <div className="flex justify-end gap-2">
                       {lead.status !== 'converted' && lead.status !== 'lost' && (
@@ -255,6 +255,7 @@ export const LeadsPage: React.FC<LeadsPageProps> = ({}) => {
                       </button>
                     </div>
                   </td>
+                  )}
                 </tr>
               )) : (
                 <tr>

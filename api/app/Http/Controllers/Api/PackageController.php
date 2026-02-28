@@ -15,6 +15,8 @@ class PackageController extends Controller
 
     public function __construct(\App\Services\CustomerRadiusService $radiusService)
     {
+        $this->middleware('permission:manage-packages')->except(['index', 'show']);
+        $this->middleware('permission:view-packages')->only(['index', 'show']);
         $this->radiusService = $radiusService;
     }
 

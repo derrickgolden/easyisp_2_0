@@ -11,6 +11,12 @@ use Illuminate\Support\Facades\Log;
 
 class SmsController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('permission:send-message')->only(['send']);
+        $this->middleware('permission:send-bulk-messages')->only(['sendBulk']);
+    }
+
     public function send(Request $request)
     {
         $validator = Validator::make($request->all(), [

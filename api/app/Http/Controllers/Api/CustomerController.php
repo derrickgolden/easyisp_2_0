@@ -19,9 +19,16 @@ class CustomerController extends Controller
 {
     protected $radiusService;
     protected $subscriptionService;
-
+        
     public function __construct(CustomerRadiusService $radiusService, SubscriptionService $subscriptionService)
     {
+        $this->middleware('permission:view-customers')->only(['index', 'getByOrganization']);
+        $this->middleware('permission:view-customer-details')->only(['show', 'showWithRelations', 'getRadiusStatus']);
+        $this->middleware('permission:manage-customers|create-customers')->only(['store', 'update']);
+        $this->middleware('permission:delete-customers')->only(['destroy']);
+        $this->middleware('permission:manage-subscriptions')->only(['pauseSubscription', 'resumeSubscription']);
+        $this->middleware('permission:flash-mac-binding')->only(['resetMacBinding']);
+
         $this->radiusService = $radiusService;
         $this->subscriptionService = $subscriptionService;
     }
@@ -204,6 +211,18 @@ class CustomerController extends Controller
 
     public function update(Request $request, $id)
     {
+        if (($request->has('expiry_date') || $request->has('extension_date')) && !$request->user()->can('change-expiry')) {
+            return response()->json(['message' => 'Unauthorized to change expiry dates'], 403);
+        }
+
+        if ($request->has('package_id') && !$request->user()->can('change-packages')) {
+            return response()->json(['message' => 'Unauthorized to change customer packages'], 403);
+        }
+
+        if ($request->has('balance') && !$request->user()->can('adjust-balances')) {
+            return response()->json(['message' => 'Unauthorized to adjust customer balances'], 403);
+        }
+
         $customer = Customer::find($id);
         if (!$customer) {
             return response()->json(['message' => 'Customer not found'], 404);

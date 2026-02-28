@@ -9,6 +9,12 @@ use Illuminate\Support\Facades\Validator;
 
 class OrganizationController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('permission:system-settings')->except(['show', 'index']);
+        $this->middleware('permission:view-templates')->only(['show', 'index']);
+    }
+
     public function listAll()
     {
         $organizations = Organization::withCount(['sites', 'customers'])

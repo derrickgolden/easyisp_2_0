@@ -17,6 +17,24 @@ use Illuminate\Support\Facades\Http;
 
 class PaymentController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('permission:manage-payments')->except([
+            'index',
+            'show',
+            'pending',
+            'getByCustomer',
+            'c2bValidation',
+            'c2bConfirmation',
+        ]);
+        $this->middleware('permission:view-payments')->only([
+            'index',
+            'show',
+            'pending',
+            'getByCustomer',
+        ]);
+    }
+
     public function c2bValidation(Request $request)
     {
         Log::info('C2B Validation endpoint called', [

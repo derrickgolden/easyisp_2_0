@@ -47,13 +47,15 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        // Create roles (aligned to Access Control UI InitialPermissions)
-        $allPermissions = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7'];
+        $this->call(PermissionSeeder::class);
 
-        $adminRole = Role::updateOrCreate(
-            ['organization_id' => null, 'name' => 'Super Admin'],
-            ['permissions' => $allPermissions]
-        );
+        // Create roles (aligned to Access Control UI InitialPermissions)
+        // $allPermissions = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7'];
+
+        // $adminRole = Role::updateOrCreate(
+        //     ['organization_id' => null, 'name' => 'Super Admin'],
+        //     ['permissions' => $allPermissions]
+        // );
 
     }
     

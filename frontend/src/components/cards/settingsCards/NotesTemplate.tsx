@@ -4,12 +4,14 @@ import { organizationApi } from "@/src/services/apiService";
 import { toast } from "sonner";
 import { confirmAction } from "../../../utils/alerts";
 import { Template } from "@/src/types";
+import { usePermissions } from "@/src/hooks/usePermissions";
 
 const NotesTemplate = () => {
     const [templates, setTemplates] = React.useState<Template[]>([]);
     const [isTemplateModalOpen, setIsTemplateModalOpen] = React.useState(false);
     const [editingTemplate, setEditingTemplate] = useState<Partial<Template> | null>(null);
     const [isLoading, setIsLoading] = React.useState(false);
+    const { can } = usePermissions();
 
     useEffect(() => {
         const fetchTemplates = async () => {
@@ -111,7 +113,7 @@ const NotesTemplate = () => {
             setEditingTemplate(null);
         } catch (error) {
             console.error('Failed to save template', error);
-            toast.error('Failed to save template');
+            toast.error(error instanceof Error ? error.message : 'Failed to save template');
         } finally {
             setIsLoading(false);
         }
@@ -123,6 +125,7 @@ const NotesTemplate = () => {
                   <h3 className="font-black text-xl text-gray-900 dark:text-white tracking-tight">Message Templates</h3>
                   <p className="text-xs text-gray-500 font-medium">Standard patterns for automated client notifications.</p>
                </div>
+               {can("manage-templates") && (
                <button 
                   onClick={handleOpenNewTemplate}
                   type="button" 
@@ -131,6 +134,7 @@ const NotesTemplate = () => {
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                   New Template
                 </button>
+            )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                {templates.map(tmpl => (
@@ -140,22 +144,26 @@ const NotesTemplate = () => {
                            <Badge variant="active">{tmpl.category}</Badge>
                            <h4 className="mt-2 font-black text-gray-900 dark:text-white">{tmpl.name}</h4>
                         </div>
-                        <div className="flex gap-1">
-                           <button 
-                              onClick={() => handleEditTemplate(tmpl)}
-                              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-all"
-                           >
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                           </button>
-                                                      {!tmpl.isDefault && (
-                              <button 
-                                 onClick={() => handleDeleteTemplate(tmpl.id)}
-                                 className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"
-                              >
-                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                              </button>
-                           )}
-                        </div>
+                        {
+                            can("manage-templates") && (
+                            <div className="flex gap-1">
+                            <button 
+                                onClick={() => handleEditTemplate(tmpl)}
+                                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-all"
+                            >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                            </button>
+                                                        {!tmpl.isDefault && (
+                                <button 
+                                    onClick={() => handleDeleteTemplate(tmpl.id)}
+                                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                            )}
+                            </div>
+                            )
+                        }
                      </div>
                      <div className="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-gray-100 dark:border-slate-800">
                         <p className="text-xs font-mono text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-3">

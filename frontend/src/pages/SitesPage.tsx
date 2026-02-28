@@ -6,6 +6,7 @@ import { sitesApi } from '../services/apiService';
 import { STORAGE_KEYS } from '../constants/storage';
 import { ConfigModal, IPAMModal, SiteProvisionModal } from '../components/modals/SiteModals';
 import { toast } from 'sonner';
+import { usePermissions } from '../hooks/usePermissions';
 
 export const SitesPage: React.FC = () => {
   const [sites, setSites] = useState<Site[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.SITES) || '[]'));
@@ -13,6 +14,7 @@ export const SitesPage: React.FC = () => {
   const [isIPAMOpen, setIsIPAMOpen] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
+  const { can } = usePermissions();
 
   useEffect(() => {
     fetchSites();
@@ -62,13 +64,17 @@ export const SitesPage: React.FC = () => {
     <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Network Sites</h2>
-        <button 
-          type="button"
-          onClick={onAdd}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition"
-        >
-          Add Site
-        </button>
+        {
+          can('manage-sites') && (
+            <button 
+              type="button"
+              onClick={onAdd}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition"
+            >
+              Add Site
+            </button>
+          )
+        }
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -99,12 +105,25 @@ export const SitesPage: React.FC = () => {
             
             <div className="mb-4 flex items-center justify-between p-2 bg-gray-50 dark:bg-slate-800 rounded-lg">
               <span className="text-xs">Downtime Alert</span>
-              <ToggleSwitch checked={site.notify_on_down} onChange={() => handleToggleNotify(site.id)} label={site.notify_on_down ? "ON" : "OFF"} />
+              <ToggleSwitch
+                disabled={!can('manage-sites')} 
+                checked={site.notify_on_down} 
+                onChange={() => handleToggleNotify(site.id)} 
+                label={site.notify_on_down ? "ON" : "OFF"} 
+              />
             </div>
 
             <div className="flex space-x-2">
-              <button type="button" onClick={() => onOpenIPAM(site)} className="flex-1 text-xs border border-gray-200 dark:border-slate-700 py-2 rounded-md hover:bg-gray-50 dark:hover:bg-slate-800">IPAM</button>
-              <button type="button" onClick={() => onOpenConfig(site)} className="flex-1 text-xs border border-gray-200 dark:border-slate-700 py-2 rounded-md hover:bg-gray-50 dark:hover:bg-slate-800">Config</button>
+              <button type="button" 
+                onClick={() => onOpenIPAM(site)} 
+                className="flex-1 text-xs border border-gray-200 dark:border-slate-700 py-2 rounded-md hover:bg-gray-50 dark:hover:bg-slate-800">
+                  IPAM
+              </button>
+              <button type="button" 
+                onClick={() => onOpenConfig(site)} 
+                className="flex-1 text-xs border border-gray-200 dark:border-slate-700 py-2 rounded-md hover:bg-gray-50 dark:hover:bg-slate-800">
+                  Config
+              </button>
             </div>
           </Card>
         ))}

@@ -9,6 +9,12 @@ use Illuminate\Support\Facades\Validator;
 
 class ExpenseController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('permission:manage-expenses')->except(['index', 'show', 'stats']);
+        $this->middleware('permission:view-expenses')->only(['index', 'show', 'stats']);
+    }
+
     public function index(Request $request)
     {
         $user = $request->user();

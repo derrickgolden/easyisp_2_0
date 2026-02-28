@@ -51,7 +51,10 @@ const App: React.FC = () => {
   const userPermissions = useMemo(() => {
     if (!currentUser) return [] as string[];
     if (currentUser.isSuperAdmin) return ['*'];
-    return currentRole?.permissions || [];
+    const rawPerms = (currentRole?.permissions || []) as any[];
+    return rawPerms
+      .map((perm) => (typeof perm === 'string' ? perm : perm?.name))
+      .filter((perm): perm is string => Boolean(perm));
   }, [currentUser, currentRole]);
 
   const hasPermission = (permId: string) => {
@@ -113,6 +116,7 @@ const App: React.FC = () => {
         isSuperAdmin: result.user.is_super_admin || false,
         role: roleFromAuth || undefined,
       };
+      console.log("Login successful, user data:", user);
       setCurrentUser(user);
       localStorage.setItem(AUTH_KEY, JSON.stringify(user));
       showToast(`Authorized as ${user.name}`);
@@ -133,10 +137,13 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     try {
+      console.log("Logging out...");
       await authApi.logout();
+      console.log("Logging out...");
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      console.log("Logged out...");
       setCurrentUser(null);
       localStorage.removeItem(AUTH_KEY);
       setAuthToken(null);
@@ -176,81 +183,81 @@ console.log("Rendering App, currentUser:");
                 
                 {/* Management Routes */}
                 <Route path="/management/sites" element={
-                  <RequirePermission perms={['p1']}>
+                  <RequirePermission perms={['view-sites']}>
                     <SitesPage />
                   </RequirePermission>
                 } />
                 <Route path="/management/packages" element={
-                  <RequirePermission perms={['p4']}>
+                  <RequirePermission perms={['view-packages']}>
                     <PackagesPage />
                   </RequirePermission>
                 } />
                 
                 {/* CRM Routes */}
                 <Route path="/crm/customers" element={
-                  <RequirePermission perms={['p10', 'p11']}>
+                  <RequirePermission perms={['view-customers']}>
                     <CustomersPage />
                   </RequirePermission> }
                   />
                 <Route path="/crm/customers/:customerId" element={
-                  <RequirePermission perms={['p10', 'p11']}>
+                  <RequirePermission perms={['view-customer-details']}>
                     <CustomerDetailPage />
                   </RequirePermission>
                 } />
                 <Route path="/crm/leads" element={
-                  <RequirePermission perms={['p12']}>
+                  <RequirePermission perms={['view-leads']}>
                     <LeadsPage />
                   </RequirePermission> } 
                   />
                 <Route path="/crm/tickets" element={
-                  <RequirePermission perms={['p13']}>
+                  <RequirePermission perms={['view-tickets']}>
                     <TicketsPage />
                   </RequirePermission> } 
                   />
                 
                 {/* Revenue Routes */}
                 <Route path="/revenue/payments" element={
-                  <RequirePermission perms={['p6']}>
+                  <RequirePermission perms={['view-payments']}>
                     <PaymentsPage />
                   </RequirePermission>
                 } />
                 <Route path="/revenue/transactions" element={
-                  <RequirePermission perms={['p7']}>
+                  <RequirePermission perms={['view-transactions']}>
                     <TransactionsPage />
                   </RequirePermission>
                 } />
                 <Route path="/revenue/invoices" element={
-                  <RequirePermission perms={['p5']}>
+                  <RequirePermission perms={['view-invoices']}>
                     <InvoicesPage />
                   </RequirePermission>
                 } />
                 <Route path="/revenue/expenses" element={
-                  <RequirePermission perms={['p8']}>
+                  <RequirePermission perms={['view-expenses']}>
                     <ExpensesPage />
                   </RequirePermission>
                 } />
                 <Route path="/revenue/reports" element={
-                  <RequirePermission perms={['p9']}>
+                  <RequirePermission perms={['view-reports']}>
                     <ReportsPage />
                   </RequirePermission>
                 } />
                 
                 {/* Settings Routes */}
                 <Route path="/settings/access-control" element={
-                  <RequirePermission perms={['p14', 'p15']}>
+                  <RequirePermission perms={['view-admins', 'view-roles']}>
                     <AccessControlPage
-                      canManageAdmins={hasPermission('p14')}
-                      canManageRoles={hasPermission('p15')}
+                      canManageAdmins={hasPermission('manage-admins')}
+                      canManageRoles={hasPermission('manage-roles')}
                     />
                   </RequirePermission>
                 } />
                 <Route path='/settings/notes-template' element={
-                  <RequirePermission perms={['p16']}>
+                  <RequirePermission perms={['view-templates']}>
                     <NotesTemplate />
                   </RequirePermission>
                 } />
                 <Route path="/settings/*" element={
-                  <RequirePermission perms={['p16', 'p17']}>
+                  <RequirePermission perms={['system-settings', 'view-templates', 'manage-templates']}>
                     <SettingsPage onSave={(msg) => showToast(msg)} />
                   </RequirePermission>
                 } />

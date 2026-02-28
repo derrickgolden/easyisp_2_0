@@ -14,6 +14,7 @@ import { ReconcileMpesaModal } from '../components/modals/ReconcileMpesaModal';
 import PaymentHistoryCard from '../components/cards/customerDetailsCards.tsx/PaymentHistoryCard';
 import SmsModal from '../components/modals/SmsModal';
 import SmsLogsCard from '../components/cards/customerDetailsCards.tsx/SmsLogsCard';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface CustomerDetailPageProps {}
 
@@ -31,8 +32,8 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
   const lastFetchKeyRef = React.useRef<string | null>(null);
 
   const { state, actions } = useCustomerActions();
-console.log('rendering customer detail page with customer:');
-  
+  const { can } = usePermissions();
+
   const customerPayments = useMemo(() => {
     if (!customer) return [];
     return state.payments.filter(p => 
@@ -166,6 +167,7 @@ console.log('rendering customer detail page with customer:');
         </button>
         
         <div className="flex flex-wrap items-center gap-2">
+          {/* {can('stk-push') && (
           <button 
             onClick={() => actions.handleStkPush(customer)}
             className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/20"
@@ -173,14 +175,18 @@ console.log('rendering customer detail page with customer:');
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
             STK Push
           </button>
-
-          <button 
-            onClick={() => actions.setIsSmsModalOpen(true)}
-            className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/20"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
-            Send SMS
-          </button>
+          )} */}
+          {
+            can('send-message') && (
+            <button 
+              onClick={() => actions.setIsSmsModalOpen(true)}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/20"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+              Send SMS
+            </button>
+            )
+          }
           
           <button 
             onClick={() => actions.handleEdit(customer)}
@@ -192,6 +198,7 @@ console.log('rendering customer detail page with customer:');
           
           <button 
             onClick={() => { actions.deleteCustomer(customer) }}
+            disabled={!can('delete-customers')}
             className="p-2 bg-red-500/10 text-red-600 rounded-xl hover:bg-red-500/20 transition-all"
             title="Delete Account"
           >
@@ -340,6 +347,7 @@ console.log('rendering customer detail page with customer:');
                     <div className="grid grid-cols-2 gap-2">
                       <button 
                         onClick={() => actions.handlePauseService(customer)}
+                        disabled={!can('manage-subscriptions')}
                         className={`flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                           customer.status === 'suspended' 
                             ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' 
@@ -351,6 +359,7 @@ console.log('rendering customer detail page with customer:');
                       </button>
                       <button 
                         onClick={() => setIsChangeDateModalOpen({open: true, type: 'extension'})}
+                        disabled={!can('change-expiry')}
                         className="flex items-center justify-center gap-2 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -359,12 +368,14 @@ console.log('rendering customer detail page with customer:');
                     </div>
                     <button 
                       onClick={() => setIsChangeDateModalOpen({open: true, type: 'expiry'})}
+                      disabled={!can('change-expiry')}
                       className="w-full py-3 border border-red-200 dark:border-blue-800 text-red-600 dark:text-red-400 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-red-50 dark:hover:bg-red-900/10 transition-all"
                     >
                       Change Expiry Date
                     </button>
                     <button 
                       onClick={() => actions.setIsPackageModalOpen(true)}
+                      disabled={!can('change-packages')}
                       className="w-full py-3 border border-dashed border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all"
                     >
                       Change Subscription Plan
@@ -392,8 +403,16 @@ console.log('rendering customer detail page with customer:');
                  </div>
 
                  <div className="grid grid-cols-2 gap-2">
-                    <button onClick={() => actions.setIsDepositModalOpen(true)} className="py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-black uppercase rounded-xl transition-all hover:opacity-90">Direct Deposit</button>
-                    <button onClick={() => actions.setIsReconcileModalOpen(true)} className="py-3 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-[10px] font-black uppercase rounded-xl transition-all hover:bg-gray-50 dark:hover:bg-slate-800">Reconcile M-Pesa</button>
+                    <button onClick={() => actions.setIsDepositModalOpen(true)} 
+                      disabled={!can('adjust-balances')}
+                      className="py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-black uppercase rounded-xl transition-all hover:opacity-90">
+                      Direct Deposit
+                      </button>
+                    <button onClick={() => actions.setIsReconcileModalOpen(true)}
+                      disabled={!can('manage-payments')} 
+                      className="py-3 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-[10px] font-black uppercase rounded-xl transition-all hover:bg-gray-50 dark:hover:bg-slate-800">
+                        Reconcile M-Pesa
+                      </button>
                  </div>
                </div>
             </Card>

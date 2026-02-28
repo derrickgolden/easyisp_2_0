@@ -42,9 +42,10 @@ export const Badge: React.FC<{ variant: string; children: React.ReactNode }> = (
   return <span className={`px-2 py-1 rounded-full text-xs font-semibold ${styles[variant] || 'bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-400'}`}>{children}</span>;
 };
 
-export const ToggleSwitch: React.FC<{ checked: boolean; onChange: () => void; label?: string }> = ({ checked, onChange, label }) => (
+export const ToggleSwitch: React.FC<{ checked: boolean; onChange: () => void; label?: string; disabled?: boolean }> = ({ checked, onChange, label, disabled }) => (
   <div className="flex items-center space-x-2">
     <button
+      disabled={disabled}
       type='button'
       onClick={(e) => { e.stopPropagation(); onChange(); }}
       className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${checked ? 'bg-blue-600' : 'bg-gray-200 dark:bg-slate-700'}`}

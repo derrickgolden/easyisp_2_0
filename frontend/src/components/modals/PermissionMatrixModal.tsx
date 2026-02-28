@@ -8,13 +8,15 @@ interface PermissionMatrixModalProps {
   onClose: () => void;
   editingRole: Role | null;
   permissions: Permission[];
-  onTogglePermission: (roleId: string, permId: string) => void;
+  onTogglePermission: (roleId: string, permissionName: string) => void;
   onCommit: () => void;
 }
 
 export const PermissionMatrixModal: React.FC<PermissionMatrixModalProps> = ({
   isOpen, onClose, editingRole, permissions, onTogglePermission, onCommit
 }) => {
+  if (!editingRole) return null;
+
   return (
     <Modal 
       isOpen={isOpen} 
@@ -35,7 +37,7 @@ export const PermissionMatrixModal: React.FC<PermissionMatrixModalProps> = ({
                 <label 
                   key={perm.id} 
                   className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
-                    editingRole?.permissions.includes(perm.id) 
+                    editingRole?.permissions.includes(perm.name) 
                       ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/30' 
                       : 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-800'
                   }`}
@@ -47,8 +49,8 @@ export const PermissionMatrixModal: React.FC<PermissionMatrixModalProps> = ({
                   <input 
                     type="checkbox" 
                     className="w-5 h-5 rounded-lg border-gray-300 text-blue-600 focus:ring-blue-500" 
-                    checked={editingRole?.permissions.includes(perm.id) || false}
-                    onChange={() => onTogglePermission(editingRole!.id, perm.id)}
+                    checked={editingRole?.permissions.includes(perm.name) || false}
+                    onChange={() => onTogglePermission(editingRole.id, perm.name)}
                   />
                 </label>
               ))}

@@ -25,3 +25,11 @@ nano /etc/mysql/my.cnf
 default-time-zone = '+03:00'
 # finally
 sudo systemctl restart mysql
+
+# install spatie
+# 1. drop role table
+ALTER TABLE users DROP FOREIGN KEY users_role_id_foreign;
+DROP TABLE roles;
+# 2. install
+composer require spatie/laravel-permission
+php artisan vendor:publish --provider="Spatie\Permission\PermissionServiceProvider"

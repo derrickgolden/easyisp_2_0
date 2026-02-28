@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\TransactionController;
 use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\InvoiceController;
+use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\RadiusController;
 use App\Http\Controllers\Api\SmsController;
@@ -54,7 +55,7 @@ Route::post('/payments/c2b/confirmation', [PaymentController::class, 'c2bConfirm
 Route::post('/payments/payhero/stk/callback', [PayheroPaymentController::class, 'stkCallback']);
 
 // system-admin-only routes
-Route::middleware(['auth:sanctum', 'abilities:access-system'])
+Route::middleware(['auth:sanctum', 'abilities:access-system', 'permissions.team'])
     ->prefix('system')->group(function () {
         Route::get('/organizations', [OrganizationController::class, 'listAll']);
         Route::post('/organizations', [OrganizationController::class, 'store']);
@@ -67,7 +68,7 @@ Route::middleware(['auth:sanctum', 'abilities:access-system'])
 });
 
 // Admin routes
-Route::middleware(['auth:sanctum', 'ability:access-admin'])->group(function () {
+Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])->group(function () {
     // Auth routes
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
@@ -84,6 +85,9 @@ Route::middleware(['auth:sanctum', 'ability:access-admin'])->group(function () {
     
     // User management
     Route::apiResource('/users', UserController::class);
+
+    // permission management
+    Route::get('/permissions', [PermissionController::class, 'index']);
     
     // Role management
     Route::apiResource('/roles', RoleController::class);
@@ -160,6 +164,6 @@ Route::middleware(['auth:sanctum', 'ability:access-admin'])->group(function () {
 });
 
 // Customer routes
-Route::middleware(['auth:sanctum', 'ability:access-portal'])->group(function () {
+Route::middleware(['auth:sanctum', 'ability:access-portal', 'permissions.team'])->group(function () {
     Route::get('/my-balance', [CustomerController::class, 'balance']);
 });

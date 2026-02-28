@@ -13,6 +13,7 @@ class RadiusController extends Controller
 
     public function __construct(RadiusService $radiusService)
     {
+        $this->middleware('permission:manage-radius')->except(['authenticate', 'getConfig', 'verify']);
         $this->radiusService = $radiusService;
     }
 

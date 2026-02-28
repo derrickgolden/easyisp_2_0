@@ -18,7 +18,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   isOpen, onClose, editingAdmin, setEditingAdmin, roles, onSuccess
 }) => {
   const [isLoading, setIsLoading] = useState(false);
-
+console.log(roles);
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingAdmin?.name || !editingAdmin?.email || !editingAdmin?.phone) {

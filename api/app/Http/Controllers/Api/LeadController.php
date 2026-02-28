@@ -9,6 +9,12 @@ use Illuminate\Support\Facades\Validator;
 
 class LeadController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('permission:manage-leads')->except(['index', 'show', 'stats']);
+        $this->middleware('permission:view-leads')->only(['index', 'show', 'stats']);
+    }
+
     /**
      * Display a listing of the leads.
      */

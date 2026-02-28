@@ -8,6 +8,7 @@ import { CategoryModal } from '../components/modals/CategoryModal';
 import TableScrollModal from '../components/modals/TableScrollModal';
 import { expensesApi } from '../services/apiService';
 import { toast } from 'sonner';
+import { usePermissions } from '../hooks/usePermissions';
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   Utilities: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
@@ -43,6 +44,7 @@ export const ExpensesPage: React.FC = () => {
   const [rowsPerPage, setRowsPerPage] = useState(15);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
+  const { can } = usePermissions();
 
   useEffect(() => {
     fetchCategories();
@@ -159,6 +161,7 @@ export const ExpensesPage: React.FC = () => {
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
             Categories
           </button>
+          {can('manage-expenses') && (
           <button 
             onClick={onAdd}
             className="bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center gap-2"
@@ -166,6 +169,7 @@ export const ExpensesPage: React.FC = () => {
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             Add Expense
           </button>
+          )}
         </div>
       </div>
 
@@ -242,7 +246,7 @@ export const ExpensesPage: React.FC = () => {
                 <th className="py-4 px-6">Ref No.</th>
                 <th className="py-4 px-6">Amount</th>
                 <th className="py-4 px-6">Date</th>
-                <th className="py-4 px-6 text-right">Actions</th>
+                {can('manage-expenses') && <th className="py-4 px-6 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y dark:divide-slate-800">
@@ -275,22 +279,24 @@ export const ExpensesPage: React.FC = () => {
                     </span>
                   </td>
                   <td className="py-5 px-6 text-gray-500 text-xs">{exp.date}</td>
-                  <td className="py-5 px-6 text-right">
-                    <div className="flex justify-end items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                      <button 
-                         onClick={() => onEdit(exp)}
-                         className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
-                      >
-                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                      </button>
-                      <button 
-                         onClick={() => onDelete(exp.id)}
-                         className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                  {can('manage-expenses') && (
+                    <td className="py-5 px-6 text-right">
+                      <div className="flex justify-end items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                        <button 
+                           onClick={() => onEdit(exp)}
+                           className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                        >
+                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                        </button>
+                        <button 
+                           onClick={() => onDelete(exp.id)}
+                           className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
                       >
                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                       </button>
                     </div>
                   </td>
+                  )}
                 </tr>
               )) : (
                 <tr>

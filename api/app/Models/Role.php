@@ -3,20 +3,17 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Spatie\Permission\Models\Role as SpatieRole;
 
-class Role extends Model
+class Role extends SpatieRole
 {
     use HasFactory;
 
     protected $fillable = [
         'organization_id',
         'name',
-        'permissions',
-    ];
-
-    protected $casts = [
-        'permissions' => 'array',
+        'guard_name',
     ];
 
     public function organization()
@@ -24,8 +21,8 @@ class Role extends Model
         return $this->belongsTo(Organization::class);
     }
 
-    public function users()
+    public function users(): BelongsToMany
     {
-        return $this->hasMany(User::class);
+        return parent::users();
     }
 }
