@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('organization_id')->constrained()->onDelete('cascade');
             $table->foreignId('parent_id')->nullable()->constrained('users')->onDelete('set null'); // Self-referencing for hierarchy
-            $table->foreignId('role_id')->constrained();
+            $table->unsignedBigInteger('role_id');
             $table->string('name');
             $table->string('email')->unique();
             $table->string('phone')->nullable();
