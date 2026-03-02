@@ -60,4 +60,14 @@ class Organization extends Model
     {
         return $this->hasMany(Ticket::class);
     }
+
+    public function licenseSnapshots()
+    {
+        return $this->hasMany(OrganizationLicenseSnapshot::class);
+    }
+
+    public function latestLicenseSnapshot()
+    {
+        return $this->hasOne(OrganizationLicenseSnapshot::class)->latestOfMany('snapshot_month');
+    }
 }

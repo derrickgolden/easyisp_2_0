@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AdminUser } from '../types';
 import Footer from './modals/FooterModal';
+import { organizationApi } from '../services/apiService';
 
 interface LayoutProps {
   navItems: NavItem[];
@@ -30,12 +31,15 @@ interface NavItem {
 export const Layout: React.FC<LayoutProps> = ({ 
   navItems, theme, toggleTheme, children, currentUser, onLogout
 }) => {
+  const EASYTECH_LOGO = '/EasyTech.svg';
   const navigate = useNavigate();
   const location = useLocation();
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [activeSubTab, setActiveSubTab] = useState('');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= 1024);
+  const [organizationName, setOrganizationName] = useState('EasyTech');
+  const [organizationLogo, setOrganizationLogo] = useState(EASYTECH_LOGO);
 
   useEffect(() => {
     // Pathname looks like "/management/sites"
@@ -50,6 +54,40 @@ export const Layout: React.FC<LayoutProps> = ({
         setActiveSubTab('');
       }
   }, [location.pathname]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setIsSidebarOpen(true);
+      }
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const fetchOrganizationBranding = async () => {
+      try {
+        const response = await organizationApi.get();
+        const settings = response?.settings || {};
+        const general = settings.general || {};
+
+        const logo = general.business_logo || '';
+        const legalName = general.isp_legal_name || response?.name || 'EasyTech';
+
+        setOrganizationName(legalName);
+        setOrganizationLogo(logo || EASYTECH_LOGO);
+      } catch (error) {
+        console.error('Failed to fetch organization branding:', error);
+        setOrganizationName('EasyTech');
+        setOrganizationLogo(EASYTECH_LOGO);
+      }
+    };
+
+    fetchOrganizationBranding();
+  }, []);
 
   const getSubItemLabel = () => {
     if (!activeSubTab) return '';
@@ -80,11 +118,20 @@ export const Layout: React.FC<LayoutProps> = ({
         `}
       >
         <div className="p-6 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center font-bold shadow-lg shadow-blue-500/20">
-            <img src="/EasyTech.svg" alt="Logo" className="" />
+          <div className="flex items-center space-x-3 min-w-0 flex-1">
+            <div className="w-8 h-8 flex-shrink-0 bg-gray-100 rounded-lg flex items-center justify-center font-bold shadow-lg shadow-blue-500/20">
+              <img
+                src={organizationLogo}
+                alt="Logo"
+                className="w-full h-full object-contain"
+                onError={() => setOrganizationLogo(EASYTECH_LOGO)}
+              />
             </div>
-            {(isSidebarOpen || window.innerWidth < 1024) && <span className="font-bold text-lg tracking-tight">EasyTech</span>}
+            {(isSidebarOpen || window.innerWidth < 1024) && (
+              <span className="font-bold text-lg tracking-tight block truncate max-w-full min-w-0">
+                {organizationName}
+              </span>
+            )}
           </div>
           <button 
             onClick={() => setIsSidebarOpen(false)}

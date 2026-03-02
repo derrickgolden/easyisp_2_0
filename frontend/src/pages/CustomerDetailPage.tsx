@@ -88,7 +88,6 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
     if (!customerId) return;
     try {
       const response = await customersApi.getTechnicalSpecs(customerId);
-      console.log('Technical specs response:', response);
       setTechnicalSpecs(response);
     } catch (err: any) {
       console.error('Failed to fetch technical specs:', err);
@@ -103,7 +102,6 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
 
     try {
       const response = await customersApi.getWithRelations(customerId);
-      console.log('Customer data response:', response);
       const {customer} = response;
       setCustomer(customer);
       setParent(customer.parent || null);

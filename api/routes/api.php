@@ -60,6 +60,7 @@ Route::middleware(['auth:sanctum', 'abilities:access-system', 'permissions.team'
         Route::get('/organizations', [OrganizationController::class, 'listAll']);
         Route::post('/organizations', [OrganizationController::class, 'store']);
         Route::get('/organizations/{id}', [OrganizationController::class, 'show']);
+        Route::get('/organizations/{id}/license-billing', [OrganizationController::class, 'licenseBillingById']);
         Route::put('/organizations/{id}', [OrganizationController::class, 'updateById']);
         Route::delete('/organizations/{id}', [OrganizationController::class, 'destroy']);
 
@@ -79,6 +80,7 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     
     // Organization routes
     Route::get('/organization', [OrganizationController::class, 'index']);
+    Route::get('/organization/license-billing', [OrganizationController::class, 'licenseBilling']);
     Route::put('/organization', [OrganizationController::class, 'update']);
     Route::get('/organization/{id}', [OrganizationController::class, 'show']);
     

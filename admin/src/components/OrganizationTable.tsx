@@ -19,6 +19,23 @@ export const OrganizationTable: React.FC<OrganizationTableProps> = ({ organizati
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [selectedOrgForAdmins, setSelectedOrgForAdmins] = useState<Organization | null>(null);
 
+  const formatSnapshotMonth = (value?: string) => {
+    if (!value) return 'N/A';
+
+    const datePart = value.split('T')[0];
+    const parsed = new Date(`${datePart}T00:00:00`);
+
+    if (Number.isNaN(parsed.getTime())) {
+      return datePart;
+    }
+
+    return parsed.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+    });
+  };
+
   const getStatusIcon = (status: OrgStatus) => {
     switch (status) {
       case OrgStatus.ACTIVE: return <CheckCircle className="w-4 h-4 text-emerald-500" />;
@@ -47,6 +64,7 @@ export const OrganizationTable: React.FC<OrganizationTableProps> = ({ organizati
           <tr className="border-b border-slate-100">
             <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Organization</th>
             <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Billed Generated</th>
             <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Sites</th>
             <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Customers</th>
             <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Details</th>
@@ -75,6 +93,30 @@ export const OrganizationTable: React.FC<OrganizationTableProps> = ({ organizati
                   {getStatusIcon(org.status)}
                   {org.status.charAt(0).toUpperCase() + org.status.slice(1)}
                 </span>
+              </td>
+              <td className="px-6 py-4">
+                {org.latest_license_snapshot ? (
+                  <div className="text-sm">
+                    <p className="font-semibold text-slate-900">
+                      KSH {Number(org.latest_license_snapshot.total_amount || 0).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {formatSnapshotMonth(org.latest_license_snapshot.snapshot_month)}
+                    </p>
+                    <span
+                      className={cn(
+                        "inline-flex items-center mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase",
+                        org.latest_license_snapshot.status === 'paid'
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-amber-50 text-amber-700'
+                      )}
+                    >
+                      {org.latest_license_snapshot.status}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-xs text-slate-400">No bill generated</span>
+                )}
               </td>
               <td className="px-6 py-4 text-center">
                 <div className="inline-flex items-center gap-1 text-slate-600">

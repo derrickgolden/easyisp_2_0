@@ -103,6 +103,11 @@ export const organizationsApi = {
 		return response.data;
 	},
 
+	getLicenseBillingHistory: async (id: number | string) => {
+		const response = await axiosInstance.get(`/organizations/${id}/license-billing`);
+		return response.data;
+	},
+
 	getById: async (id: number | string) => {
 		const response = await axiosInstance.get(`/organizations/${id}`);
 		return response.data;

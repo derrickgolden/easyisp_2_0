@@ -116,7 +116,7 @@ const App: React.FC = () => {
         isSuperAdmin: result.user.is_super_admin || false,
         role: roleFromAuth || undefined,
       };
-      console.log("Login successful, user data:", user);
+
       setCurrentUser(user);
       localStorage.setItem(AUTH_KEY, JSON.stringify(user));
       showToast(`Authorized as ${user.name}`);
@@ -137,13 +137,10 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     try {
-      console.log("Logging out...");
       await authApi.logout();
-      console.log("Logging out...");
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      console.log("Logged out...");
       setCurrentUser(null);
       localStorage.removeItem(AUTH_KEY);
       setAuthToken(null);
@@ -158,7 +155,7 @@ const App: React.FC = () => {
       // User is still logged in
     }
   }, []);
-console.log("Rendering App, currentUser:");
+
   if (!currentUser) {
     return <LoginPage onLogin={handleLogin} isLoading={authLoading} error={authError} />;
   }

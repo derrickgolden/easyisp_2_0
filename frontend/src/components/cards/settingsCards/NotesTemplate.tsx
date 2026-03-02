@@ -16,7 +16,6 @@ const NotesTemplate = () => {
     useEffect(() => {
         const fetchTemplates = async () => {
             const response = await organizationApi.get();
-            console.log('Organization settings response:', response);
             const orgSettings = response?.settings || {};
             if (orgSettings['notes-template'] && Array.isArray(orgSettings['notes-template'].templates)) {
                 setTemplates(orgSettings['notes-template'].templates);

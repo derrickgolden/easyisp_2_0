@@ -60,7 +60,6 @@ export const CustomersPage: React.FC = () => {
     try {
       setIsPolling(true);
       const customersRes = await customersApi.getAll();
-      console.log({customersRes});
       const customersList = customersRes.data || [];
       setCustomers(customersList);
 

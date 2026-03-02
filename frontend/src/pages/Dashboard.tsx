@@ -37,12 +37,10 @@ export const Dashboard: React.FC = () => {
     growth: 0,
   });
   const [insight, setInsight] = useState('Initializing AI heuristics engine...');
-  const [isLoading, setIsLoading] = useState(true);
   
   
     useEffect(() => {
     const refreshDashboard = async () => {
-      setIsLoading(true);
       try {
         // 🚀 FIRE ALL AT ONCE
         const [sitesRes, statsRes, chartRes] = await Promise.all([
@@ -50,7 +48,7 @@ export const Dashboard: React.FC = () => {
           dashboardApi.getStats(),
           dashboardApi.getRevenueChart()
         ]);
-console.log('Dashboard data fetched:', { sitesRes, statsRes, chartRes });
+
         // Batch updates together
         if (sitesRes.data) {
           setSites(sitesRes.data);
@@ -59,8 +57,6 @@ console.log('Dashboard data fetched:', { sitesRes, statsRes, chartRes });
         setRevenueChartData(chartRes);
       } catch (error) {
         console.error('Dashboard sync error:', error);
-      } finally {
-        setIsLoading(false);
       }
     };
 

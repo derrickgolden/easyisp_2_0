@@ -20,6 +20,8 @@ class Kernel extends ConsoleKernel
 
         $schedule->command('isp:check-expirations')->everyMinute();
 
+        $schedule->command('license:generate-monthly-bills')->monthlyOn(2, '15:36')->withoutOverlapping();
+
         $schedule->call(function () {
             DB::connection('radius')->table('radpostauth')
                 ->where('authdate', '<', now()->subDays(30))

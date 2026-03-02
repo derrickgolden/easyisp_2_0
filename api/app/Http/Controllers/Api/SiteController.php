@@ -10,6 +10,12 @@ use Illuminate\Support\Facades\Validator;
 
 class SiteController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('permission:manage-sites')->except(['index', 'show', 'getIpamData']);
+        $this->middleware('permission:view-sites')->only(['index', 'show', 'getIpamData']);
+    }
+    
     public function index(Request $request)
     {
         $user = $request->user();
@@ -18,6 +24,10 @@ class SiteController extends Controller
             $query = Site::with('organization:id,name');
             if ($request->filled('organization_id')) {
                 $query->where('organization_id', $request->organization_id);
+            } elseif ($user->organization_id) {
+                $query->where('organization_id', $user->organization_id);
+            } else {
+                return response()->json(['message' => 'Organization context required'], 403);
             }
             return SiteResource::collection($query->paginate(15));
         }
@@ -30,11 +40,6 @@ class SiteController extends Controller
         }
 
         return response()->json(['message' => 'Organization context required'], 403);
-    }
-    public function __construct()
-    {
-        $this->middleware('permission:manage-sites')->except(['index', 'show', 'getIpamData']);
-        $this->middleware('permission:view-network-stats')->only(['index', 'show', 'getIpamData']);
     }
 
     public function store(Request $request)

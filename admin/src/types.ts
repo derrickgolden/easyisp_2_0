@@ -19,6 +19,13 @@ export interface Organization {
   created_at?: string;
   sites_count?: number;
   customers_count?: number;
+  latest_license_snapshot?: {
+    snapshot_month: string;
+    total_amount: string | number;
+    status: 'billed' | 'paid';
+    active_users_count: number;
+    price_per_user: string | number;
+  } | null;
 }
 
 export interface Site {
@@ -69,4 +76,25 @@ export interface BillingSummary {
   organization_name: string;
   total_customers: number;
   active_customers: number;
+}
+
+export interface LicenseBillingSnapshot {
+  id: number;
+  snapshot_month: string;
+  active_users_count: number;
+  price_per_user: string | number;
+  total_amount: string | number;
+  status: 'billed' | 'paid';
+  billed_at?: string | null;
+  paid_at?: string | null;
+}
+
+export interface OrganizationLicenseBillingResponse {
+  organization_id: number;
+  organization_name: string;
+  organization_status: OrgStatus;
+  current: LicenseBillingSnapshot | null;
+  price_per_active_user: number;
+  currency: string;
+  history: LicenseBillingSnapshot[];
 }

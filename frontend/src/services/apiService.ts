@@ -443,6 +443,14 @@ export const organizationApi = {
     return response.data;
   },
 
+  getLicenseBilling: async (month?: string) => {
+    const url = month
+      ? `/organization/license-billing?month=${encodeURIComponent(month)}`
+      : '/organization/license-billing';
+    const response = await axiosInstance.get(url);
+    return response.data;
+  },
+
   update: async (data: any) => {
     const response = await axiosInstance.put('/organization', data);
     return response.data;

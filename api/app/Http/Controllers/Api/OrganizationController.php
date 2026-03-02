@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
+use App\Models\OrganizationLicenseSnapshot;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -11,13 +12,14 @@ class OrganizationController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:system-settings')->except(['show', 'index']);
-        $this->middleware('permission:view-templates')->only(['show', 'index']);
+        $this->middleware('permission:system-settings')->except(['show', 'index', 'licenseBilling', 'licenseBillingById']);
+        $this->middleware('permission:view-templates')->only(['show', 'index', 'licenseBilling']);
     }
 
     public function listAll()
     {
         $organizations = Organization::withCount(['sites', 'customers'])
+            ->with(['latestLicenseSnapshot'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -64,6 +66,31 @@ class OrganizationController extends Controller
     {
         $organization = $request->user()->organization;
         return response()->json($organization);
+    }
+
+    public function licenseBilling(Request $request)
+    {
+        $organization = $request->user()->organization;
+        $month = $request->input('month');
+
+        $query = OrganizationLicenseSnapshot::where('organization_id', $organization->id)
+            ->orderByDesc('snapshot_month');
+
+        if ($month) {
+            $query->where('snapshot_month', $month . '-01');
+        }
+
+        $latest = (clone $query)->first();
+        $history = (clone $query)->limit(12)->get();
+
+        return response()->json([
+            'current' => $latest,
+            'price_per_active_user' => 15.00,
+            'currency' => 'KES',
+            'organization_status' => $organization->status,
+            'is_active' => $organization->status === 'active',
+            'history' => $history,
+        ]);
     }
 
     public function update(Request $request)
@@ -116,6 +143,30 @@ class OrganizationController extends Controller
             return response()->json(['message' => 'Organization not found'], 404);
         }
         return response()->json($organization);
+    }
+
+    public function licenseBillingById($id)
+    {
+        $organization = Organization::find($id);
+        if (!$organization) {
+            return response()->json(['message' => 'Organization not found'], 404);
+        }
+
+        $query = OrganizationLicenseSnapshot::where('organization_id', $organization->id)
+            ->orderByDesc('snapshot_month');
+
+        $latest = (clone $query)->first();
+        $history = (clone $query)->limit(24)->get();
+
+        return response()->json([
+            'organization_id' => $organization->id,
+            'organization_name' => $organization->name,
+            'organization_status' => $organization->status,
+            'current' => $latest,
+            'price_per_active_user' => 15.00,
+            'currency' => 'KES',
+            'history' => $history,
+        ]);
     }
 
     public function updateById(Request $request, $id)

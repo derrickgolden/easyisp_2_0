@@ -1,17 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Card, Modal, Badge } from '../components/UI';
+import { Card } from '../components/UI';
 import { organizationApi, paymentsApi } from '../services/apiService';
 import ChangePasswordCard from '../components/cards/settingsCards/ChangePasswordCard';
 import { useLocation } from 'react-router-dom';
-
-interface LicenceTier {
-  id: string;
-  name: string;
-  price: number;
-  capacity: string;
-  features: string[];
-  color: string;
-}
+import LicenceCard from '../components/cards/settingsCards/LicenceCard';
 
 interface SettingsPageProps {
   onSave: (msg: string) => void;
@@ -25,13 +17,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [orgSettings, setOrgSettings] = useState<any>({});
 
   // --- GENERAL SETTINGS ---
   const [generalForm, setGeneralForm] = useState({
-    isp_legal_name: 'EasyTech Network Solutions',
+    isp_legal_name: '',
     acronym: '',
-    support_hotline: '+254 700 000 000',
-    business_address: 'EasyTech Plaza, 4th Floor, Wing B, Nairobi, Kenya',
+    support_hotline: '',
+    business_address: '',
     trial_duration: 30,
     trial_unit: 'minutes',
     business_logo: ''
@@ -39,7 +32,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
 
   // --- PAYMENT GATEWAY ---
   const [paymentForm, setPaymentForm] = useState({
-    paybill: '174379',
+    paybill: '',
     consumer_key: '',
     consumer_secret: '',
     passkey: '',
@@ -50,10 +43,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
 
   // --- SMS GATEWAY ---
   const [smsForm, setSmsForm] = useState({
-    provider: "Africa's Talking",
-    sender_id: 'EASYTECH',
+    provider: '',
+    sender_id: '',
     api_key: '',
-    api_username: 'easytech_admin'
+    api_username: ''
   });
 
   // --- EMAIL GATEWAY ---
@@ -66,33 +59,19 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
     from_address: 'no-reply@easytech.com'
   });
 
-  
-
   // --- LICENCE STATE ---
-  const [licenceStatus, setLicenceStatus] = useState<'Active' | 'Trial' | 'Expired'>('Trial');
-  const [activeTier, setActiveTier] = useState<string | null>(null);
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [selectedTier, setSelectedTier] = useState<LicenceTier | null>(null);
-  const [paymentStep, setPaymentStep] = useState<'idle' | 'processing' | 'success'>('idle');
-  const [phoneNumber, setPhoneNumber] = useState('2547');
   const [mode, setMode] = useState('');
-
-  const tiers: LicenceTier[] = [
-    { id: 'lite', name: 'Lite', price: 5000, capacity: 'Up to 100 Subs', features: ['Basic Billing', 'Core CRM', 'Standard Reports'], color: 'slate' },
-    { id: 'pro', name: 'Professional', price: 12000, capacity: 'Up to 500 Subs', features: ['Advanced IPAM', 'Ticketing System', 'SMS Gateway Integration', 'API Access'], color: 'blue' },
-    { id: 'ent', name: 'Enterprise', price: 25000, capacity: 'Unlimited Subs', features: ['White Labeling', 'Priority Support', 'Custom Integrations', 'Multi-Admin Roles'], color: 'indigo' },
-  ];
   
-    useEffect(() => {
-      // Pathname looks like "/management/sites"
-      const pathParts = location.pathname.split('/').filter(Boolean); // filter(Boolean) removes empty strings
-      
-      if (pathParts[1]) {
-        setMode(pathParts[1]);
-      } else {
-        setMode('');
-      }
-    }, [location.pathname]);
+  useEffect(() => {
+    // Pathname looks like "/management/sites"
+    const pathParts = location.pathname.split('/').filter(Boolean); // filter(Boolean) removes empty strings
+    
+    if (pathParts[1]) {
+      setMode(pathParts[1]);
+    } else {
+      setMode('');
+    }
+  }, [location.pathname]);
   
   // Collect form data based on current mode
   const collectFormData = () => {
@@ -111,52 +90,48 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
   };
 
   // Fetch settings from database on component mount or mode change
-React.useEffect(() => {
-  const fetchSettings = async () => {
-    try {
-      const response = await organizationApi.get();
-      const orgSettings = response?.settings || {};
+  React.useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await organizationApi.get();
+        const orgSettings = response?.settings || {};
+        const generalSettings = orgSettings.general || {};
+        const paymentSettings = orgSettings['payment-gateway'] || {};
+        const smsSettings = orgSettings['sms-gateway'] || {};
+        const emailSettings = orgSettings['email-gateway'] || {};
 
-      // Load settings based on current mode
-      if (mode === 'general' && orgSettings.general) {
+        setOrgSettings(response || {});
+
+        // Load settings for all forms; if a value is missing from backend, keep current form value
         setGeneralForm(prev => ({
           ...prev,
-          ...orgSettings.general,
-          // Load acronym from top-level organization field
-          acronym: response?.acronym || prev.acronym
+          ...generalSettings,
+          acronym: response?.acronym || generalSettings.acronym || prev.acronym
         }));
-      } else if (mode === 'payment-gateway' && orgSettings['payment-gateway']) {
+
         setPaymentForm(prev => ({
           ...prev,
-          ...orgSettings['payment-gateway']
+          ...paymentSettings
         }));
-      } else if (mode === 'sms-gateway' && orgSettings['sms-gateway']) {
+
         setSmsForm(prev => ({
           ...prev,
-          ...orgSettings['sms-gateway']
+          ...smsSettings
         }));
-      } else if (mode === 'email-gateway' && orgSettings['email-gateway']) {
+
         setEmailForm(prev => ({
           ...prev,
-          ...orgSettings['email-gateway']
+          ...emailSettings
         }));
-      }
 
-      // Load licence info
-      if (orgSettings.subscription_tier) {
-        setActiveTier(
-          orgSettings.subscription_tier.charAt(0).toUpperCase() +
-          orgSettings.subscription_tier.slice(1)
-        );
+      } catch (err) {
+        console.error('Failed to fetch settings:', err);
+        // Silently fail - use defaults
       }
-    } catch (err) {
-      console.error('Failed to fetch settings:', err);
-      // Silently fail - use defaults
-    }
-  };
+    };
 
-  fetchSettings();
-}, [mode]);
+    fetchSettings();
+  }, [mode]);
 
   // Save settings to database
   const handleGlobalSave = async (e: React.FormEvent) => {
@@ -225,27 +200,6 @@ React.useEffect(() => {
     }
   };
 
-  const initiatePayment = (tier: LicenceTier) => {
-    setSelectedTier(tier);
-    setIsPaymentModalOpen(true);
-    setPaymentStep('idle');
-  };
-
-  const handleSTKPush = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPaymentStep('processing');
-    setTimeout(() => {
-      setPaymentStep('success');
-      setLicenceStatus('Active');
-      setActiveTier(selectedTier?.name || null);
-      onSave(`Licence for ${selectedTier?.name} activated successfully!`);
-      setTimeout(() => {
-        setIsPaymentModalOpen(false);
-        setPaymentStep('idle');
-      }, 2000);
-    }, 3000);
-  };
-
   const renderContent = () => {
     switch (mode) {
       case 'general':
@@ -292,6 +246,7 @@ React.useEffect(() => {
                     value={generalForm.isp_legal_name}
                     required
                     onChange={e => setGeneralForm({ ...generalForm, isp_legal_name: e.target.value })}
+                    placeholder="e.g. EasyTech Network Solutions"
                     className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold" 
                   />
                 </div>
@@ -314,6 +269,7 @@ React.useEffect(() => {
                     type="tel" 
                     value={generalForm.support_hotline}
                     onChange={e => setGeneralForm({ ...generalForm, support_hotline: e.target.value })}
+                    placeholder="e.g. +254 700 000 000"
                     className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold" 
                   />
                 </div>
@@ -348,6 +304,7 @@ React.useEffect(() => {
                     rows={2} 
                     value={generalForm.business_address}
                     onChange={e => setGeneralForm({ ...generalForm, business_address: e.target.value })}
+                    placeholder="e.g. EasyTech Plaza, 4th Floor, Wing B, Nairobi, Kenya"
                     className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white text-sm" 
                   />
                 </div>
@@ -356,65 +313,7 @@ React.useEffect(() => {
           </div>
         );
 
-      case 'licence':
-        return (
-          <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl">
-              <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
-                <div className="flex items-center gap-6">
-                  <div className={`w-20 h-20 rounded-3xl flex items-center justify-center shadow-xl ${licenceStatus === 'Active' ? 'bg-green-500' : 'bg-amber-500'} shadow-emerald-500/20`}>
-                    <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-3 mb-1">
-                      <h3 className="text-3xl font-black">{licenceStatus === 'Trial' ? 'Free Trial' : (activeTier || 'Enterprise')}</h3>
-                      <Badge variant={licenceStatus.toLowerCase()}>{licenceStatus.toUpperCase()}</Badge>
-                    </div>
-                    <p className="text-slate-400 font-medium font-mono text-sm uppercase">ET-CLOUD-8821-X991-A122</p>
-                  </div>
-                </div>
-                <div className="text-center md:text-right">
-                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Next Renewal</p>
-                  <p className="text-2xl font-black text-white">Dec 31, 2025</p>
-                </div>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {tiers.map(tier => (
-                <div key={tier.id} className="bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-gray-100 dark:border-slate-800 shadow-sm flex flex-col group hover:shadow-xl transition-all relative overflow-hidden">
-                  {activeTier === tier.name && (
-                    <div className="absolute top-0 right-0 px-4 py-1 bg-blue-600 text-white text-[10px] font-black uppercase rounded-bl-xl tracking-widest z-10">Current Plan</div>
-                  )}
-                  <div className="mb-6">
-                    <p className={`text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-${tier.color}-500`}>{tier.name} System</p>
-                    <h4 className="text-4xl font-black text-gray-900 dark:text-white">
-                      <span className="text-sm font-medium mr-1 uppercase">KSH</span>
-                      {tier.price.toLocaleString()}
-                    </h4>
-                    <p className="text-xs text-gray-500 mt-2 font-bold">{tier.capacity}</p>
-                  </div>
-                  <div className="space-y-3 flex-1">
-                    {tier.features.map(f => (
-                      <div key={f} className="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-400">
-                        <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                        {f}
-                      </div>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    disabled={activeTier === tier.name}
-                    onClick={() => initiatePayment(tier)}
-                    className={`mt-8 w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${activeTier === tier.name ? 'bg-gray-100 dark:bg-slate-800 text-gray-400 cursor-not-allowed' : 'bg-blue-600 text-white shadow-lg hover:bg-blue-500'
-                      }`}
-                  >
-                    {activeTier === tier.name ? 'Active' : 'Upgrade Now'}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
+      case 'licence': return ( <LicenceCard orgSettings={orgSettings} /> );
 
       case 'payment-gateway':
         return (
@@ -542,6 +441,7 @@ React.useEffect(() => {
                     value={smsForm.provider}
                     onChange={e => setSmsForm({ ...smsForm, provider: e.target.value })}
                     className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 appearance-none text-gray-900 dark:text-white font-bold">
+                    <option value="" disabled>Select provider</option>
                     <option>Africa's Talking</option>
                     <option>Twilio</option>
                     <option>Infobip</option>
@@ -698,10 +598,7 @@ React.useEffect(() => {
           </div>
         );
 
-      case 'change-password':
-        return (
-          <ChangePasswordCard />
-        );
+      case 'change-password': return ( <ChangePasswordCard /> );
 
       default:
         return (
@@ -751,42 +648,6 @@ React.useEffect(() => {
           </div>
         )}
       </form>
-
-      <Modal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} title="Renew System License">
-        {paymentStep === 'idle' && (
-          <form onSubmit={handleSTKPush} className="space-y-6">
-            <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700">
-              <div className="flex justify-between items-center mb-4">
-                <span className="text-xs font-bold text-gray-500 uppercase">Selected Plan</span>
-                <span className="text-sm font-black text-blue-600 uppercase tracking-widest">{selectedTier?.name} Tier</span>
-              </div>
-              <div className="flex justify-between items-center pb-4 border-b dark:border-slate-600">
-                <span className="text-xs font-bold text-gray-500 uppercase">Billing Amount</span>
-                <span className="text-xl font-black text-gray-900 dark:text-white">KSH {selectedTier?.price.toLocaleString()}</span>
-              </div>
-              <div className="mt-4">
-                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1 block mb-1">M-Pesa Number</label>
-                <input required type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-4 text-center text-xl font-black tracking-widest focus:ring-2 focus:ring-emerald-500" />
-              </div>
-            </div>
-            <button type="submit" className="w-full bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-xl active:scale-95">Authorize STK Push</button>
-          </form>
-        )}
-        {paymentStep === 'processing' && (
-          <div className="py-12 flex flex-col items-center justify-center text-center space-y-4">
-            <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-            <h4 className="text-lg font-black">Syncing with M-Pesa Gateway...</h4>
-          </div>
-        )}
-        {paymentStep === 'success' && (
-          <div className="py-12 flex flex-col items-center justify-center text-center space-y-4 animate-in zoom-in duration-300">
-            <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center shadow-2xl">
-              <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M5 13l4 4L19 7" /></svg>
-            </div>
-            <h4 className="text-xl font-black">Payment Captured!</h4>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 };
