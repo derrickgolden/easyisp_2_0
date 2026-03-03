@@ -1,5 +1,7 @@
 
 import React, { useState } from 'react';
+const LOGIN_EMAIL = import.meta.env.VITE_LOGIN_EMAIL
+const LOGIN_PASSWORD = import.meta.env.VITE_LOGIN_PASSWORD
 
 interface LoginPageProps {
   onLogin: (email: string, password: string) => void;
@@ -8,8 +10,8 @@ interface LoginPageProps {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, isLoading, error }) => {
-  const [email, setEmail] = useState('admin@easyisp.local');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState(LOGIN_EMAIL);
+  const [password, setPassword] = useState(LOGIN_PASSWORD);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

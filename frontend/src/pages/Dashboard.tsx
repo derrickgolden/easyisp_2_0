@@ -7,6 +7,7 @@ import { STORAGE_KEYS } from '../constants/storage';
 import { sitesApi, dashboardApi } from '../services/apiService';
 
 interface DashboardStats {
+  total_users: number;
   active_users: number;
   online_users: number;
   daily_revenue: number;
@@ -24,6 +25,7 @@ interface RevenueChartData {
 export const Dashboard: React.FC = () => {
   const [sites, setSites] = useState<Site[]>([]);
   const [stats, setStats] = useState<DashboardStats>({
+    total_users: 0,
     active_users: 0,
     online_users: 0,
     daily_revenue: 0,
@@ -53,6 +55,7 @@ export const Dashboard: React.FC = () => {
         if (sitesRes.data) {
           setSites(sitesRes.data);
         }
+        console.log('Stats response:', statsRes);
         setStats(statsRes);
         setRevenueChartData(chartRes);
       } catch (error) {
@@ -78,10 +81,11 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         <div className="col-span-2 sm:col-span-1">
           <StatCard label="Daily Revenue" value={formattedDailyRevenue} icon={<ICONS.Revenue />} color={COLORS.warning} />
         </div>
+        <StatCard label="Total Users" value={stats.total_users} icon={<ICONS.CRM />} color={COLORS.primary} />
         <StatCard label="Active Users" value={stats.active_users} icon={<ICONS.CRM />} color={COLORS.primary} />
         <StatCard label="Online Now" value={stats.online_users} icon={<ICONS.Management />} color={COLORS.success} />
         <StatCard label="System Alerts" value={stats.offline_routers} icon={<ICONS.Settings />} color={COLORS.danger} />

@@ -25,6 +25,9 @@ class DashboardController extends Controller
             ->where('status', 'active')
             ->count();
 
+        $totalUsers = Customer::where('organization_id', $organizationId)
+            ->count();
+
         $onlineUsers = Customer::where('organization_id', $organizationId)
             ->whereRaw('EXISTS (
                 SELECT 1 FROM radius.radacct 
@@ -57,6 +60,7 @@ class DashboardController extends Controller
             ->count();
 
         return response()->json([
+            'total_users' => $totalUsers,
             'active_users' => $activeUsers,
             'online_users' => $onlineUsers,
             'daily_revenue' => $dailyRevenue,
