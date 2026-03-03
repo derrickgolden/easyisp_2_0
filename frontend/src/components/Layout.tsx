@@ -40,6 +40,10 @@ export const Layout: React.FC<LayoutProps> = ({
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= 1024);
   const [organizationName, setOrganizationName] = useState('EasyTech');
   const [organizationLogo, setOrganizationLogo] = useState(EASYTECH_LOGO);
+  const [isTouchDevice, setIsTouchDevice] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+  });
 
   useEffect(() => {
     // Pathname looks like "/management/sites"
@@ -89,6 +93,23 @@ export const Layout: React.FC<LayoutProps> = ({
     fetchOrganizationBranding();
   }, []);
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(pointer: coarse)');
+    const updateTouchMode = () => {
+      setIsTouchDevice(mediaQuery.matches || navigator.maxTouchPoints > 0);
+    };
+
+    updateTouchMode();
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', updateTouchMode);
+      return () => mediaQuery.removeEventListener('change', updateTouchMode);
+    }
+
+    mediaQuery.addListener(updateTouchMode);
+    return () => mediaQuery.removeListener(updateTouchMode);
+  }, []);
+
   const getSubItemLabel = () => {
     if (!activeSubTab) return '';
     const item = navItems.find(i => i.id === activeTab);
@@ -102,8 +123,11 @@ export const Layout: React.FC<LayoutProps> = ({
   };
 
   return (
-    <div className="h-screen w-full flex bg-gray-50 dark:bg-slate-950 transition-all duration-300 overflow-hidden font-sans">
-
+<div
+      className={`w-full flex bg-gray-50 dark:bg-slate-950 transition-all duration-300 font-sans ${
+        isTouchDevice ? 'min-h-screen' : 'h-screen overflow-hidden'
+      }`}
+    >
       {isSidebarOpen && (
         <div 
           className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-30 lg:hidden animate-in fade-in duration-300"
@@ -197,7 +221,11 @@ export const Layout: React.FC<LayoutProps> = ({
         )}
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
+      <div
+        className={`flex-1 flex flex-col min-w-0 relative ${
+          isTouchDevice ? 'min-h-screen' : 'h-full overflow-hidden'
+        }`}
+      >
         <header className="flex-shrink-0 z-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-gray-200 dark:border-slate-800 px-4 lg:px-6 py-4 flex items-center justify-between transition-theme">
           <div className="flex items-center space-x-3 lg:space-x-4">
             <button 
@@ -227,7 +255,7 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto scroll-smooth">
+        <main className={`flex-1 scroll-smooth ${isTouchDevice ? '' : 'overflow-y-auto'}`}>
           <div className="p-4 lg:p-10 max-w-7xl mx-auto w-full animate-in fade-in duration-500 pb-10 min-h-full flex flex-col">
             <div className="flex-1">
               {children}
