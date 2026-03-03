@@ -29,10 +29,15 @@ export interface Organization {
 }
 
 export interface Site {
-  id: number;
+  id: number | string;
   organization_id: number;
   name: string;
   status: "online" | "offline";
+  location?: string | null;
+  ip_address?: string | null;
+  notify_on_down?: boolean;
+  last_seen?: string | null;
+  radius_secret?: string | null;
   organization_name?: string | null;
 }
 

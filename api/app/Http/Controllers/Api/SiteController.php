@@ -12,8 +12,19 @@ class SiteController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:manage-sites')->except(['index', 'show', 'getIpamData']);
+        $this->middleware('permission:manage-sites')->except(['index', 'show', 'getIpamData', 'systemIndex']);
         $this->middleware('permission:view-sites')->only(['index', 'show', 'getIpamData']);
+    }
+
+    public function systemIndex(Request $request)
+    {
+        $query = Site::with('organization:id,name');
+
+        if ($request->filled('organization_id')) {
+            $query->where('organization_id', $request->organization_id);
+        }
+
+        return SiteResource::collection($query->orderByDesc('created_at')->paginate(15));
     }
     
     public function index(Request $request)

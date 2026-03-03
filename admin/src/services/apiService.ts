@@ -80,6 +80,14 @@ export interface OrganizationInput {
 	settings?: Record<string, unknown> | null;
 }
 
+export interface SiteInput {
+	name?: string;
+	location?: string;
+	ip_address?: string;
+	radius_secret?: string | null;
+	notify_on_down?: boolean;
+}
+
 // Auth Endpoints
 export const authApi = {
 	login: async (email: string, password: string) => {
@@ -141,6 +149,11 @@ export const sitesApi = {
 		const params = new URLSearchParams({ page: String(page) });
 		if (organizationId) params.append('organization_id', String(organizationId));
 		const response = await axiosInstance.get(`/sites?${params.toString()}`);
+		return response.data;
+	},
+
+	update: async (id: number | string, data: SiteInput) => {
+		const response = await axiosInstance.put(`/sites/${id}`, data);
 		return response.data;
 	},
 };

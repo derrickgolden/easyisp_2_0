@@ -29,6 +29,10 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
   const { can } = usePermissions();
   const isSubAccount = !!editingCustomer?.parentId;
   const potentialParents = customers.filter(c => c.id !== editingCustomer?.id && !c.parentId);
+  const labelClassName = 'text-[10px] font-black uppercase text-gray-600 dark:text-gray-200 tracking-widest ml-1';
+  const inputClassName = 'w-full border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 placeholder:font-normal placeholder:text-gray-300 dark:placeholder:text-gray-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-white';
+  const readOnlyInputClassName = 'w-full border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 placeholder:font-normal placeholder:text-gray-300 dark:placeholder:text-gray-600 bg-slate-200 dark:bg-slate-700 text-gray-500 cursor-not-allowed';
+  const selectClassName = 'w-full border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 appearance-none bg-white dark:bg-slate-900 text-gray-900 dark:text-white';
 
   useEffect(() => {
     if (!isOpen) return;
@@ -138,29 +142,29 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
           </div>
         )}
 
-        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4">
+        <div className="p-4 bg-slate-100 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">First Name*</label>
+              <label className={labelClassName}>First Name*</label>
               <input 
                 required
                 readOnly={isSubAccount}
                 type="text" 
                 value={editingCustomer?.firstName || ''} 
                 onChange={e => setEditingCustomer({...editingCustomer, firstName: e.target.value})}
-                className={`w-full border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 font-bold ${isSubAccount ? 'bg-slate-200 dark:bg-slate-700 text-gray-500 cursor-not-allowed' : 'bg-white dark:bg-slate-900 text-gray-900 dark:text-white'}`} 
-                placeholder="Jane"
+                className={isSubAccount ? readOnlyInputClassName : inputClassName}
+                placeholder="John"
               />              
             </div>
             <div>
-              <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Last Name*</label>
+              <label className={labelClassName}>Last Name*</label>
               <input 
                 required
                 readOnly={isSubAccount}
                 type="text" 
                 value={editingCustomer?.lastName || ''} 
                 onChange={e => setEditingCustomer({...editingCustomer, lastName: e.target.value})}
-                className={`w-full border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 font-bold ${isSubAccount ? 'bg-slate-200 dark:bg-slate-700 text-gray-500 cursor-not-allowed' : 'bg-white dark:bg-slate-900 text-gray-900 dark:text-white'}`} 
+                className={isSubAccount ? readOnlyInputClassName : inputClassName}
                 placeholder="Doe"
               />
             </div>
@@ -168,25 +172,25 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Email</label>
+              <label className={labelClassName}>Email</label>
               <input 
                 type="email" 
                 readOnly={isSubAccount}
                 value={editingCustomer?.email || ''} 
                 onChange={e => setEditingCustomer({...editingCustomer, email: e.target.value})}
-                className={`w-full border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 font-bold ${isSubAccount ? 'bg-slate-200 dark:bg-slate-700 text-gray-500 cursor-not-allowed' : 'bg-white dark:bg-slate-900 text-gray-900 dark:text-white'}`} 
+                className={isSubAccount ? readOnlyInputClassName : inputClassName}
                 placeholder="jane.doe@example.com"
               />
             </div>
             <div>
-              <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Phone*</label>
+              <label className={labelClassName}>Phone*</label>
               <input 
                 required
                 readOnly={isSubAccount}
                 type="tel" 
                 value={editingCustomer?.phone || ''} 
                 onChange={e => setEditingCustomer({...editingCustomer, phone: e.target.value})}
-                className={`w-full border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 font-bold ${isSubAccount ? 'bg-slate-200 dark:bg-slate-700 text-gray-500 cursor-not-allowed' : 'bg-white dark:bg-slate-900 text-gray-900 dark:text-white'}`} 
+                className={isSubAccount ? readOnlyInputClassName : inputClassName}
                 placeholder="+2547XXXXXXXX"
               />
             </div>
@@ -194,37 +198,37 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
         </div>
 
         {/* Physical Address Section */}
-        <div className="p-4 bg-gray-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4">
-          <h5 className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Physical Address</h5>
+        <div className="p-4 bg-gray-100 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4">
+          <h5 className="text-[11px] font-black uppercase text-gray-800 dark:text-gray-50 tracking-widest ml-1">Physical Address</h5>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Area / Location*</label>
+              <label className={labelClassName}>Area / Location*</label>
               <input 
                 required
                 type="text" 
                 value={editingCustomer?.location || ''} 
                 onChange={e => setEditingCustomer({...editingCustomer, location: e.target.value})}
-                className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-medium" 
+                className={inputClassName}
                 placeholder="e.g. Githurai 45"
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Apartment / Building</label>
+              <label className={labelClassName}>Apartment / Building</label>
               <input 
                 type="text" 
                 value={editingCustomer?.apartment || ''} 
                 onChange={e => setEditingCustomer({...editingCustomer, apartment: e.target.value})}
-                className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-medium" 
+                className={inputClassName}
                 placeholder="e.g. Hadasa Apt"
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">House / Unit No</label>
+              <label className={labelClassName}>House / Unit No</label>
               <input 
                 type="text" 
                 value={editingCustomer?.houseNo || ''} 
                 onChange={e => setEditingCustomer({...editingCustomer, houseNo: e.target.value})}
-                className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-medium" 
+                className={inputClassName}
                 placeholder="e.g. A4"
               />
             </div>
@@ -235,12 +239,12 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
         <div className="p-4 bg-purple-50/50 dark:bg-purple-900/5 rounded-2xl border border-purple-100 dark:border-purple-900/20 space-y-3">
           <h5 className="text-[10px] font-black uppercase text-purple-600 tracking-widest ml-1">Account Hierarchy</h5>
           <div>
-            <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Linked Main Account</label>
+            <label className={labelClassName}>Linked Main Account</label>
             <select 
               disabled={isSubAccount && !editingCustomer?.id}
               value={editingCustomer?.parentId || ''}
               onChange={e => setEditingCustomer({...editingCustomer, parentId: e.target.value || undefined})}
-              className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 appearance-none text-gray-900 dark:text-white font-medium text-sm"
+              className={selectClassName}
             >
               <option value="">Standalone / Main Account</option>
               {potentialParents.map(parent => (
@@ -263,51 +267,51 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
           )}
         </div>
 
-        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4">
+        {/* <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4">
           <h5 className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Live Network Parameters</h5>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Static IP</label>
+              <label className={labelClassName}>Static IP</label>
               <input 
                 type="text" 
                 value={editingCustomer?.ipAddress || ''} 
                 onChange={e => setEditingCustomer({...editingCustomer, ipAddress: e.target.value})}
-                className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono text-sm" 
+                className={inputClassName}
                 placeholder="15.15.15.226"
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">MAC Address</label>
+              <label className={labelClassName}>MAC Address</label>
               <input 
                 type="text" 
                 value={editingCustomer?.macAddress || ''} 
                 onChange={e => setEditingCustomer({...editingCustomer, macAddress: e.target.value})}
-                className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono text-sm" 
+                className={inputClassName}
                 placeholder="B0:95:..."
               />
             </div>
           </div>
-        </div>
+        </div> */}
 
         <div className="p-4 bg-indigo-50/50 dark:bg-indigo-900/5 rounded-2xl border border-indigo-100 dark:border-indigo-900/20 space-y-4">
           <h5 className="text-[10px] font-black uppercase text-indigo-500 tracking-widest ml-1">RADIUS Credentials</h5>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Radius Username</label>
+              <label className={labelClassName}>Radius Username</label>
               <input 
                 type="text" 
                 value={editingCustomer?.radiusUsername || ''} 
                 onChange={e => setEditingCustomer({...editingCustomer, radiusUsername: e.target.value})}
-                className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono text-sm" 
+                className={inputClassName}
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase ml-1">Radius Password</label>
+              <label className={labelClassName}>Radius Password</label>
               <input 
                 type="text" 
                 value={editingCustomer?.radiusPassword || ''} 
                 onChange={e => setEditingCustomer({...editingCustomer, radiusPassword: e.target.value})}
-                className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono text-sm" 
+                className={inputClassName}
               />
             </div>
           </div>
@@ -316,12 +320,12 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
         <div className="p-4 bg-blue-50/50 dark:bg-blue-900/5 rounded-2xl border border-blue-100 dark:border-blue-900/20 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[10px] font-black uppercase text-blue-500 tracking-widest ml-1">Connection Type*</label>
+              <label className={labelClassName}>Connection Type*</label>
               <select 
                 required
                 value={editingCustomer?.connectionType || 'PPPoE'}
                 onChange={e => setEditingCustomer({...editingCustomer, connectionType: e.target.value as any})}
-                className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 appearance-none text-gray-900 dark:text-white font-bold"
+                className={selectClassName}
               >
                 <option value="PPPoE">PPPoE</option>
                 <option value="Static IP">Static IP</option>
@@ -329,12 +333,12 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
               </select>
             </div>
             <div>
-              <label className="text-[10px] font-black uppercase text-blue-500 tracking-widest ml-1">Package*</label>
+              <label className={labelClassName}>Package*</label>
               <select 
                 required
                 value={editingCustomer?.packageId || ''}
                 onChange={e => setEditingCustomer({...editingCustomer, packageId: e.target.value})}
-                className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 appearance-none text-gray-900 dark:text-white font-bold"
+                className={selectClassName}
               >
                 <option value="">Select...</option>
                 {packages.map(pkg => (
@@ -345,7 +349,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
           </div>
           
           <div>
-            <label className="text-[10px] font-black uppercase text-blue-500 tracking-widest ml-1">Installation Fee (KSH)*</label>
+            <label className={labelClassName}>Installation Fee (KSH)*</label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 text-[10px] font-black uppercase">KSH</span>
               <input 
@@ -353,7 +357,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
                 type="number" 
                 value={editingCustomer?.installationFee ?? 0} 
                 onChange={e => setEditingCustomer({...editingCustomer, installationFee: Number(e.target.value)})}
-                className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 pl-12 mt-1 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-black" 
+                className={`${inputClassName} pl-12`}
                 placeholder="0.00"
               />
             </div>

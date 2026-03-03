@@ -64,6 +64,11 @@ Route::middleware(['auth:sanctum', 'abilities:access-system', 'permissions.team'
         Route::put('/organizations/{id}', [OrganizationController::class, 'updateById']);
         Route::delete('/organizations/{id}', [OrganizationController::class, 'destroy']);
 
+        // Site management (system admin)
+        Route::get('/sites', [SiteController::class, 'systemIndex']);
+        Route::get('/sites/{id}', [SiteController::class, 'show']);
+        Route::put('/sites/{id}', [SiteController::class, 'update']);
+
         // User management
         Route::apiResource('/users', UserController::class);
 });
