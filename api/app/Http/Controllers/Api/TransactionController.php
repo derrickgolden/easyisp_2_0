@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Transaction;
 use App\Models\Customer;
+use App\Services\SubscriptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +19,12 @@ class TransactionController extends Controller
 
     public function index(Request $request)
     {
-        $transactions = Transaction::where('organization_id', $request->user()->organization_id)->paginate(15);
+        $transactions = Transaction::where('organization_id', 
+            $request->user()
+            ->organization_id)
+            ->latest()
+            ->paginate(15);
+            
         return response()->json($transactions);
     }
 
@@ -42,6 +48,7 @@ class TransactionController extends Controller
 
             $customer = Customer::find($request->customer_id);
             $balanceBefore = $customer->balance;
+            $activationNote = null;
 
             // Update customer balance
             if ($request->type === 'credit') {
@@ -62,11 +69,41 @@ class TransactionController extends Controller
                 'balance_after' => $customer->balance,
             ]);
 
+            if ($request->type === 'credit') {
+                $customerForSync = $customer->fresh(['package']);
+                $wasExpired = $customerForSync->status === 'expired';
+                $packagePrice = $customerForSync->package?->price;
+                $canAutoRenew = $wasExpired && $packagePrice !== null && $customerForSync->balance >= $packagePrice;
+                $isOnline = false;
+
+                if ($canAutoRenew) {
+                    $isOnline = DB::connection('radius')->table('radacct')
+                        ->where('username', $customerForSync->radius_username)
+                        ->whereNull('acctstoptime')
+                        ->exists();
+                }
+
+                app(SubscriptionService::class)->syncSubscription($customerForSync);
+
+                if ($canAutoRenew) {
+                    $customerAfterSync = $customerForSync->fresh();
+
+                    if (!$isOnline) {
+                        $activationNote = 'Customer has enough balance, but activation was skipped because they are offline.';
+                    } elseif ($customerAfterSync && $customerAfterSync->status === 'active') {
+                        $activationNote = 'Customer auto-activated successfully.';
+                    } else {
+                        $activationNote = 'Deposit posted. Auto-activation check completed.';
+                    }
+                }
+            }
+
             DB::commit();
 
             return response()->json([
                 'message' => 'Transaction created successfully',
                 'transaction' => $transaction,
+                'activation_note' => $activationNote,
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -76,7 +113,9 @@ class TransactionController extends Controller
 
     public function getByCustomer($customerId)
     {
-        $transactions = Transaction::where('customer_id', $customerId)->paginate(15);
+        $transactions = Transaction::where('customer_id', $customerId)
+            ->latest()
+            ->paginate(15);
         return response()->json($transactions);
     }
 

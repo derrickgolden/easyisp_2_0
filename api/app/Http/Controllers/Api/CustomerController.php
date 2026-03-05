@@ -8,6 +8,7 @@ use App\Services\CustomerRadiusService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Http\Resources\CustomerResource;
+use App\Models\Site;
 use App\Services\SubscriptionService;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
@@ -33,24 +34,87 @@ class CustomerController extends Controller
         $this->subscriptionService = $subscriptionService;
     }
 
+    // public function index(Request $request)
+    // {
+    //     $customers = $request->user()->organization->customers()
+    //         ->with(['package:id,name'])
+    //         ->latest()
+    //         ->get();
+
+    //     // 1. Get all active usernames from the radius connection in one go
+    //     $onlineUsernames = \DB::connection('radius')
+    //         ->table('radacct')
+    //         ->whereNull('acctstoptime')
+    //         ->pluck('username')
+    //         ->toArray();
+
+    //         // 2. Map the status to your customers
+    //     $customers->map(function ($customer) use ($onlineUsernames) {
+    //         $customer->is_online = in_array($customer->radius_username, $onlineUsernames) ? 1 : 0;
+    //         return $customer;
+    //     });
+
+    //     return CustomerResource::collection($customers);
+    // }
+
+    // public function index(Request $request)
+    // {
+    //     $customers = $request->user()->organization->customers()
+    //         ->with(['package:id,name'])
+    //         ->latest()
+    //         ->get();
+
+    //     // 1. Get latest RADIUS session per username (online or offline)
+    //     $latestSessions = \DB::connection('radius')
+    //         ->table('radacct')
+    //         ->whereNotNull('username')
+    //         ->orderByDesc('radacctid')
+    //         ->get(['username', 'nasipaddress', 'acctstoptime'])
+    //         ->unique('username')
+    //         ->keyBy('username');
+
+    //     // 2. Map online status + NAS IP to customers
+    //     $customers->map(function ($customer) use ($latestSessions) {
+    //         $session = $latestSessions->get($customer->radius_username);
+    //         $customer->is_online = ($session && is_null($session->acctstoptime)) ? 1 : 0;
+    //         $customer->radius_nas_ip = $session?->nasipaddress;
+    //         return $customer;
+    //     });
+
+    //     return CustomerResource::collection($customers);
+    // }
+
     public function index(Request $request)
     {
+        // 1. Get your customers (highly recommend adding ->paginate(50) here)
         $customers = $request->user()->organization->customers()
             ->with(['package:id,name'])
             ->latest()
             ->get();
 
-        // 1. Get all active usernames from the radius connection in one go
-        $onlineUsernames = \DB::connection('radius')
-            ->table('radacct')
-            ->whereNull('acctstoptime')
-            ->pluck('username')
-            ->toArray();
+        $usernames = $customers->pluck('radius_username')->filter()->toArray();
 
-            // 2. Map the status to your customers
-        $customers->map(function ($customer) use ($onlineUsernames) {
-            $customer->is_online = in_array($customer->radius_username, $onlineUsernames) ? 1 : 0;
-            return $customer;
+        // 2. Optimized RADIUS Query
+        // We only fetch the LATEST record for each relevant username using a subquery or clever grouping
+        $latestSessions = \DB::connection('radius')
+            ->table('radacct')
+            ->whereIn('username', $usernames)
+            ->whereIn('radacctid', function($query) use ($usernames) {
+                $query->selectRaw('MAX(radacctid)')
+                    ->from('radacct')
+                    ->whereIn('username', $usernames)
+                    ->groupBy('username');
+            })
+            ->get(['username', 'nasipaddress', 'acctstoptime'])
+            ->keyBy('username');
+
+        // 3. Map status to customers
+        $customers->each(function ($customer) use ($latestSessions) {
+            $session = $latestSessions->get($customer->radius_username);
+            
+            // Logic: Online if session exists AND stop time is null
+            $customer->is_online = ($session && is_null($session->acctstoptime)) ? 1 : 0;
+            $customer->radius_nas_ip = $session?->nasipaddress;
         });
 
         return CustomerResource::collection($customers);
@@ -93,7 +157,10 @@ class CustomerController extends Controller
             'apartment' => 'nullable|string',
             'house_no' => 'nullable|string',
             'package_id' => 'required|exists:packages,id',
-            'site_id' => 'nullable|exists:sites,id',
+            'site_id' => [
+                'nullable',
+                Rule::exists('sites', 'id')->where(fn ($query) => $query->where('organization_id', $orgId)),
+            ],
             'connection_type' => 'sometimes|in:PPPoE,Static IP,DHCP',
             'installation_fee' => 'sometimes|numeric|min:0',
             'balance' => 'sometimes|numeric|min:0',
@@ -105,6 +172,14 @@ class CustomerController extends Controller
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $customerData = $request->all();
+        if (!$request->filled('site_id')) {
+            $resolvedSiteId = $this->resolveSiteIdFromIp($customerData['ip_address'] ?? null, $orgId);
+            if ($resolvedSiteId !== null) {
+                $customerData['site_id'] = $resolvedSiteId;
+            }
         }
 
         // Get organization for company acronym
@@ -137,7 +212,7 @@ class CustomerController extends Controller
 
         // Create customer first with a temporary username to get the ID
         $tempUsername = 'temp_' . uniqid();
-        $customer = Customer::create(array_merge($request->all(), [
+        $customer = Customer::create(array_merge($customerData, [
             'organization_id' => $request->user()->organization_id,
             'status' => 'active',
             'radius_username' => $tempUsername,
@@ -237,7 +312,10 @@ class CustomerController extends Controller
             'apartment' => 'nullable|string',
             'house_no' => 'nullable|string',
             'package_id' => 'sometimes|exists:packages,id',
-            'site_id' => 'nullable|exists:sites,id',
+            'site_id' => [
+                'nullable',
+                Rule::exists('sites', 'id')->where(fn ($query) => $query->where('organization_id', $customer->organization_id)),
+            ],
             'connection_type' => 'sometimes|in:PPPoE,Static IP,DHCP',
             'radius_username' => 'sometimes|string|max:255', // Uniqueness handled by conflict resolution logic
             'installation_fee' => 'sometimes|numeric|min:0',
@@ -251,6 +329,15 @@ class CustomerController extends Controller
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $updateData = $request->all();
+        if (!$request->filled('site_id')) {
+            $ipForSiteResolution = $updateData['ip_address'] ?? $customer->ip_address;
+            $resolvedSiteId = $this->resolveSiteIdFromIp($ipForSiteResolution, $customer->organization_id);
+            if ($resolvedSiteId !== null) {
+                $updateData['site_id'] = $resolvedSiteId;
+            }
         }
 
         $oldUsername = $customer->radius_username;
@@ -287,7 +374,7 @@ class CustomerController extends Controller
             }
         }
 
-        $customer->update($request->all());
+        $customer->update($updateData);
 
         // Re-sync to RADIUS if critical fields changed
         if ($customer->wasChanged(['package_id', 'ip_address', 'status', 'radius_password', 'radius_username'])) {
@@ -519,5 +606,28 @@ class CustomerController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    private function resolveSiteIdFromIp(?string $ipAddress, int $organizationId): ?int
+    {
+        if (!$ipAddress || !filter_var($ipAddress, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            return null;
+        }
+
+        $ipOctets = explode('.', $ipAddress);
+        if (count($ipOctets) !== 4) {
+            return null;
+        }
+
+        $subnetPrefix = implode('.', array_slice($ipOctets, 0, 3));
+
+        $site = Site::query()
+            ->where('organization_id', $organizationId)
+            ->whereNotNull('ip_address')
+            ->whereRaw("SUBSTRING_INDEX(ip_address, '.', 3) = ?", [$subnetPrefix])
+            ->orderBy('id')
+            ->first();
+
+        return $site?->id;
     }
 }

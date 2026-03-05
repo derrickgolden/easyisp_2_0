@@ -37,8 +37,6 @@ export const ChangeDateModal: React.FC<ChangeDateModalProps> = ({
           ? { expiry_date: newDate }
           : { extension_date: newDate };
 
-        console.log({payload})
-
       await customersApi.update(String(customer.id), payload);
 
       toast.success(

@@ -31,6 +31,7 @@ class CustomerResource extends JsonResource
             'status' => $this->status,
             'expiryDate' => $this->expiry_date,
             'extensionDate' => $this->extension_date,
+            'connectedSites' => $this->connected_sites,
             'balance' => (float) $this->balance,
             'createdAt' => $this->created_at->toISOString(),
             // Radius Credentials
@@ -45,6 +46,7 @@ class CustomerResource extends JsonResource
             
             // Online Status
             'isOnline' => (bool) ($this->is_online ?? false),
+            'nasIpAddress' => $this->radius_nas_ip ?? null,
 
             // Only shows up if you called ->load('package') or used with()
             'package' => $this->whenLoaded('package'),

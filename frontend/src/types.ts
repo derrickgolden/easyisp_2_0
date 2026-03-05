@@ -93,6 +93,7 @@ export interface Customer {
   expiryDate: string;
   extensionDate?: string;
   balance: number;
+  nasIpAddress?: string; // NAS IP for online status checks
   createdAt: string;
   // Radius Credentials
   radiusUsername?: string;

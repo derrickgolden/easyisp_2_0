@@ -75,7 +75,6 @@ export const CustomersPage: React.FC = () => {
       try {
         const res = await sitesApi.getAll();
         const sitesList = res.data || [];
-  
         setSites(sitesList);
         localStorage.setItem(STORAGE_KEYS.SITES, JSON.stringify(sitesList));
       } catch (error) {
@@ -113,7 +112,7 @@ export const CustomersPage: React.FC = () => {
       if (!matchesSearch) return false;
 
       // Advanced Filters
-      const matchesSite = !siteFilter || c.siteId === siteFilter;
+      const matchesSite = !siteFilter || c.nasIpAddress === siteFilter;
       const matchesStatus = !statusFilter || c.status === statusFilter;
       const matchesPackage = !packageFilter || c.packageId === packageFilter;
       const locationText = getLocationText(c.location);
@@ -364,7 +363,7 @@ export const CustomersPage: React.FC = () => {
                 className="w-full bg-white dark:bg-slate-800 border-none rounded-xl text-xs p-2.5 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white appearance-none font-bold"
               >
                 <option value="">All Sites</option>
-                {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {sites.map(s => <option key={s.id} value={s.ip_address}>{s.name}</option>)}
               </select>
             </div>
             
