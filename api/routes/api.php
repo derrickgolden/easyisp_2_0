@@ -33,6 +33,30 @@ use App\Services\CustomerRadiusService;
 |
 */
 
+use App\Services\MikrotikService;
+use App\Events\OnlineUsersUpdated;
+
+// Example from a controller or route
+Route::get('/test-broadcast', function () {
+    $users = [
+        ['name' => 'John', 'ip' => '30.30.30.199'],
+        ['name' => 'Jane', 'ip' => '30.30.30.200'],
+    ];
+
+    event(new OnlineUsersUpdated($users));
+
+    return 'Broadcast sent';
+});
+
+Route::get('/mikrotik/test-broadcast', function (MikrotikService $mikrotik) {
+
+    $users = $mikrotik->getOnlineUsers();
+
+    broadcast(new OnlineUsersUpdated($users));
+
+    return $users;
+});
+
 // Health check route
 Route::get('/health', function () {
     return response()->json(['status' => 'OK'], 200);

@@ -33,3 +33,12 @@ DROP TABLE roles;
 # 2. install
 composer require spatie/laravel-permission
 php artisan vendor:publish --provider="Spatie\Permission\PermissionServiceProvider"
+
+
+# implement mikrotik API 
+composer require evilfreelancer/routeros-api-php
+# install reverb
+composer require laravel/reverb
+php artisan reverb:install
+# after config start reverb
+php artisan reverb:start

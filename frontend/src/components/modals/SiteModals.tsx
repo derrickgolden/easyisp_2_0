@@ -316,6 +316,15 @@ add default-profile=ppoe-profile disabled=no interface=ether3-pppoe \\
 add action=accept chain=input src-address=10.0.0.1 protocol=udp dst-port=1812,1813 comment="Allow RADIUS Auth/Acct"
 add action=accept chain=input src-address=10.0.0.1 protocol=udp dst-port=3799 comment="Allow RADIUS COA (Disconnect)"
 
+# API configuration
+/ip service enable api
+# restrict API access to the WireGuard tunnel for security
+/ip firewall filter add action=accept chain=input src-address=10.0.0.2 comment="Allow API access from WireGuard tunnel only"
+add action=drop chain=input src-address=!10.0.0.2 comment="Drop API access from other sources"
+/ip service set api address=192.168.88.0/24
+#create api user with strong password
+/user add name=apiuser password=hjdTY162JGFkas group=full
+
 # System Clock
 /system clock set time-zone-name=Africa/Nairobi`}
       </pre>

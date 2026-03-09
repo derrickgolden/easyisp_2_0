@@ -13,6 +13,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
+        $schedule->command('mikrotik:poll-users')->everySecond();
+
         // Use the $schedule variable provided in the function arguments
         $schedule->command('router:sync-status')->everyMinute();
 

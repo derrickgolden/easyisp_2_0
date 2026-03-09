@@ -3,6 +3,7 @@ import { Card, Modal } from "../../UI";
 import { customersApi } from '../../../services/apiService';
 import { toast } from 'sonner';
 import { usePermissions } from '@/src/hooks/usePermissions';
+import OnlineUsers from '../../OnlineUsers';
 
 export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
     const [uptime, setUptime] = useState<string>('Offline');
@@ -139,6 +140,7 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
                       <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A10.003 10.003 0 0012 3c1.268 0 2.49.234 3.62.661m-1.42 14.24l.066.088A10.018 10.018 0 0021 12c0-2.312-.783-4.441-2.091-6.13" /></svg>
                     </div>
                  </div>
+                 <OnlineUsers />
                  <div className=" border-t border-white/5 space-y-3">
                     <div className="flex justify-between items-center">
                         <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Last Uptime</span>
