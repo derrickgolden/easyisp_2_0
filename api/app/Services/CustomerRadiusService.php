@@ -352,6 +352,10 @@ class CustomerRadiusService
                 ];
             });
 
+        $framedIp = $activeSession?->framedipaddress ?? $lastSession?->framedipaddress ?? 'N/A';
+        $callingStationId = $activeSession?->callingstationid ?? $lastSession?->callingstationid ?? 'N/A';
+        $nasIpAddress = $activeSession?->nasipaddress ?? $lastSession?->nasipaddress ?? 'N/A';
+
         return [
             'is_online' => !is_null($activeSession),
             'uptime' => $activeSession ? $this->formatUptime($activeSession->acctsessiontime) : 'Offline',
@@ -359,9 +363,10 @@ class CustomerRadiusService
             'start_time' => $activeSession 
                 ? Carbon::parse($activeSession->acctstarttime)->toIso8601String() 
                 : ($lastSession ? Carbon::parse($lastSession->acctstoptime)->toIso8601String() : null),
-            'framed_ip' => $activeSession->framedipaddress ?? $lastSession->framedipaddress ?? 'N/A',
-            'calling_station_id' => $activeSession->callingstationid ?? $lastSession->callingstationid ?? 'N/A',
-            'device_vendor' => $this->getDeviceManufacturer($activeSession->callingstationid ?? $lastSession->callingstationid),
+            'framed_ip' => $framedIp,
+            'nas_ip_address' => $nasIpAddress,
+            'calling_station_id' => $callingStationId,
+            'device_vendor' => $this->getDeviceManufacturer($callingStationId),
             'logs' => $logs,
             'sessions' => $sessions,
         ];

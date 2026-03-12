@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\RadiusController;
 use App\Http\Controllers\Api\SmsController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\LeadController;
+use App\Http\Controllers\Api\MikrotikController;
 use App\Services\CustomerRadiusService;
 
 /*
@@ -32,30 +33,6 @@ use App\Services\CustomerRadiusService;
 | be assigned to the "api" middleware group. Make something great!
 |
 */
-
-use App\Services\MikrotikService;
-use App\Events\OnlineUsersUpdated;
-
-// Example from a controller or route
-Route::get('/test-broadcast', function () {
-    $users = [
-        ['name' => 'John', 'ip' => '30.30.30.199'],
-        ['name' => 'Jane', 'ip' => '30.30.30.200'],
-    ];
-
-    event(new OnlineUsersUpdated($users));
-
-    return 'Broadcast sent';
-});
-
-Route::get('/mikrotik/test-broadcast', function (MikrotikService $mikrotik) {
-
-    $users = $mikrotik->getOnlineUsers();
-
-    broadcast(new OnlineUsersUpdated($users));
-
-    return $users;
-});
 
 // Health check route
 Route::get('/health', function () {
@@ -77,6 +54,7 @@ Route::post('/radius/verify/{username}', [RadiusController::class, 'verify']);
 Route::post('/payments/c2b/validation', [PaymentController::class, 'c2bValidation']);
 Route::post('/payments/c2b/confirmation', [PaymentController::class, 'c2bConfirmation']);
 Route::post('/payments/payhero/stk/callback', [PayheroPaymentController::class, 'stkCallback']);
+
 
 // system-admin-only routes
 Route::middleware(['auth:sanctum', 'abilities:access-system', 'permissions.team'])
@@ -106,6 +84,8 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     // Dashboard routes
     Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
     Route::get('/dashboard/revenue-chart', [DashboardController::class, 'getRevenueChart']);
+    
+    Route::get('/mikrotik/user-traffic', [MikrotikController::class, 'getUserTraffic']);
     
     // Organization routes
     Route::get('/organization', [OrganizationController::class, 'index']);

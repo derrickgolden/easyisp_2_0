@@ -20,7 +20,6 @@ export default function OnlineUsers() {
 
         echo.channel("mikrotik.online-users")
             .listen(".online.users.updated", (e: OnlineUsersUpdatedEvent) => {
-                console.log("Received users", e.users);
                 setUsers(e.users);
             });
 

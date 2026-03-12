@@ -3,7 +3,6 @@ import { Card, Modal } from "../../UI";
 import { customersApi } from '../../../services/apiService';
 import { toast } from 'sonner';
 import { usePermissions } from '@/src/hooks/usePermissions';
-import OnlineUsers from '../../OnlineUsers';
 
 export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
     const [uptime, setUptime] = useState<string>('Offline');
@@ -13,7 +12,64 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
     const currentDelay = useRef(2000); // Use ref to persist delay across renders
     const startTimeIso = technicalSpecs?.start_time;
     const isOnline = technicalSpecs?.is_online;
+    const nasIpAddress = technicalSpecs?.nas_ip_address;
+    const trafficUsername = customer?.username || customer?.radiusUsername;
     const { can } = usePermissions();
+
+    const [traffic, setTraffic] = useState<{
+      rx: number;
+      tx: number;
+      status: string;
+      rx_bps?: number;
+      tx_bps?: number;
+      rx_bytes?: number;
+      tx_bytes?: number;
+      ip?: string | null;
+    }>({
+      rx: 0,
+      tx: 0,
+      status: "offline"
+    });
+    const [trafficPollCount, setTrafficPollCount] = useState(0);
+    const [lastTrafficPollAt, setLastTrafficPollAt] = useState<string | null>(null);
+
+    useEffect(() => {
+      if (!trafficUsername || !nasIpAddress || nasIpAddress === 'N/A') return;
+
+      setTrafficPollCount(0);
+      setLastTrafficPollAt(null);
+
+      let isActive = true;
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+      const pollTraffic = async () => {
+        try {
+          const data = await customersApi.getUserTraffic(trafficUsername, nasIpAddress);
+
+          if (isActive) {
+            setTraffic(data);
+          }
+        } catch (err) {
+          console.error('Error fetching user traffic:', err);
+        } finally {
+          if (isActive) {
+            setTrafficPollCount((prev) => prev + 1);
+            setLastTrafficPollAt(new Date().toLocaleTimeString());
+            timeoutId = setTimeout(pollTraffic, 1000);
+          }
+          
+        }
+      };
+
+      pollTraffic();
+
+      return () => {
+        isActive = false;
+        if (timeoutId) clearTimeout(timeoutId);
+      };
+    }, [trafficUsername, nasIpAddress]);
+
+   
 
     useEffect(() => {
       if (!startTimeIso) {
@@ -110,6 +166,14 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
       return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
+    const formatBits = (bits: number) => {
+      if (bits <= 0) return '0 bps';
+      const k = 1000;
+      const sizes = ['bps', 'Kbps', 'Mbps', 'Gbps'];
+      const i = Math.min(Math.floor(Math.log(bits) / Math.log(k)), sizes.length - 1);
+      return `${(bits / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
+    };
+
     return (
            <Card title="Technical Specs" className="border-none shadow-sm rounded-[2.5rem] bg-slate-900 text-white">
               <div className="space-y-5">
@@ -140,7 +204,32 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
                       <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A10.003 10.003 0 0012 3c1.268 0 2.49.234 3.62.661m-1.42 14.24l.066.088A10.018 10.018 0 0021 12c0-2.312-.783-4.441-2.091-6.13" /></svg>
                     </div>
                  </div>
-                 <OnlineUsers />
+                 {/* show user traffic */}
+                 <div className="rounded-2xl border border-gray-400 dark:border-white/10 bg-gray-800/30 dark:bg-gray-800/20 p-3 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Live Traffic</p>
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${traffic.status === 'online' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'}`}>
+                        {traffic.status || 'offline'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-xl bg-slate-800/60 p-2">
+                        <p className="text-[9px] uppercase tracking-widest text-slate-400 font-black">Download</p>
+                        <p className="text-sm font-mono font-bold text-blue-50 dark:text-blue-300">{formatBits(traffic.rx_bps ?? 0)}</p>
+                        <p className="text-[9px] text-slate-100 dark:text-slate-500">Total: {formatBytes(traffic.rx_bytes ?? 0)}</p>
+                      </div>
+                      <div className="rounded-xl bg-slate-800/60 p-2">
+                        <p className="text-[9px] uppercase tracking-widest text-slate-400 font-black">Upload</p>
+                        <p className="text-sm font-mono font-bold text-indigo-50 dark:text-indigo-300">{formatBits(traffic.tx_bps ?? 0)}</p>
+                        <p className="text-[9px] text-slate-100 dark:text-slate-500">Total: {formatBytes(traffic.tx_bytes ?? 0)}</p>
+                      </div>
+                    </div>
+
+                    <p className="text-[9px] font-mono text-slate-500 uppercase tracking-wider">
+                      Interface IP: {traffic.ip || technicalSpecs?.framed_ip || 'N/A'}
+                    </p>
+                 </div>
                  <div className=" border-t border-white/5 space-y-3">
                     <div className="flex justify-between items-center">
                         <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Last Uptime</span>
@@ -180,6 +269,10 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
                           Sess Details
                       </button>
                     </div>
+
+                    <p className="text-[9px] font-mono text-slate-500 uppercase tracking-wider">
+                      Traffic Polls: {trafficPollCount} {lastTrafficPollAt ? `| Last: ${lastTrafficPollAt}` : '| Waiting...'}
+                    </p>
 
                  </div>
               </div>

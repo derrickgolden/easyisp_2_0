@@ -19,6 +19,9 @@ export interface Site {
   routers_count: number;
   status: 'online' | 'offline';
   ip_address: string;
+  mikrotik_username?: string;
+  mikrotik_password?: string;
+  mikrotik_port?: number;
   notify_on_down: boolean;
   last_seen?: string;
 }
@@ -119,6 +122,7 @@ export interface TechnicalSpec {
   deviceType: string;
   macAddress: string;
   ipAddress: string;
+  nas_ip_address?: string;
   connectionDetails: string;
   notes?: string;
   logs: { data: [{

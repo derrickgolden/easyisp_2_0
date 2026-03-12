@@ -59,6 +59,9 @@ class SiteController extends Controller
             'name' => 'required|string|max:255',
             'location' => 'required|string',
             'ip_address' => 'required|string',
+            'mikrotik_username' => 'nullable|string|max:255',
+            'mikrotik_password' => 'nullable|string|max:255',
+            'mikrotik_port' => 'nullable|integer|min:1|max:65535',
             'radius_secret' => 'nullable|string',
             'notify_on_down' => 'sometimes|boolean',
         ]);
@@ -103,6 +106,9 @@ class SiteController extends Controller
             'name' => 'sometimes|string|max:255',
             'location' => 'sometimes|string',
             'ip_address' => 'sometimes|string',
+            'mikrotik_username' => 'nullable|string|max:255',
+            'mikrotik_password' => 'nullable|string|max:255',
+            'mikrotik_port' => 'nullable|integer|min:1|max:65535',
             'radius_secret' => 'nullable|string',
             'notify_on_down' => 'sometimes|boolean',
         ]);

@@ -9,14 +9,40 @@ interface SiteProvisionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  editingSite?: Site | null;
 }
 
-export const SiteProvisionModal: React.FC<SiteProvisionModalProps> = ({ isOpen, onClose, onSuccess }) =>{
+export const SiteProvisionModal: React.FC<SiteProvisionModalProps> = ({ isOpen, onClose, onSuccess, editingSite }) =>{
   const [name, setName] = useState('');
   const [gateway, setGateway] = useState('');
   const [location, setLocation] = useState('');
+  const [mikrotikUsername, setMikrotikUsername] = useState('');
+  const [mikrotikPassword, setMikrotikPassword] = useState('');
+  const [mikrotikPort, setMikrotikPort] = useState('8728');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (editingSite) {
+      setName(editingSite.name || '');
+      setGateway(editingSite.ip_address || '');
+      setLocation(editingSite.location || '');
+      setMikrotikUsername(editingSite.mikrotik_username || '');
+      setMikrotikPassword(editingSite.mikrotik_password || '');
+      setMikrotikPort(String(editingSite.mikrotik_port || 8728));
+    } else {
+      setName('');
+      setGateway('');
+      setLocation('');
+      setMikrotikUsername('');
+      setMikrotikPassword('');
+      setMikrotikPort('8728');
+    }
+
+    setError(null);
+  }, [isOpen, editingSite]);
 
   const handleProvision = async () => {
     // Validation
@@ -40,32 +66,40 @@ export const SiteProvisionModal: React.FC<SiteProvisionModalProps> = ({ isOpen, 
       setLoading(true);
       setError(null);
 
-      await sitesApi.create({
+      const payload: any = {
         name: name.trim(),
         ip_address: gateway.trim(),
         location: location.trim() || 'Not specified',
+        mikrotik_username: mikrotikUsername.trim() || null,
+        mikrotik_port: mikrotikPort ? Number(mikrotikPort) : null,
         notify_on_down: true,
-      });
+      };
 
-      toast.success('Site provisioned successfully');
+      if (mikrotikPassword.trim()) {
+        payload.mikrotik_password = mikrotikPassword.trim();
+      }
 
-      // Reset form
-      setName('');
-      setGateway('');
-      setLocation('');
-      
+      if (editingSite) {
+        await sitesApi.update(editingSite.id, payload);
+        toast.success('Site updated successfully');
+      } else {
+        payload.mikrotik_password = mikrotikPassword.trim() || null;
+        await sitesApi.create(payload);
+        toast.success('Site provisioned successfully');
+      }
+
       onClose();
       onSuccess();
     } catch (err: any) {
-      setError(err.message || 'Failed to create site');
-      toast.error('Failed to provision site');
+      setError(err.message || `Failed to ${editingSite ? 'update' : 'create'} site`);
+      toast.error(`Failed to ${editingSite ? 'update' : 'provision'} site`);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Register Network Site">
+    <Modal isOpen={isOpen} onClose={onClose} title={editingSite ? 'Edit Network Site' : 'Register Network Site'}>
       <div className="space-y-4">
         {error && (
           <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
@@ -73,39 +107,96 @@ export const SiteProvisionModal: React.FC<SiteProvisionModalProps> = ({ isOpen, 
           </div>
         )}
         
-        <input 
-          type="text" 
-          placeholder="Friendly Name" 
-          className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 text-gray-900 dark:text-white" 
-          value={name} 
-          onChange={(e) => setName(e.target.value)}
-          disabled={loading}
-        />
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            Friendly Name
+          </label>
+          <input 
+            type="text" 
+            placeholder="Friendly Name" 
+            className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 text-gray-900 dark:text-white" 
+            value={name} 
+            onChange={(e) => setName(e.target.value)}
+            disabled={loading}
+          />
+        </div>
         
-        <input 
-          type="text" 
-          placeholder="Primary Gateway IP" 
-          className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 text-gray-900 dark:text-white" 
-          value={gateway} 
-          onChange={(e) => setGateway(e.target.value)}
-          disabled={loading}
-        />
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            Primary Gateway IP
+          </label>
+          <input 
+            type="text" 
+            placeholder="Primary Gateway IP" 
+            className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 text-gray-900 dark:text-white" 
+            value={gateway} 
+            onChange={(e) => setGateway(e.target.value)}
+            disabled={loading}
+          />
+        </div>
         
-        <input 
-          type="text" 
-          placeholder="Location (optional)" 
-          className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 text-gray-900 dark:text-white" 
-          value={location} 
-          onChange={(e) => setLocation(e.target.value)}
-          disabled={loading}
-        />
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            Location
+          </label>
+          <input 
+            type="text" 
+            placeholder="Location (optional)" 
+            className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 text-gray-900 dark:text-white" 
+            value={location} 
+            onChange={(e) => setLocation(e.target.value)}
+            disabled={loading}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            MikroTik Username
+          </label>
+          <input
+            type="text"
+            placeholder="MikroTik Username"
+            className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 text-gray-900 dark:text-white"
+            value={mikrotikUsername}
+            onChange={(e) => setMikrotikUsername(e.target.value)}
+            disabled={loading}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            MikroTik Password
+          </label>
+          <input
+            type="password"
+            placeholder={editingSite ? 'MikroTik Password (leave blank to keep current)' : 'MikroTik Password'}
+            className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 text-gray-900 dark:text-white"
+            value={mikrotikPassword}
+            onChange={(e) => setMikrotikPassword(e.target.value)}
+            disabled={loading}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            MikroTik Port
+          </label>
+          <input
+            type="number"
+            placeholder="MikroTik Port"
+            className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 text-gray-900 dark:text-white"
+            value={mikrotikPort}
+            onChange={(e) => setMikrotikPort(e.target.value)}
+            disabled={loading}
+          />
+        </div>
         
         <button 
           onClick={handleProvision} 
           disabled={loading}
           className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-700"
         >
-          {loading ? 'Provisioning...' : 'Provision Site'}
+          {loading ? (editingSite ? 'Saving...' : 'Provisioning...') : (editingSite ? 'Save Changes' : 'Provision Site')}
         </button>
       </div>
     </Modal>

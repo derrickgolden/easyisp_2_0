@@ -11,6 +11,7 @@ import { usePermissions } from '../hooks/usePermissions';
 export const SitesPage: React.FC = () => {
   const [sites, setSites] = useState<Site[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.SITES) || '[]'));
   const [isSiteProvisionOpen, setIsSiteProvisionOpen] = useState(false);
+  const [editingSite, setEditingSite] = useState<Site | null>(null);
   const [isIPAMOpen, setIsIPAMOpen] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
@@ -56,7 +57,14 @@ export const SitesPage: React.FC = () => {
     }
   };
   
-  const onAdd = () => setIsSiteProvisionOpen(true);
+  const onAdd = () => {
+    setEditingSite(null);
+    setIsSiteProvisionOpen(true);
+  };
+  const onEdit = (s: Site) => {
+    setEditingSite(s);
+    setIsSiteProvisionOpen(true);
+  };
   const onOpenIPAM = (s: Site) => { setSelectedSite(s); setIsIPAMOpen(true); };
   const onOpenConfig = (s: Site) => { setSelectedSite(s); setIsConfigOpen(true); };
 
@@ -114,6 +122,13 @@ export const SitesPage: React.FC = () => {
             </div>
 
             <div className="flex space-x-2">
+              {can('manage-sites') && (
+                <button type="button"
+                  onClick={() => onEdit(site)}
+                  className="flex-1 text-xs border border-gray-200 dark:border-slate-700 py-2 rounded-md hover:bg-gray-50 dark:hover:bg-slate-800">
+                    Edit
+                </button>
+              )}
               <button type="button" 
                 onClick={() => onOpenIPAM(site)} 
                 className="flex-1 text-xs border border-gray-200 dark:border-slate-700 py-2 rounded-md hover:bg-gray-50 dark:hover:bg-slate-800">
@@ -131,8 +146,12 @@ export const SitesPage: React.FC = () => {
 
       <SiteProvisionModal 
         isOpen={isSiteProvisionOpen} 
-        onClose={() => setIsSiteProvisionOpen(false)} 
+        onClose={() => {
+          setIsSiteProvisionOpen(false);
+          setEditingSite(null);
+        }} 
         onSuccess={() => fetchSites()}
+        editingSite={editingSite}
        />
       <IPAMModal 
         isOpen={isIPAMOpen} 

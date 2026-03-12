@@ -9,7 +9,6 @@ import { useNavigate } from 'react-router-dom';
 import TableScrollModal from '../components/modals/TableScrollModal';
 import BulkSmsModal from '../components/modals/BulkSmsModal';
 import { usePermissions } from '../hooks/usePermissions';
-import OnlineUsers from '../components/OnlineUsers';
 
 export const CustomersPage: React.FC = () => {
   const navigate = useNavigate();
@@ -231,7 +230,6 @@ export const CustomersPage: React.FC = () => {
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 pb-20">
       {/* Top Stats Summary Bar */}
-      <OnlineUsers />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] border border-gray-100 dark:border-slate-800 shadow-sm">
           <div className="flex items-center justify-center gap-3 mb-2">

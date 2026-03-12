@@ -4,6 +4,8 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Services\MikrotikService;
+use App\Events\CustomerTrafficUpdated;
+use Illuminate\Support\Facades\Log;
 
 class PollTraffic extends Command
 {
@@ -19,7 +21,7 @@ class PollTraffic extends Command
      *
      * @var string
      */
-    protected $description = 'Command description';
+    protected $description = 'Polls Mikrotik router for traffic data and broadcasts updates';
 
     /**
      * Execute the console command.
@@ -27,20 +29,19 @@ class PollTraffic extends Command
     public function handle()
     {
         //
-        $client = resolve(MikrotikService::class);
+        $mikrotik = resolve(MikrotikService::class);
+        $users = $mikrotik->getUsersTraffic();
 
-        $queues = $client->query('/queue/simple/print')->read();
+        foreach ($users as $user) {
 
-        foreach ($queues as $queue) {
+            $rxMbps = $user['rx'] / 1000000;
+            $txMbps = $user['tx'] / 1000000;
 
-            $username = $queue['name'];
-
-            $rates = explode('/', $queue['rate'] ?? '0/0');
-
-            $rx = ($rates[0] ?? 0) / 1000000;
-            $tx = ($rates[1] ?? 0) / 1000000;
-
-            broadcast(new CustomerTrafficUpdated($username,$rx,$tx));
+            broadcast(new CustomerTrafficUpdated(
+                $user['name'],
+                $rxMbps,
+                $txMbps
+            ));
         }
     }
 }

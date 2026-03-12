@@ -230,6 +230,18 @@ export const customersApi = {
     const response = await axiosInstance.post(`/customers/${id}/resume-subscription`);
     return response.data;
   },
+
+  getUserTraffic: async (username: string, nasIpAddress?: string) => {
+    const params = new URLSearchParams({
+      username,
+    });
+
+    if (nasIpAddress) {
+      params.append('nas_ip_address', nasIpAddress);
+    }
+    const response = await axiosInstance.get(`/mikrotik/user-traffic?${params.toString()}`);
+    return response.data;
+  },
 };
 
 // Packages Endpoints
