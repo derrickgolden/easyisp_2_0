@@ -6,7 +6,6 @@ use App\Models\Site;
 use RouterOS\Client;
 use RouterOS\Query;
 use RuntimeException;
-use Illuminate\Support\Facades\Log;
 
 class MikrotikService
 {
@@ -17,11 +16,6 @@ class MikrotikService
 
     private function mapSiteConfig(Site $site): array
     {
-        Log::debug("Mapping MikroTik config for site {$site->id}", [
-                    'host' => $site->ip_address,
-                    'user' => $site->mikrotik_username,
-                    'port' => $site->mikrotik_port,
-                ]);
         if (!$site->ip_address || !$site->mikrotik_username || !$site->mikrotik_password || !$site->mikrotik_port) {
             throw new RuntimeException("Site {$site->id} is missing MikroTik connection settings");
         }
