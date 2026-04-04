@@ -24,6 +24,7 @@ class MikrotikService
             'user' => $site->mikrotik_username,
             'pass' => $site->mikrotik_password,
             'port' => (int) $site->mikrotik_port,
+            'timeout' => 3,
         ];
     }
 

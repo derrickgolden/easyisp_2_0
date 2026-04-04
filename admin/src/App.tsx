@@ -16,6 +16,7 @@ import { SitesView } from './components/SitesView';
 import { CustomersView } from './components/CustomersView';
 import Dashboard from './pages/Dashboard';
 import Organizations from './pages/Organizations';
+import { getAuthToken, isTokenExpired, setOnUnauthorizedCallback, setIsLoggingOut } from './services/apiService';
 
 type View = 'dashboard' | 'organizations' | 'sites' | 'customers';
 
@@ -26,19 +27,33 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
+    const token = getAuthToken();
+    if (token && !isTokenExpired()) {
       setIsAuthenticated(true);
     }
   }, []);
 
+  // Register callback for 401 errors to logout user
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setIsLoggingOut(true);
+      localStorage.removeItem('admin_auth_token');
+      localStorage.removeItem('admin_auth_token_expiration');
+      setIsAuthenticated(false);
+      setIsSidebarOpen(false);
+      alert("Session expired. Please log in again.");
+    };
+    setOnUnauthorizedCallback(handleUnauthorized);
+  }, []);
+
   const handleLogin = (token: string) => {
-    localStorage.setItem('auth_token', token);
     setIsAuthenticated(true);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('auth_token');
+    setIsLoggingOut(true);
+    localStorage.removeItem('admin_auth_token');
+    localStorage.removeItem('admin_auth_token_expiration');
     setIsAuthenticated(false);
     setIsSidebarOpen(false);
   };

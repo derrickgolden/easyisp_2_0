@@ -17,7 +17,7 @@ import { ExpensesPage } from './pages/ExpensesPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { LeadsPage } from './pages/LeadsPage';
 import { TicketsPage } from './pages/TicketsPage';
-import { authApi, setAuthToken, getAuthToken, ApiError } from './services/apiService';
+import { authApi, setAuthToken, getAuthToken, setOnUnauthorizedCallback, setIsLoggingOut, ApiError } from './services/apiService';
 import { AdminUser } from './types';
 
 import { toast } from 'sonner';
@@ -42,6 +42,18 @@ const App: React.FC = () => {
     else document.documentElement.classList.remove('dark');
     localStorage.setItem('easy-tech-theme', theme);
   }, [theme]);
+
+  // Register callback for 401 errors to logout user
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setIsLoggingOut(true);
+      setCurrentUser(null);
+      localStorage.removeItem(AUTH_KEY);
+      setAuthToken(null);
+      showToast("Session expired. Please log in again.", "error");
+    };
+    setOnUnauthorizedCallback(handleUnauthorized);
+  }, []);
   
   const currentRole = useMemo(() => {
     if (!currentUser) return null;
@@ -136,6 +148,7 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
+    setIsLoggingOut(true);
     try {
       await authApi.logout();
     } catch (error) {

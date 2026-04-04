@@ -15,14 +15,30 @@ export class ApiError extends Error {
 }
 
 let authToken: string | null = null;
+let tokenExpiration: number | null = null;
+let onUnauthorized: (() => void) | null = null;
+let isLoggingOut = false;
+
+export const setOnUnauthorizedCallback = (callback: () => void) => {
+  onUnauthorized = callback;
+};
+
+export const setIsLoggingOut = (value: boolean) => {
+  isLoggingOut = value;
+};
 
 export const setAuthToken = (token: string | null) => {
 	authToken = token;
 	if (token) {
+		// Token expires in 18 hours
+		tokenExpiration = Date.now() + (18 * 60 * 60 * 1000);
 		localStorage.setItem("admin_auth_token", token);
+		localStorage.setItem("admin_auth_token_expiration", tokenExpiration.toString());
 		axiosInstance.defaults.headers.common.Authorization = `Bearer ${token}`;
 	} else {
+		tokenExpiration = null;
 		localStorage.removeItem("admin_auth_token");
+		localStorage.removeItem("admin_auth_token_expiration");
 		delete axiosInstance.defaults.headers.common.Authorization;
 	}
 };
@@ -30,8 +46,19 @@ export const setAuthToken = (token: string | null) => {
 export const getAuthToken = () => {
 	if (!authToken) {
 		authToken = localStorage.getItem("admin_auth_token");
+		const expiration = localStorage.getItem("admin_auth_token_expiration");
+		if (expiration) {
+			tokenExpiration = parseInt(expiration);
+		}
 	}
 	return authToken;
+};
+
+export const isTokenExpired = () => {
+	const token = getAuthToken();
+	if (!token) return true; // No token means expired
+	if (!tokenExpiration) return true; // No expiration time means expired
+	return Date.now() > tokenExpiration;
 };
 
 const axiosInstance: AxiosInstance = axios.create({
@@ -55,6 +82,16 @@ axiosInstance.interceptors.response.use(
 		const status = error.response?.status || 0;
 		const data = error.response?.data as any;
 		const message = data?.message || data?.error || error.message || `HTTP ${status}`;
+
+		// If token is expired (401), clear it and trigger logout (only once)
+		if (status === 401 && !isLoggingOut) {
+			isLoggingOut = true;
+			setAuthToken(null);
+			if (onUnauthorized) {
+				onUnauthorized();
+			}
+		}
+
 		throw new ApiError(status, message, data?.errors ?? data);
 	}
 );
