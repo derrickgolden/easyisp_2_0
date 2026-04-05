@@ -40,6 +40,11 @@ export const CustomersPage: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
+  // Delete all state
+  const [isDeleteAllModalOpen, setIsDeleteAllModalOpen] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [deleteAllProgress, setDeleteAllProgress] = useState(0);
+
   useEffect(() => {
     fetchSites();
     fetchPackages();
@@ -251,17 +256,44 @@ export const CustomersPage: React.FC = () => {
           customersToCreate.push(customer);
         }
 
-        // Create customers
+        // Helper function to create customer with retry and delay
+        const createCustomerWithRetry = async (customer: any, attempt = 1): Promise<boolean> => {
+          const maxAttempts = 3;
+          const baseDelay = 500; // 500ms initial delay
+          
+          try {
+            await customersApi.create(customer);
+            return true;
+          } catch (error: any) {
+            // Check if it's a rate limit error (429)
+            if (error.status === 429 && attempt < maxAttempts) {
+              // Exponential backoff: 500ms, 1500ms, 3500ms
+              const delay = baseDelay * (2 ** (attempt - 1));
+              console.log(`Rate limited. Retrying in ${delay}ms (attempt ${attempt}/${maxAttempts})`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+              return createCustomerWithRetry(customer, attempt + 1);
+            }
+            throw error;
+          }
+        };
+
+        // Create customers with rate limiting
         let successCount = 0;
         let errorCount = 0;
-console.log('Starting customer upload:', customersToCreate);
+        console.log('Starting customer upload:', customersToCreate);
+        
         for (let i = 0; i < customersToCreate.length; i++) {
           try {
-            await customersApi.create(customersToCreate[i]);
+            await createCustomerWithRetry(customersToCreate[i]);
             successCount++;
           } catch (error) {
             console.error(`Failed to create customer ${i + 1}:`, error);
             errorCount++;
+          }
+          
+          // Add delay between requests to avoid rate limiting (500ms)
+          if (i < customersToCreate.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
           }
           
           setUploadProgress(Math.round(((i + 1) / customersToCreate.length) * 100));
@@ -350,6 +382,47 @@ console.log('Starting customer upload:', customersToCreate);
 
   const handleBulkSms = () => {
     setIsBulkSmsOpen(true);
+  };
+
+  const handleDeleteAllCustomers = async () => {
+    setIsDeletingAll(true);
+    setDeleteAllProgress(0);
+
+    try {
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (let i = 0; i < customers.length; i++) {
+        try {
+          await customersApi.delete(customers[i].id);
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to delete customer ${customers[i].id}:`, error);
+          errorCount++;
+        }
+
+        setDeleteAllProgress(Math.round(((i + 1) / customers.length) * 100));
+      }
+
+      // Refresh customers list
+      await fetchCustomers();
+
+      if (successCount > 0) {
+        toast.success(`Successfully deleted ${successCount} customer${successCount > 1 ? 's' : ''}`);
+      }
+
+      if (errorCount > 0) {
+        toast.error(`Failed to delete ${errorCount} customer${errorCount > 1 ? 's' : ''}`);
+      }
+
+      setIsDeleteAllModalOpen(false);
+    } catch (error) {
+      console.error('Error deleting customers:', error);
+      toast.error('Failed to delete customers.');
+    } finally {
+      setIsDeletingAll(false);
+      setDeleteAllProgress(0);
+    }
   };
 
   return (
@@ -469,6 +542,16 @@ console.log('Starting customer upload:', customersToCreate);
                 onClick={handleBulkSms}
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+              </button>
+            )}
+            <div className="w-px h-4 bg-slate-300 dark:bg-slate-600 mx-1" />
+            {can('delete-customers') && (
+              <button 
+                title="Delete All Customers"
+                className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg text-red-500 transition-all"
+                onClick={() => setIsDeleteAllModalOpen(true)}
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
               </button>
             )}
           </div>
@@ -754,6 +837,56 @@ console.log('Starting customer upload:', customersToCreate);
         packages={packages}
         sites={sites}
       />
+
+      {/* Delete All Customers Modal */}
+      <Modal
+        isOpen={isDeleteAllModalOpen}
+        onClose={() => !isDeletingAll && setIsDeleteAllModalOpen(false)}
+        title="Delete All Customers"
+        maxWidth="max-w-sm"
+      >
+        <div className="space-y-4">
+          {isDeletingAll ? (
+            <>
+              <div className="text-center">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Deleting {customers.length} customer{customers.length !== 1 ? 's' : ''}...
+                </p>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${deleteAllProgress}%` }}
+                  ></div>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">{deleteAllProgress}%</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                You are about to <span className="font-bold text-red-600">permanently delete</span> all {customers.length} customer{customers.length !== 1 ? 's' : ''} in your organization.
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-500">
+                This action cannot be undone.
+              </p>
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setIsDeleteAllModalOpen(false)}
+                  className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-bold text-sm transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteAllCustomers}
+                  className="flex-1 px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-sm transition-all active:scale-95"
+                >
+                  Delete All
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 };
