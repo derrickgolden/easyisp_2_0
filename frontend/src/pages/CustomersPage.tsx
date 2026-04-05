@@ -8,6 +8,7 @@ import { STORAGE_KEYS } from '../constants/storage';
 import { useNavigate } from 'react-router-dom';
 import TableScrollModal from '../components/modals/TableScrollModal';
 import BulkSmsModal from '../components/modals/BulkSmsModal';
+import { toast } from 'sonner';
 import { usePermissions } from '../hooks/usePermissions';
 
 export const CustomersPage: React.FC = () => {
@@ -34,6 +35,10 @@ export const CustomersPage: React.FC = () => {
   const [sites, setSites] = useState<Site[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.SITES) || '[]'));
   const [isBulkSmsOpen, setIsBulkSmsOpen] = useState(false);
   const { can } = usePermissions();
+
+  // Upload state
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   useEffect(() => {
     fetchSites();
@@ -161,7 +166,127 @@ export const CustomersPage: React.FC = () => {
   }
 
   const handleUploadCustomers = () => {
-    // TODO: Hook up CSV/XLSX upload flow
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      setIsUploading(true);
+      setUploadProgress(0);
+
+      try {
+        const text = await file.text();
+        const lines = text.trim().split('\n');
+        
+        if (lines.length < 2) {
+          toast.error('CSV file must contain at least a header row and one data row');
+          return;
+        }
+
+        const headers = lines[0].split(',').map(h => h.trim());
+        const expectedHeaders = ['Email', 'House No', 'Apartment', 'Location', 'Ip', 'Mac', 'Expiry Date', 'Name', 'Account', 'Radius Username', 'Radius Password', 'Phone'];
+        
+        // Check if headers match (case insensitive)
+        const normalizedHeaders = headers.map(h => h.toLowerCase());
+        const normalizedExpected = expectedHeaders.map(h => h.toLowerCase());
+        
+        const headersMatch = normalizedExpected.every(expected => 
+          normalizedHeaders.includes(expected)
+        );
+
+        if (!headersMatch) {
+          toast.error('CSV headers do not match expected format. Expected: ' + expectedHeaders.join(', '));
+          return;
+        }
+
+        const dataRows = lines.slice(1);
+        const customersToCreate = [];
+        
+        for (let i = 0; i < dataRows.length; i++) {
+          const row = dataRows[i].split(',').map(cell => cell.trim());
+          
+          // Parse name into first and last name
+          const nameParts = row[7].split(' '); // Name is at index 7
+          const firstName = nameParts[0] || '';
+          const lastName = nameParts.slice(1).join(' ') || '';
+
+          // Get default package and site
+          const defaultPackage = packages[0];
+          const defaultSite = sites[0];
+
+          if (!defaultPackage) {
+            toast.error('No packages available. Please create a package first.');
+            return;
+          }
+
+          if (!defaultSite) {
+            toast.error('No sites available. Please create a site first.');
+            return;
+          }
+
+          const customer = {
+            first_name: firstName,
+            last_name: lastName,
+            email: row[0] || undefined, // Email
+            phone: row[11], // Phone
+            house_no: row[1] || undefined, // House No
+            apartment: row[2] || undefined, // Apartment
+            location: row[3] || undefined, // Location
+            ip_address: row[4] || undefined, // Ip
+            mac_address: row[5] || undefined, // Mac
+            expiry_date: row[6], // Expiry Date
+            radius_username: row[9], // Radius Username
+            radius_password: row[10], // Radius Password
+            connection_type: 'PPPoE',
+            package_id: defaultPackage.id,
+            site_id: defaultSite.id,
+            installation_fee: 0,
+            status: 'active',
+            balance: 0,
+            created_at: new Date().toISOString(),
+          };
+
+          customersToCreate.push(customer);
+        }
+
+        // Create customers
+        let successCount = 0;
+        let errorCount = 0;
+console.log('Starting customer upload:', customersToCreate);
+        for (let i = 0; i < customersToCreate.length; i++) {
+          try {
+            await customersApi.create(customersToCreate[i]);
+            successCount++;
+          } catch (error) {
+            console.error(`Failed to create customer ${i + 1}:`, error);
+            errorCount++;
+          }
+          
+          setUploadProgress(Math.round(((i + 1) / customersToCreate.length) * 100));
+        }
+
+        // Refresh customers list
+        await fetchCustomers();
+
+        if (successCount > 0) {
+          toast.success(`Successfully uploaded ${successCount} customer${successCount > 1 ? 's' : ''}`);
+        }
+        
+        if (errorCount > 0) {
+          toast.error(`Failed to upload ${errorCount} customer${errorCount > 1 ? 's' : ''}`);
+        }
+
+      } catch (error) {
+        console.error('Error uploading customers:', error);
+        toast.error('Failed to upload customers. Please check the file format.');
+      } finally {
+        setIsUploading(false);
+        setUploadProgress(0);
+      }
+    };
+    input.click();
   };
 
   const handleDownloadCustomers = () => {
@@ -308,10 +433,25 @@ export const CustomersPage: React.FC = () => {
           {/* Utilities Group (Import/Export/SMS) */}
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl items-center">
             <button 
-              title="Upload Customers"
-              className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-500 transition-all"
+              title={isUploading ? `Uploading... ${uploadProgress}%` : "Upload Customers"}
+              onClick={handleUploadCustomers}
+              disabled={isUploading}
+              className={`p-2 rounded-lg transition-all ${
+                isUploading 
+                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 cursor-not-allowed' 
+                  : 'hover:bg-white dark:hover:bg-slate-700 text-slate-500'
+              }`}
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+              {isUploading ? (
+                <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+              )}
             </button>
             <div className="w-px h-4 bg-slate-300 dark:bg-slate-600 mx-1" />
             <button 

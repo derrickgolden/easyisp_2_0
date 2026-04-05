@@ -14,7 +14,6 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Log;
 
 class CustomerController extends Controller
 {
@@ -169,108 +168,109 @@ class CustomerController extends Controller
             'parent_id' => 'nullable|exists:customers,id',
             'is_independent' => 'sometimes|boolean',
         ]);
-
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $customerData = $request->all();
-        if (!$request->filled('site_id')) {
-            $resolvedSiteId = $this->resolveSiteIdFromIp($customerData['ip_address'] ?? null, $orgId);
-            if ($resolvedSiteId !== null) {
-                $customerData['site_id'] = $resolvedSiteId;
+        try {
+            $customerData = $request->all();
+            if (!$request->filled('site_id')) {
+                $resolvedSiteId = $this->resolveSiteIdFromIp($customerData['ip_address'] ?? null, $orgId);
+                if ($resolvedSiteId !== null) {
+                    $customerData['site_id'] = $resolvedSiteId;
+                }
             }
-        }
 
-        // Get organization for company acronym
-        $organization = \App\Models\Organization::find($request->user()->organization_id);
-        
-        // Auto-generate RADIUS password
-        $radiusPassword = $request->input('radius_password') 
-            ?? CustomerRadiusService::generateRadiusPassword();
+            // Get organization for company acronym
+            $organization = \App\Models\Organization::find($request->user()->organization_id);
+            
+            // Auto-generate RADIUS password
+            $radiusPassword = $request->input('radius_password') 
+                ?? CustomerRadiusService::generateRadiusPassword();
 
-        // Use radius password as account password if none provided
-        $accountPassword = $request->input('password') ?? $radiusPassword;
+            // Use radius password as account password if none provided
+            $accountPassword = $request->input('password') ?? $radiusPassword;
 
-        // Resolve trial expiry from organization settings (fallback to 30 minutes)
-        $settings = $organization->settings ?? [];
-        $trialSettings = $settings['general'] ?? [];
-        $trialUnit = strtolower($trialSettings['trial_unit'] ?? 'minutes');
-        $trialDuration = (int) ($trialSettings['trial_duration'] ?? 0);
+            // Resolve trial expiry from organization settings (fallback to 30 minutes)
+            $settings = $organization->settings ?? [];
+            $trialSettings = $settings['general'] ?? [];
+            $trialUnit = strtolower($trialSettings['trial_unit'] ?? 'minutes');
+            $trialDuration = (int) ($trialSettings['trial_duration'] ?? 0);
 
-        if ($trialDuration <= 0) {
-            $trialUnit = 'minutes';
-            $trialDuration = 30;
-        }
+            if ($trialDuration <= 0) {
+                $trialUnit = 'minutes';
+                $trialDuration = 30;
+            }
 
-        $defaultExpiry = match ($trialUnit) {
-            'days', 'day' => now()->addDays($trialDuration),
-            'hours', 'hour' => now()->addHours($trialDuration),
-            'minutes', 'minute', 'mins', 'min' => now()->addMinutes($trialDuration),
-            default => now()->addMinutes(30),
-        };
+            $defaultExpiry = match ($trialUnit) {
+                'days', 'day' => now()->addDays($trialDuration),
+                'hours', 'hour' => now()->addHours($trialDuration),
+                'minutes', 'minute', 'mins', 'min' => now()->addMinutes($trialDuration),
+                default => now()->addMinutes(30),
+            };
 
-        // Create customer first with a temporary username to get the ID
-        $tempUsername = 'temp_' . uniqid();
-        $customer = Customer::create(array_merge($customerData, [
-            'organization_id' => $request->user()->organization_id,
-            'status' => 'active',
-            'radius_username' => $tempUsername,
-            'radius_password' => $radiusPassword,
-            'expiry_date' => $request->input('expiry_date', $defaultExpiry),
-            'password' => Hash::make($accountPassword),
-        ]));
+            // Create customer first with a temporary username to get the ID
+            $tempUsername = 'temp_' . uniqid();
+            $customer = Customer::create(array_merge($customerData, [
+                'organization_id' => $request->user()->organization_id,
+                'status' => 'active',
+                'radius_username' => $tempUsername,
+                'radius_password' => $radiusPassword,
+                'expiry_date' => $request->input('expiry_date', $defaultExpiry),
+                'password' => Hash::make($accountPassword),
+            ]));
 
-        // Generate final RADIUS username using customer ID and organization acronym
-        $radiusUsername = $request->input('radius_username') 
-            ?? CustomerRadiusService::generateRadiusUsername(
-                $customer->id,
-                $organization->acronym ?? null
-            );
+            // Generate final RADIUS username using customer ID and organization acronym
+            $radiusUsername = $request->input('radius_username') 
+                ?? CustomerRadiusService::generateRadiusUsername(
+                    $customer->id,
+                    $organization->acronym ?? null
+                );
 
-        // Check if username already exists and modify if necessary
-        $usernameModified = false;
-        if (Customer::where('radius_username', $radiusUsername)->where('id', '!=', $customer->id)->exists()) {
-            // Username exists, add acronym prefix if not already present
-            if ($organization->acronym) {
-                $acronym = strtolower(trim($organization->acronym));
-                $acronym = preg_replace('/[^a-z0-9]/', '', $acronym);
+            // Check if username already exists and modify if necessary
+            $usernameModified = false;
+            if (Customer::where('radius_username', $radiusUsername)->where('id', '!=', $customer->id)->exists()) {
+                // Username exists, add acronym prefix if not already present
+                if ($organization->acronym) {
+                    $acronym = strtolower(trim($organization->acronym));
+                    $acronym = preg_replace('/[^a-z0-9]/', '', $acronym);
+                    
+                    // Only add prefix if username doesn't already start with it
+                    if (!str_starts_with($radiusUsername, $acronym . '_')) {
+                        $radiusUsername = $acronym . '_' . $radiusUsername;
+                        $usernameModified = true;
+                    }
+                }
                 
-                // Only add prefix if username doesn't already start with it
-                if (!str_starts_with($radiusUsername, $acronym . '_')) {
-                    $radiusUsername = $acronym . '_' . $radiusUsername;
+                // If still exists after adding acronym, append customer ID
+                if (Customer::where('radius_username', $radiusUsername)->where('id', '!=', $customer->id)->exists()) {
+                    $radiusUsername = $radiusUsername . '_' . $customer->id;
                     $usernameModified = true;
                 }
             }
-            
-            // If still exists after adding acronym, append customer ID
-            if (Customer::where('radius_username', $radiusUsername)->where('id', '!=', $customer->id)->exists()) {
-                $radiusUsername = $radiusUsername . '_' . $customer->id;
-                $usernameModified = true;
-            }
+
+            // Update customer with the generated username
+            $customer->radius_username = $radiusUsername;
+            $customer->save();
+
+            // Sync to RADIUS
+            $syncResult = $this->radiusService->syncCustomerToRadius($customer);
+
+            $customerResource = new CustomerResource($customer);
+
+            return response()->json([
+                'message' => 'Customer created successfully',
+                'customer' => $customerResource->load('package', 'site'),
+                'radius_sync' => $syncResult,
+                'username_modified' => $usernameModified,
+                'username_message' => $usernameModified ? 'RADIUS username was modified to avoid conflicts' : null,
+            ], 201);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Failed to create customer',
+                'error' => $e->getMessage(),
+            ], 500);
         }
-
-        // Update customer with the generated username
-        $customer->radius_username = $radiusUsername;
-        $customer->save();
-
-        // Sync to RADIUS
-        $syncResult = $this->radiusService->syncCustomerToRadius($customer);
-
-        if (!$syncResult['success']) {
-            // Log the error but don't fail customer creation
-            \Log::error('RADIUS sync failed for customer ' . $customer->id . ': ' . $syncResult['message']);
-        }
-
-        $customer = new CustomerResource($customer);
-
-        return response()->json([
-            'message' => 'Customer created successfully',
-            'customer' => $customer->load('package', 'site'),
-            'radius_sync' => $syncResult,
-            'username_modified' => $usernameModified,
-            'username_message' => $usernameModified ? 'RADIUS username was modified to avoid conflicts' : null,
-        ], 201);
     }
 
     public function show($id)
