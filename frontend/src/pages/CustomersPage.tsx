@@ -13,20 +13,27 @@ import { usePermissions } from '../hooks/usePermissions';
 
 export const CustomersPage: React.FC = () => {
   const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isPolling, setIsPolling] = useState(false);
   
   // Filter States
-  const [siteFilter, setSiteFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [connectivityFilter, setConnectivityFilter] = useState<'all' | 'online' | 'offline'>('all');
-  const [packageFilter, setPackageFilter] = useState('');
-  const [locationFilter, setLocationFilter] = useState('');
-  const [apartmentFilter, setApartmentFilter] = useState('');
-  const [houseNoFilter, setHouseNoFilter] = useState('');
+  const [filters, setFilters] = useState(() => {
+    const saved = localStorage.getItem('customerFilters');
+    return saved ? JSON.parse(saved) : {
+      siteFilter: '',
+      statusFilter: '',
+      connectivityFilter: 'all' as 'all' | 'online' | 'offline',
+      packageFilter: '',
+      locationFilter: '',
+      apartmentFilter: '',
+      houseNoFilter: '',
+      searchTerm: '',
+    };
+  });
+
+  const { siteFilter, statusFilter, connectivityFilter, packageFilter, locationFilter, apartmentFilter, houseNoFilter, searchTerm } = filters;
 
   const [editingCustomer, setEditingCustomer] = useState<Partial<Customer> | null>(null);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
@@ -52,8 +59,12 @@ export const CustomersPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    localStorage.setItem('customerFilters', JSON.stringify(filters));
+  }, [filters]);
+
+  useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, siteFilter, statusFilter, packageFilter]);
+  }, [filters]);
 
   const fetchPackages = async () => {
     try {
@@ -137,10 +148,7 @@ export const CustomersPage: React.FC = () => {
       return matchesSite && matchesStatus && matchesPackage && matchesLocation && 
              matchesApartment && matchesHouseNo && matchesConnectivity;
     });
-  }, [
-    customers, searchTerm, siteFilter, statusFilter, connectivityFilter, 
-    packageFilter, locationFilter, apartmentFilter, houseNoFilter
-  ]);
+  }, [customers, filters]);
 
   // 3. PAGINATE LAST (slice only what the eye can see)
   const paginatedData = useMemo(() => {
@@ -151,14 +159,16 @@ export const CustomersPage: React.FC = () => {
   const totalPages = Math.ceil(filteredCustomers.length / rowsPerPage);
 
   const resetFilters = () => {
-    setSiteFilter('');
-    setStatusFilter('');
-    setConnectivityFilter('all');
-    setPackageFilter('');
-    setLocationFilter('');
-    setApartmentFilter('');
-    setHouseNoFilter('');
-    setSearchTerm('');
+    setFilters({
+      siteFilter: '',
+      statusFilter: '',
+      connectivityFilter: 'all',
+      packageFilter: '',
+      locationFilter: '',
+      apartmentFilter: '',
+      houseNoFilter: '',
+      searchTerm: '',
+    });
   };
 
   const activeFilterCount = [
@@ -582,7 +592,7 @@ export const CustomersPage: React.FC = () => {
               <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Network Site</label>
               <select 
                 value={siteFilter}
-                onChange={e => setSiteFilter(e.target.value)}
+                onChange={e => setFilters(prev => ({ ...prev, siteFilter: e.target.value }))}
                 className="w-full bg-white dark:bg-slate-800 border-none rounded-xl text-xs p-2.5 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white appearance-none font-bold"
               >
                 <option value="">All Sites</option>
@@ -594,7 +604,7 @@ export const CustomersPage: React.FC = () => {
               <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Account Status</label>
               <select 
                 value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
+                onChange={e => setFilters(prev => ({ ...prev, statusFilter: e.target.value }))}
                 className="w-full bg-white dark:bg-slate-800 border-none rounded-xl text-xs p-2.5 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white appearance-none font-bold"
               >
                 <option value="">All Statuses</option>
@@ -610,7 +620,7 @@ export const CustomersPage: React.FC = () => {
                 {(['all', 'online', 'offline'] as const).map(mode => (
                   <button
                     key={mode}
-                    onClick={() => setConnectivityFilter(mode)}
+                    onClick={() => setFilters(prev => ({ ...prev, connectivityFilter: mode }))}
                     className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all ${
                       connectivityFilter === mode 
                       ? 'bg-blue-600 text-white shadow-sm' 
@@ -627,7 +637,7 @@ export const CustomersPage: React.FC = () => {
               <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Internet Package</label>
               <select 
                 value={packageFilter}
-                onChange={e => setPackageFilter(e.target.value)}
+                onChange={e => setFilters(prev => ({ ...prev, packageFilter: e.target.value }))}
                 className="w-full bg-white dark:bg-slate-800 border-none rounded-xl text-xs p-2.5 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white appearance-none font-bold"
               >
                 <option value="">All Packages</option>
@@ -641,7 +651,7 @@ export const CustomersPage: React.FC = () => {
                 type="text" 
                 placeholder="e.g. Githurai" 
                 value={locationFilter}
-                onChange={e => setLocationFilter(e.target.value)}
+                onChange={e => setFilters(prev => ({ ...prev, locationFilter: e.target.value }))}
                 className="w-full bg-white dark:bg-slate-800 border-none rounded-xl text-xs p-2.5 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
               />
             </div>
@@ -652,7 +662,7 @@ export const CustomersPage: React.FC = () => {
                 type="text" 
                 placeholder="e.g. Hadasa" 
                 value={apartmentFilter}
-                onChange={e => setApartmentFilter(e.target.value)}
+                onChange={e => setFilters(prev => ({ ...prev, apartmentFilter: e.target.value }))}
                 className="w-full bg-white dark:bg-slate-800 border-none rounded-xl text-xs p-2.5 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
               />
             </div>
@@ -663,7 +673,7 @@ export const CustomersPage: React.FC = () => {
                 type="text" 
                 placeholder="e.g. A4" 
                 value={houseNoFilter}
-                onChange={e => setHouseNoFilter(e.target.value)}
+                onChange={e => setFilters(prev => ({ ...prev, houseNoFilter: e.target.value }))}
                 className="w-full bg-white dark:bg-slate-800 border-none rounded-xl text-xs p-2.5 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
               />
             </div>
@@ -690,7 +700,7 @@ export const CustomersPage: React.FC = () => {
               type="text" 
               placeholder="Search by name, username, phone or email..." 
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
               className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 dark:text-white"
             />
           </div>
@@ -824,16 +834,7 @@ export const CustomersPage: React.FC = () => {
         setIsBulkSmsOpen={setIsBulkSmsOpen}
         filteredCustomers={filteredCustomers}
         totalCustomers={customers.length}
-        activeFilters={{
-          searchTerm,
-          siteFilter,
-          statusFilter,
-          packageFilter,
-          locationFilter,
-          apartmentFilter,
-          houseNoFilter,
-          connectivityFilter
-        }}
+        activeFilters={filters}
         packages={packages}
         sites={sites}
       />

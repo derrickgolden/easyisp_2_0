@@ -367,26 +367,34 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, onClose, selec
         {`# EasyTech Auto-Provision Script
 # TARGET: ${selectedSite?.name}
 
-# IP Address Configuration
-/ip address add address=${selectedSite?.ip_address}/24 interface=ether1
+# WireGuard IP Address Configuration
+/ip address add address=${selectedSite?.ip_address}/24 interface=wg-client comment="Wireguard Primary Gateway IP for ${selectedSite?.name}"
 
 # IP Pools
 /ip pool
-add name=expired ranges=${selectedSite?.ip_address.split('.').slice(0,3).join('.')}.50-${selectedSite?.ip_address.split('.').slice(0,3).join('.')}.99
-add name=pppoe-pool ranges=${selectedSite?.ip_address.split('.').slice(0,3).join('.')}.100-${selectedSite?.ip_address.split('.').slice(0,3).join('.')}.250
+add name=expired_pool ranges=10.0.0.100-10.0.0.200
+add name=pppoe-pool ranges=10.254.0.10-10.254.0.250
 
 # PPP Profiles
 /ppp profile
-add local-address=${selectedSite?.ip_address} name=expired remote-address=expired
-add dns-server=8.8.8.8,1.1.1.1 local-address=${selectedSite?.ip_address} name=ppoe-profile \\
+add local-address=10.0.0.1 name=Expired_Redirect remote-address=expired_pool
+add dns-server=8.8.8.8,1.1.1.1 local-address=10.254.0.1 name=pppoe-profile \\
     remote-address=pppoe-pool
 
 # DNS Configuration
-/ip dns set servers=8.8.8.8,1.1.1.1 allow-remote-requests=yes
+/ip dns set servers=8.8.8.8,1.1.1.1 allow-remote-requests=no
 
-# PPPoE Server Configuration
+# PPPoe Server Configuration
+# 1. Create the Bridge if not already created.
+/interface bridge add name=bridge-pppoe
+
+# 2. Add all the ports you want to serve customers on
+/interface bridge port
+add bridge=bridge-pppoe interface=ether3
+
+# 3. Point the PPPoE Server to the BRIDGE
 /interface pppoe-server server
-add default-profile=ppoe-profile disabled=no interface=ether3-pppoe \\
+add default-profile=pppoe-profile disabled=no interface=bridge-pppoe \
     one-session-per-host=yes service-name=pppoe-server
 
 # RADIUS Configuration
@@ -395,11 +403,11 @@ add default-profile=ppoe-profile disabled=no interface=ether3-pppoe \\
 /radius incoming set accept=yes
 
 # WireGuard Configuration
-/interface wireguard add name=wg-radius listen-port=13231
-/interface wireguard peers add interface=wg-radius public-key="5jhaRrfQt+PFcWT69GosWDYmt7icp4DpOYzZXYLOclM=" \
+/interface wireguard add name=wg-client listen-port=13231
+/interface wireguard peers add interface=wg-client public-key="5jhaRrfQt+PFcWT69GosWDYmt7icp4DpOYzZXYLOclM=" \
     endpoint-address=102.212.246.245:51820 allowed-address=10.0.0.0/24 persistent-keepalive=25s
 
-/ip address add address=10.0.0.2/24 interface=wg-radius
+/ip address add address=10.0.0.2/24 interface=wg-client
 
 # Firewall Rules
 # Allow RADIUS and COA from the WireGuard Tunnel only
