@@ -388,6 +388,8 @@ class CustomerController extends Controller
         }
 
         if ($customer->wasChanged(['expiry_date', 'extension_date'])) {
+            $customer->expiry_warning_sent_at = null; // Reset warning flag if expiry changes
+            $customer->save();    
             $syncResult = $this->subscriptionService->syncSubscription($customer);
         }
 
@@ -471,6 +473,7 @@ class CustomerController extends Controller
         // Create new expiry based on saved seconds
         if ($customer->paused_seconds_remaining > 0) {
             $customer->expiry_date = $now->addSeconds($customer->paused_seconds_remaining);
+            $customer->expiry_warning_sent_at = null; // Reset warning flag for new expiry
         } else {
             // If they had no time left, resume them as expired so they have to pay
             $customer->expiry_date = $now->subMinute(); 

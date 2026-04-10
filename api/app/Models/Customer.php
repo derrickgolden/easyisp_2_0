@@ -27,6 +27,7 @@ class Customer extends Model
         'status',
         'expiry_date',
         'extension_date',
+        'expiry_warning_sent_at',
         'balance',
         'is_independent',
         'radius_username',
@@ -45,6 +46,7 @@ class Customer extends Model
         'installation_fee' => 'decimal:2',
         'expiry_date' => 'datetime',
         'extension_date' => 'datetime',
+        'expiry_warning_sent_at' => 'datetime',
         'balance' => 'decimal:2',
         'is_independent' => 'boolean',
     ];

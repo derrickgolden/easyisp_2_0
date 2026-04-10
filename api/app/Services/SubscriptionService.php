@@ -23,6 +23,9 @@ class SubscriptionService
         $effectiveDate = $this->getEffectiveExpiryDate($customer);
 
         $past = $effectiveDate->isPast() ? "true": "false";
+
+        // Check and send 48-hour expiry warning (sent only once)
+        $this->checkAndSend48HourWarning($customer, $effectiveDate);
        
         if ($effectiveDate->isPast()) {
             // Customer is expired - check if they have enough balance to auto-renew
@@ -114,6 +117,7 @@ class SubscriptionService
         
         // 6. Reset extension fields and status
         $customer->extension_date = null; 
+        $customer->expiry_warning_sent_at = null; // Reset warning flag for new period
         $customer->status = 'active';
         $customer->save();
 
@@ -130,7 +134,10 @@ class SubscriptionService
         // 1. Update Laravel Database
         $customer->update(['status' => 'expired']);
 
-        // 2. Update RADIUS to "Expired" group for redirection
+        // 2. Send expiry notification (account expired) SMS
+        $this->sendExpiryNotificationMessage($customer);
+
+        // 3. Update RADIUS to "Expired" group for redirection
         DB::connection('radius')->table('radusergroup')
             ->updateOrInsert(
                 ['username' => $customer->radius_username],
@@ -189,5 +196,109 @@ class SubscriptionService
             
             \Log::warning("User {$customer->radius_username} has been SUSPENDED.");
         }
+    }
+
+    /**
+     * Check if customer is within 48 hours of expiry and send warning SMS once
+     */
+    private function checkAndSend48HourWarning(Customer $customer, Carbon $effectiveDate)
+    {
+        // Skip if warning was already sent
+        if ($customer->expiry_warning_sent_at) {
+            return;
+        }
+
+        $now = Carbon::now();
+        $hoursUntilExpiry = $now->diffInHours($effectiveDate);
+
+        // Check if customer is within 48 hours and not yet expired
+        if ($hoursUntilExpiry > 0 && $hoursUntilExpiry <= 48) {
+            $this->sendExpiryWarningMessage($customer, $hoursUntilExpiry);
+
+            // Mark the warning as sent
+            $customer->update(['expiry_warning_sent_at' => $now]);
+        }
+    }
+
+    /**
+     * Send expiry warning SMS to customer
+     */
+    private function sendExpiryWarningMessage(Customer $customer, $hoursUntilExpiry)
+    {
+        try {
+            // Get organization SMS settings
+            $organization = $customer->organization;
+            $settings = $organization->settings ?? [];
+            $smsSettings = $settings['sms-gateway'] ?? null;
+
+            if (!$smsSettings || !$smsSettings['provider'] || !$smsSettings['api_key']) {
+                Log::warning("SMS gateway not configured for organization {$organization->id}. Cannot send expiry warning.");
+                return;
+            }
+
+            // Format the expiry date for display
+            $expiryDate = $this->getEffectiveExpiryDate($customer);
+            $daysUntilExpiry = ceil($hoursUntilExpiry / 24);
+
+            $message = "Reminder: Your internet subscription expires in {$daysUntilExpiry} day" . ($daysUntilExpiry > 1 ? 's' : '') . 
+                      " on " . $expiryDate->format('M d, Y') . ". Please renew to avoid service interruption.";
+
+            // Send SMS via the configured provider
+            $this->sendSmsViaProvider($customer, $message, $smsSettings, 'expiry-warning');
+
+            Log::info("Expiry warning sent to customer {$customer->id} ({$customer->phone})");
+        } catch (\Exception $e) {
+            Log::error("Failed to send expiry warning to customer {$customer->id}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Send expiry notification SMS when account actually expires
+     */
+    private function sendExpiryNotificationMessage(Customer $customer)
+    {
+        try {
+            // Get organization SMS settings
+            $organization = $customer->organization;
+            $settings = $organization->settings ?? [];
+            $smsSettings = $settings['sms-gateway'] ?? null;
+
+            if (!$smsSettings || !$smsSettings['provider'] || !$smsSettings['api_key']) {
+                Log::warning("SMS gateway not configured for organization {$organization->id}. Cannot send expiry notification.");
+                return;
+            }
+
+            // Get expiry date
+            $expiryDate = $this->getEffectiveExpiryDate($customer);
+
+            $message = "Your internet subscription has expired as of " . $expiryDate->format('M d, Y') . 
+                      ". Please renew your account to restore service.";
+
+            // Send SMS via the configured provider
+            $this->sendSmsViaProvider($customer, $message, $smsSettings, 'expiry-notification');
+
+            Log::info("Expiry notification sent to customer {$customer->id} ({$customer->phone})");
+        } catch (\Exception $e) {
+            Log::error("Failed to send expiry notification to customer {$customer->id}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Send SMS to customer via configured provider
+     */
+    private function sendSmsViaProvider(Customer $customer, $message, $smsSettings, $type = 'system')
+    {
+        $provider = $smsSettings['provider'];
+        $apiKey = $smsSettings['api_key'];
+        $apiUsername = $smsSettings['api_username'] ?? null;
+        $senderId = $smsSettings['sender_id'] ?? 'EASYTECH';
+
+        $smsService = new SmsProviderService();
+        $smsService->send($customer->phone, $message, $provider, $apiKey, $senderId, $apiUsername, [
+            'organization_id' => $customer->organization_id,
+            'user_id' => null,
+            'customer_id' => $customer->id,
+            'type' => $type,
+        ]);
     }
 }
