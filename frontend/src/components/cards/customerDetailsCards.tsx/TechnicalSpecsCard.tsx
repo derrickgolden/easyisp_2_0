@@ -99,44 +99,44 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
     }, [startTimeIso, isOnline]);
 
     // AUTO-REFRESH EFFECT (Polls API every 2s ONLY if offline)
-    useEffect(() => {
-      let timeoutId;
-      const maxDelay = 60000; // Cap at 1 minute
+    // useEffect(() => {
+    //   let timeoutId;
+    //   const maxDelay = 60000; // Cap at 1 minute
 
-      // Reset delay when user comes back online
-      if (isOnline) {
-        currentDelay.current = 2000;
-        return;
-      }
+    //   // Reset delay when user comes back online
+    //   if (isOnline) {
+    //     currentDelay.current = 2000;
+    //     return;
+    //   }
 
-      const poll = async () => {
-        if (!isOnline) {
-          if (!isRequesting.current) {
-            isRequesting.current = true;
-            setIsPolling(true);
+    //   const poll = async () => {
+    //     if (!isOnline) {
+    //       if (!isRequesting.current) {
+    //         isRequesting.current = true;
+    //         setIsPolling(true);
             
-            await onRefresh();
+    //         await onRefresh();
             
-            isRequesting.current = false;
-            setIsPolling(false);
+    //         isRequesting.current = false;
+    //         setIsPolling(false);
 
-            // Increase delay for the next run
-            currentDelay.current = Math.min(currentDelay.current * 2, maxDelay);
-            console.log('Next delay will be:', currentDelay.current);
-          }
+    //         // Increase delay for the next run
+    //         currentDelay.current = Math.min(currentDelay.current * 2, maxDelay);
+    //         console.log('Next delay will be:', currentDelay.current);
+    //       }
 
-          // Schedule the next poll with updated delay
-          timeoutId = setTimeout(poll, currentDelay.current);
-        }
-      };
+    //       // Schedule the next poll with updated delay
+    //       timeoutId = setTimeout(poll, currentDelay.current);
+    //     }
+    //   };
 
-      // Start polling
-      timeoutId = setTimeout(poll, currentDelay.current);
+    //   // Start polling
+    //   timeoutId = setTimeout(poll, currentDelay.current);
 
-      return () => {
-        if (timeoutId) clearTimeout(timeoutId);
-      };
-    }, [isOnline, onRefresh]);
+    //   return () => {
+    //     if (timeoutId) clearTimeout(timeoutId);
+    //   };
+    // }, [isOnline, onRefresh]);
 
     const onResetMAC = async (customerId: string) => {
       try {

@@ -367,9 +367,6 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, onClose, selec
         {`# EasyTech Auto-Provision Script
 # TARGET: ${selectedSite?.name}
 
-# WireGuard IP Address Configuration
-/ip address add address=${selectedSite?.ip_address}/24 interface=wg-client comment="Wireguard Primary Gateway IP for ${selectedSite?.name}"
-
 # IP Pools
 /ip pool
 add name=expired_pool ranges=10.0.0.100-10.0.0.200
@@ -407,18 +404,23 @@ add default-profile=pppoe-profile disabled=no interface=bridge-pppoe \
 /interface wireguard peers add interface=wg-client public-key="5jhaRrfQt+PFcWT69GosWDYmt7icp4DpOYzZXYLOclM=" \
     endpoint-address=102.212.246.245:51820 allowed-address=10.0.0.0/24 persistent-keepalive=25s
 
-/ip address add address=10.0.0.2/24 interface=wg-client
+# WireGuard IP Address Configuration
+/ip address add address=${selectedSite?.ip_address}/24 interface=wg-client \
+comment="Wireguard Primary Gateway IP for ${selectedSite?.name}"
 
 # Firewall Rules
 # Allow RADIUS and COA from the WireGuard Tunnel only
 /ip firewall filter
-add action=accept chain=input src-address=10.0.0.1 protocol=udp dst-port=1812,1813 comment="Allow RADIUS Auth/Acct"
-add action=accept chain=input src-address=10.0.0.1 protocol=udp dst-port=3799 comment="Allow RADIUS COA (Disconnect)"
+add action=accept chain=input src-address=10.0.0.1 protocol=udp dst-port=1812,1813 \
+comment="Allow RADIUS Auth/Acct"
+add action=accept chain=input src-address=10.0.0.1 protocol=udp dst-port=3799 \
+comment="Allow RADIUS COA (Disconnect)"
 
 # API configuration
 /ip service enable api
 # restrict API access to the WireGuard tunnel for security
-/ip firewall filter add action=accept chain=input src-address=10.0.0.2 comment="Allow API access from WireGuard tunnel only"
+/ip firewall filter add action=accept chain=input src-address=10.0.0.2 \
+comment="Allow API access from WireGuard tunnel only"
 add action=drop chain=input src-address=!10.0.0.2 comment="Drop API access from other sources"
 /ip service set api address=192.168.88.0/24
 #create api user with strong password

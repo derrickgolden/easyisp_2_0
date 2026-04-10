@@ -39,7 +39,7 @@ const SmsLogsCard: React.FC<SmsLogsCardProps> = ({ customerId }) => {
     try {
       const id = typeof customerId === 'string' ? parseInt(customerId) : customerId;
       const response = await smsApi.getLogs(id, 5);
-      console.log('Fetched SMS logs:', response);
+
       setLogs(response.data || []);
       setHasLoaded(true);
     } catch (error: any) {
@@ -56,13 +56,21 @@ const SmsLogsCard: React.FC<SmsLogsCardProps> = ({ customerId }) => {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleString('en-US', {
+    const datePart = date.toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
+    });
+    const timePart = date.toLocaleString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
     });
+    return (
+      <>
+        {datePart},<br />
+        {timePart}
+      </>
+    );
   };
 
   return (

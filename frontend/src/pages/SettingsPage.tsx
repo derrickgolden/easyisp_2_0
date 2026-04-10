@@ -484,7 +484,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
               </div>
             </Card>
 
-            <Card title="Meta WhatsApp Cloud API">
+            <Card title="Meta WhatsApp Cloud API (UNDER CONSTRUCTION)">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="md:col-span-2 space-y-2">
                   <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Permanent Access Token</label>

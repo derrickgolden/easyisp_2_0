@@ -20,7 +20,7 @@ export const CustomersPage: React.FC = () => {
   
   // Filter States
   const [filters, setFilters] = useState(() => {
-    const saved = localStorage.getItem('customerFilters');
+    const saved = sessionStorage.getItem('customerFilters');
     return saved ? JSON.parse(saved) : {
       siteFilter: '',
       statusFilter: '',
@@ -59,7 +59,7 @@ export const CustomersPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('customerFilters', JSON.stringify(filters));
+    sessionStorage.setItem('customerFilters', JSON.stringify(filters));
   }, [filters]);
 
   useEffect(() => {

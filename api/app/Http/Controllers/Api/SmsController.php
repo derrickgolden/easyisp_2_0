@@ -246,12 +246,43 @@ class SmsController extends Controller
 
         // Inside sendViaAfricasTalking
         $result = json_decode($response, true);
-        $recipient = $result['SMSMessageData']['Recipients'][0] ?? null;
+        Log::info('Africa\'s Talking response', ['response' => $result]);
 
-        if ($recipient && $recipient['status'] !== 'Success') {
-            // This string (e.g., "InvalidPhoneNumber") will be sent to the frontend
-            throw new \Exception($recipient['status']); 
+        $smsData = $result['SMSMessageData'] ?? null;
+
+        // Validate response structure
+        if (!$smsData) {
+            throw new \Exception('Invalid Africa\'s Talking response structure');
         }
+
+        $message = $smsData['Message'] ?? '';
+        $recipients = $smsData['Recipients'] ?? [];
+
+        // Check for error messages in the Message field
+        if (stripos($message, 'Invalid') !== false ||
+            stripos($message, 'Error') !== false ||
+            stripos($message, 'Failed') !== false ||
+            stripos($message, 'Insufficient') !== false) {
+            throw new \Exception($message ?: 'Africa\'s Talking reported an error');
+        }
+
+        // Ensure recipients array is not empty
+        if (empty($recipients)) {
+            throw new \Exception($message ?: 'Africa\'s Talking response contained no recipients');
+        }
+
+        // Check each recipient's status
+        foreach ($recipients as $recipient) {
+            $status = $recipient['status'] ?? '';
+            $statusCode = $recipient['statusCode'] ?? null;
+
+            // Accept only "Success" status with statusCode 100
+            if ($status !== 'Success' || $statusCode !== 100) {
+                $errorMessage = $recipient['status'] ?? $message ?? 'Unknown error';
+                throw new \Exception($errorMessage);
+            }
+        }
+
         return $result;
     }
 
