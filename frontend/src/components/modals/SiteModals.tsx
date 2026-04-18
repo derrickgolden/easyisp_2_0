@@ -4,6 +4,8 @@ import { Modal } from '../UI';
 import { Site } from '../../types';
 import { sitesApi } from '../../services/apiService';
 import { toast } from 'sonner';
+const WIREGUARD_PUBLIC_KEY = import.meta.env.VITE_WIREGUARD_PUBLIC_KEY;
+const WIREGUARD_ALLOWED_ADDRESS = import.meta.env.VITE_WIREGUARD_ALLOWED_ADDRESS;
 
 interface SiteProvisionModalProps {
   isOpen: boolean;
@@ -401,8 +403,8 @@ add default-profile=pppoe-profile disabled=no interface=bridge-pppoe \
 
 # WireGuard Configuration
 /interface wireguard add name=wg-client listen-port=13231
-/interface wireguard peers add interface=wg-client public-key="5jhaRrfQt+PFcWT69GosWDYmt7icp4DpOYzZXYLOclM=" \
-    endpoint-address=102.212.246.245:51820 allowed-address=10.0.0.0/24 persistent-keepalive=25s
+/interface wireguard peers add interface=wg-client public-key="${WIREGUARD_PUBLIC_KEY}" \
+endpoint-address=102.212.246.245 endpoint-port=51820 allowed-address=${WIREGUARD_ALLOWED_ADDRESS} persistent-keepalive=25s
 
 # WireGuard IP Address Configuration
 /ip address add address=${selectedSite?.ip_address}/24 interface=wg-client \
@@ -419,9 +421,9 @@ comment="Allow RADIUS COA (Disconnect)"
 # API configuration
 /ip service enable api
 # restrict API access to the WireGuard tunnel for security
-/ip firewall filter add action=accept chain=input src-address=10.0.0.2 \
+/ip firewall filter add action=accept chain=input src-address=${WIREGUARD_ALLOWED_ADDRESS} \
 comment="Allow API access from WireGuard tunnel only"
-add action=drop chain=input src-address=!10.0.0.2 comment="Drop API access from other sources"
+add action=drop chain=input src-address=!${WIREGUARD_ALLOWED_ADDRESS} comment="Drop API access from other sources"
 /ip service set api address=192.168.88.0/24
 #create api user with strong password
 /user add name=apiuser password=hjdTY162JGFkas group=full

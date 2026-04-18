@@ -14,10 +14,12 @@ class Organization extends Model
         'acronym',
         'subscription_tier',
         'status',
+        'balance',
         'settings',
     ];
 
     protected $casts = [
+        'balance' => 'decimal:2',
         'settings' => 'array',
     ];
 

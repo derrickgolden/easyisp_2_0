@@ -405,8 +405,34 @@ export const paymentsApi = {
   },
 
   stkPushPayhero: async (data: { phone: string; amount: number }) => {
+    const normalizeKenyanPhone = (phone: string) => {
+      const digits = (phone || '').replace(/\D/g, '');
+      if (!digits) return null;
+
+      if (digits.startsWith('0') && digits.length === 10) {
+        return `254${digits.slice(1)}`;
+      }
+      if ((digits.startsWith('7') || digits.startsWith('1')) && digits.length === 9) {
+        return `254${digits}`;
+      }
+      if (/^254(7|1)\d{8}$/.test(digits)) {
+        return digits;
+      }
+
+      return null;
+    };
+
+    const phone = normalizeKenyanPhone(data.phone);
+
+    if (!phone) {
+      throw new Error('Invalid phone format. Use 07XXXXXXXX, 7XXXXXXXX, or 2547XXXXXXXX.');
+    }
+
     try {
-      const response = await axiosInstance.post('/payments/payhero/stkpush', data);
+      const response = await axiosInstance.post('/payments/payhero/stkpush', {
+        ...data,
+        phone,
+      });
       return response.data;
     } catch (err: any) {
       const responseData = err?.response?.data;

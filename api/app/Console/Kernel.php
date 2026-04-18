@@ -25,6 +25,8 @@ class Kernel extends ConsoleKernel
 
         $schedule->command('license:generate-monthly-bills')->monthlyOn(28, '02:36')->withoutOverlapping();
 
+        $schedule->command('license:sync-organization-statuses')->monthlyOn(5, '10:00')->withoutOverlapping();
+
         $schedule->call(function () {
             DB::connection('radius')->table('radpostauth')
                 ->where('authdate', '<', now()->subDays(30))
