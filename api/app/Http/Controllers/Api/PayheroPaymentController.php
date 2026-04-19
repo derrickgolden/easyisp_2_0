@@ -131,6 +131,10 @@ class PayheroPaymentController extends Controller
 
         try {
             $settledSnapshot = DB::transaction(function () use ($organization, $amountAsDecimal, $amount, $phone, $externalReference) {
+                $lockedOrganization = Organization::where('id', $organization->id)
+                    ->lockForUpdate()
+                    ->first();
+
                 $snapshot = OrganizationLicenseSnapshot::where('organization_id', $organization->id)
                     ->where('status', 'billed')
                     ->where('total_amount', $amountAsDecimal)
@@ -150,12 +154,16 @@ class PayheroPaymentController extends Controller
                         ]),
                     ]);
 
+                    if ($lockedOrganization && $lockedOrganization->status !== 'active') {
+                        $lockedOrganization->update(['status' => 'active']);
+                    }
+
                     return $snapshot;
                 }
 
-                Organization::where('id', $organization->id)
-                    ->lockForUpdate()
-                    ->increment('balance', $amount);
+                if ($lockedOrganization) {
+                    $lockedOrganization->increment('balance', $amount);
+                }
 
                 return null;
             });

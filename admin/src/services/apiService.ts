@@ -153,6 +153,18 @@ export const organizationsApi = {
 		return response.data;
 	},
 
+	updateLicenseBillingStatus: async (
+		organizationId: number | string,
+		snapshotId: number | string,
+		status: "billed" | "paid"
+	) => {
+		const response = await axiosInstance.patch(
+			`/organizations/${organizationId}/license-billing/${snapshotId}/status`,
+			{ status }
+		);
+		return response.data;
+	},
+
 	getById: async (id: number | string) => {
 		const response = await axiosInstance.get(`/organizations/${id}`);
 		return response.data;

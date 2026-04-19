@@ -39,6 +39,10 @@ export const Layout: React.FC<LayoutProps> = ({
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => window.innerWidth >= 1024);
   const [organizationName, setOrganizationName] = useState('EasyTech');
   const [organizationLogo, setOrganizationLogo] = useState(EASYTECH_LOGO);
+  const [organizationStatus, setOrganizationStatus] = useState<'active' | 'suspended'>('active');
+  const [latestBillStatus, setLatestBillStatus] = useState<string | null>(null);
+  const [latestBillSnapshotMonth, setLatestBillSnapshotMonth] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState(() => new Date());
 
   useEffect(() => {
     const pathParts = location.pathname.split('/').filter(Boolean);
@@ -56,23 +60,78 @@ export const Layout: React.FC<LayoutProps> = ({
   }, []);
 
   useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     const fetchOrganizationBranding = async () => {
       try {
-        const response = await organizationApi.get();
+        const [response, billingResponse] = await Promise.all([
+          organizationApi.get(),
+          organizationApi.getLicenseBilling(),
+        ]);
         const settings = response?.settings || {};
         const general = settings.general || {};
         const logo = general.business_logo || '';
         const legalName = general.isp_legal_name || response?.name || 'EasyTech';
         setOrganizationName(legalName);
         setOrganizationLogo(logo || EASYTECH_LOGO);
+        setOrganizationStatus(response?.status === 'suspended' ? 'suspended' : 'active');
+        setLatestBillStatus(billingResponse?.current?.status || null);
+        setLatestBillSnapshotMonth(billingResponse?.current?.snapshot_month || null);
       } catch (error) {
         console.error('Failed to fetch organization branding:', error);
         setOrganizationName('EasyTech');
         setOrganizationLogo(EASYTECH_LOGO);
+        setOrganizationStatus('active');
+        setLatestBillStatus(null);
+        setLatestBillSnapshotMonth(null);
       }
     };
     fetchOrganizationBranding();
   }, []);
+
+  const getExpiryDeadline = () => {
+    if (!latestBillSnapshotMonth) return null;
+
+    const snapshotDate = new Date(latestBillSnapshotMonth);
+    if (Number.isNaN(snapshotDate.getTime())) return null;
+
+    return new Date(
+      snapshotDate.getFullYear(),
+      snapshotDate.getMonth() + 1,
+      5,
+      10,
+      0,
+      0,
+      0,
+    );
+  };
+
+  const getRemainingTimeLabel = () => {
+    const deadline = getExpiryDeadline();
+    if (!deadline) return null;
+
+    const diffMs = deadline.getTime() - currentTime.getTime();
+    if (diffMs <= 0) return 'Expiry due now';
+
+    const totalMinutes = Math.floor(diffMs / (1000 * 60));
+    const days = Math.floor(totalMinutes / (60 * 24));
+    const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+    const minutes = totalMinutes % 60;
+
+    if (days > 0) return `${days}d ${hours}h left`;
+    if (hours > 0) return `${hours}h ${minutes}m left`;
+    return `${minutes}m left`;
+  };
+
+  const statusLabel = organizationStatus === 'suspended' ? 'Expired' : 'Active';
+  const showBillingCountdown = organizationStatus === 'active' && latestBillStatus !== 'paid';
+  const remainingTimeLabel = showBillingCountdown ? getRemainingTimeLabel() : null;
 
   const getSubItemLabel = () => {
     if (!activeSubTab) return '';
@@ -114,9 +173,20 @@ export const Layout: React.FC<LayoutProps> = ({
               />
             </div>
             {(isSidebarOpen || window.innerWidth < 1024) && (
-              <span className="font-bold text-lg tracking-tight block truncate max-w-full min-w-0">
+              <div className="min-w-0 flex-1">
+
+              <span className="block truncate font-bold text-lg tracking-tight">
                 {organizationName}
               </span>
+              <span className={`block text-xs font-semibold uppercase tracking-wider ${organizationStatus === 'suspended' ? 'text-red-400' : 'text-emerald-300'}`}>
+                {statusLabel}
+              </span>
+              {remainingTimeLabel && (
+                <span className="block text-[11px] text-slate-400">
+                  Unpaid Bill: {remainingTimeLabel}
+                </span>
+              )}
+              </div>
             )}
           </div>
           <button 

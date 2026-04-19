@@ -6,9 +6,9 @@ import { toast } from "sonner";
 const LicenceCard: React.FC<{ orgSettings: any }> = ({orgSettings}) => {
     const [licenceStatus, setLicenceStatus] = useState<'Active' | 'Trial' | 'Expired'>('Trial');
     const [activeTier, setActiveTier] = useState<string | null>(null);
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [paymentStep, setPaymentStep] = useState<'idle' | 'processing' | 'success'>('idle');
-  const [phoneNumber, setPhoneNumber] = useState('');
+    const [phoneNumber, setPhoneNumber] = useState('');
     const [billingSummary, setBillingSummary] = useState<any>(null);
     const currentBillStatus = billingSummary?.current?.status;
     const walletBalance = Number(orgSettings?.balance || 0);
@@ -49,6 +49,44 @@ const LicenceCard: React.FC<{ orgSettings: any }> = ({orgSettings}) => {
         setIsPaymentModalOpen(true);
     };
 
+    const applyOrganizationState = (organization: any) => {
+      if (organization?.subscription_tier) {
+        setActiveTier(
+          organization.subscription_tier.charAt(0).toUpperCase() +
+          organization.subscription_tier.slice(1)
+        );
+      }
+
+      if (organization?.status === 'active') {
+        setLicenceStatus('Active');
+      } else if (organization?.status === 'suspended') {
+        setLicenceStatus('Expired');
+      } else {
+        setLicenceStatus('Trial');
+      }
+    };
+
+    const pollForPaymentConfirmation = async (maxAttempts = 15, intervalMs = 4000) => {
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const latest = await organizationApi.getLicenseBilling();
+          setBillingSummary(latest || null);
+
+          if (latest?.current?.status === 'paid') {
+            return true;
+          }
+        } catch (error) {
+          console.error('Failed to refresh billing summary while checking payment status:', error);
+        }
+
+        if (attempt < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, intervalMs));
+        }
+      }
+
+      return false;
+    };
+
    const handleStkPush = async () => {
 
       const enteredPhone = phoneNumber.trim();
@@ -66,8 +104,25 @@ const LicenceCard: React.FC<{ orgSettings: any }> = ({orgSettings}) => {
           amount,
         });
 
-        // setPaymentStep('success');
         toast.success('STK push initiated. Enter PIN.');
+
+        const paymentConfirmed = await pollForPaymentConfirmation();
+
+        if (paymentConfirmed) {
+          try {
+            const latestOrganization = await organizationApi.get();
+            applyOrganizationState(latestOrganization);
+          } catch (error) {
+            console.error('Failed to refresh organization status after payment confirmation:', error);
+          }
+
+          setPaymentStep('success');
+          toast.success('Payment confirmed successfully.');
+          return;
+        }
+
+        setPaymentStep('idle');
+        toast.error('Payment not confirmed yet. Please complete STK PIN and try checking again.');
       } catch (err: any) {
         setPaymentStep('idle');
         toast.error(err?.message || 'Failed to initiate STK push');
@@ -99,13 +154,15 @@ const LicenceCard: React.FC<{ orgSettings: any }> = ({orgSettings}) => {
                       <p className={`text-[10px] font-black uppercase tracking-widest mt-2 ${currentBillStatus === 'paid' ? 'text-emerald-300' : 'text-amber-300'}`}>
                         {currentBillStatus === 'paid' ? 'Paid' : 'Unpaid'}
                       </p>
-                      {/* <button
-                        type="button"
-                        onClick={initiatePayment}
-                        className="mt-4 inline-flex items-center justify-center rounded-xl bg-emerald-500 px-6 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-emerald-900/20 transition hover:bg-emerald-600"
-                      >
-                        Pay
-                      </button> */}
+                      {currentBillStatus !== 'paid' && (
+                        <button
+                          type="button"
+                          onClick={initiatePayment}
+                          className="mt-4 inline-flex items-center justify-center rounded-xl bg-emerald-500 px-6 py-2.5 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-emerald-900/20 transition hover:bg-emerald-600"
+                        >
+                          Pay
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -124,6 +181,15 @@ const LicenceCard: React.FC<{ orgSettings: any }> = ({orgSettings}) => {
                     <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black">Rate</p>
                     <p className="text-lg font-black text-gray-900 dark:text-white mt-1">KSH 15 / active user</p>
                   </div>
+                </div>
+                <div className="bg-slate-900 backdrop-blur-md border border-white/10 rounded-2xl p-4 max-w-sm">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Billing Schedule</p>
+                  </div>
+                  <p className="text-xs text-slate-200 leading-relaxed font-medium">
+                    Billed on the <span className="text-blue-300">28th</span>. Please settle by the <span className="text-blue-300">5th</span> to maintain access.
+                  </p>
                 </div>
             <Modal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} title="Renew System License">
                 {paymentStep === 'idle' && (

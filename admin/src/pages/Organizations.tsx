@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus } from "lucide-react";
-import { Organization, OrganizationLicenseBillingResponse } from "../types";
+import { LicenseBillingSnapshot, Organization, OrganizationLicenseBillingResponse } from "../types";
 import { OrganizationTable } from "../components/OrganizationTable";
 import { OrgModal } from '../components/OrgModal';
 import { organizationsApi, ApiError } from '../services/apiService';
@@ -15,6 +15,7 @@ const Organizations: React.FC<{ handleDelete?: (id: number) => void }> = ({ hand
     const [licenseBilling, setLicenseBilling] = useState<OrganizationLicenseBillingResponse | null>(null);
     const [billingLoading, setBillingLoading] = useState(false);
     const [billingError, setBillingError] = useState<string | null>(null);
+    const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
 
     const formatDate = (value?: string | null) => {
       if (!value) return 'N/A';
@@ -32,10 +33,12 @@ const Organizations: React.FC<{ handleDelete?: (id: number) => void }> = ({ hand
       setLoading(true);
       try {
         const data = await organizationsApi.getAll();
-        const list = Array.isArray(data) ? data : data?.data ?? [];
+        const list: Organization[] = Array.isArray(data)
+          ? (data as Organization[])
+          : ((data?.data ?? []) as Organization[]);
         setOrganizations(list);
         if (list.length && !selectedOrgId) {
-          const withGeneratedBills = list.find((org) => !!org.latest_license_snapshot);
+          const withGeneratedBills = list.find((org: Organization) => !!org.latest_license_snapshot);
           setSelectedOrgId(withGeneratedBills?.id ?? list[0].id);
         }
       } catch (error) {
@@ -69,6 +72,31 @@ const Organizations: React.FC<{ handleDelete?: (id: number) => void }> = ({ hand
       }
     };
 
+    const handleBillingStatusChange = async (snapshot: LicenseBillingSnapshot, nextStatus: 'billed' | 'paid') => {
+      if (!selectedOrgId || snapshot.status === nextStatus) return;
+
+      setUpdatingStatusId(snapshot.id);
+      setBillingError(null);
+
+      try {
+        await organizationsApi.updateLicenseBillingStatus(selectedOrgId, snapshot.id, nextStatus);
+        await Promise.all([
+          loadOrganizations(),
+          loadLicenseBillingHistory(selectedOrgId),
+        ]);
+      } catch (error) {
+        if (error instanceof ApiError) {
+          setBillingError(error.message || 'Failed to update billing status');
+          console.error('Error updating billing status:', error.message);
+        } else {
+          setBillingError('Failed to update billing status');
+          console.error('Error updating billing status:', error);
+        }
+      } finally {
+        setUpdatingStatusId(null);
+      }
+    };
+
     useEffect(() => {
       loadOrganizations();
     }, []);
@@ -79,7 +107,7 @@ const Organizations: React.FC<{ handleDelete?: (id: number) => void }> = ({ hand
       }
     }, [selectedOrgId]);
 
-    const filteredOrgs = organizations.filter(org => 
+    const filteredOrgs = organizations.filter((org: Organization) => 
       org.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       org.acronym.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -108,11 +136,11 @@ const Organizations: React.FC<{ handleDelete?: (id: number) => void }> = ({ hand
                       ) : (
                         <OrganizationTable 
                           organizations={filteredOrgs} 
-                          onEdit={(org) => {
+                          onEdit={(org: Organization) => {
                             setEditingOrg(org);
                             setIsModalOpen(true);
                           }}
-                          onDelete={async (id) => {
+                          onDelete={async (id: number) => {
                             if (!confirm('Are you sure you want to delete this organization?')) return;
                             try {
                               if (handleDelete) {
@@ -143,7 +171,7 @@ const Organizations: React.FC<{ handleDelete?: (id: number) => void }> = ({ hand
                           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Select Organization</span>
                           <select
                             value={selectedOrgId ?? ''}
-                            onChange={(e) => {
+                            onChange={(e: { target: { value: string } }) => {
                               const next = e.target.value;
                               setSelectedOrgId(next ? Number(next) : null);
                             }}
@@ -151,7 +179,7 @@ const Organizations: React.FC<{ handleDelete?: (id: number) => void }> = ({ hand
                           >
                             {!organizations.length && <option value="">No organizations found</option>}
                             {!!organizations.length && <option value="">Choose organization</option>}
-                            {organizations.map((org) => (
+                            {organizations.map((org: Organization) => (
                               <option key={org.id} value={org.id}>{org.name}</option>
                             ))}
                           </select>
@@ -171,10 +199,11 @@ const Organizations: React.FC<{ handleDelete?: (id: number) => void }> = ({ hand
                                 <th className="py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount</th>
                                 <th className="py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Active Users</th>
                                 <th className="py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                                <th className="py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Action</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
-                              {licenseBilling.history.map((item) => (
+                              {licenseBilling.history.map((item: LicenseBillingSnapshot) => (
                                 <tr key={item.id}>
                                   <td className="py-2 text-sm text-slate-700">{formatDate(item.snapshot_month)}</td>
                                   <td className="py-2 text-sm font-semibold text-slate-900">
@@ -185,6 +214,20 @@ const Organizations: React.FC<{ handleDelete?: (id: number) => void }> = ({ hand
                                     <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${item.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
                                       {item.status}
                                     </span>
+                                  </td>
+                                  <td className="py-2">
+                                    <select
+                                      value={item.status}
+                                      disabled={updatingStatusId === item.id}
+                                      onChange={(e: { target: { value: string } }) => {
+                                        const value = e.target.value as 'billed' | 'paid';
+                                        handleBillingStatusChange(item, value);
+                                      }}
+                                      className="px-2 py-1 border border-slate-300 rounded-md text-xs font-medium text-slate-700 bg-white disabled:opacity-60"
+                                    >
+                                      <option value="billed">Billed</option>
+                                      <option value="paid">Paid</option>
+                                    </select>
                                   </td>
                                 </tr>
                               ))}

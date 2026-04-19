@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
 use App\Models\OrganizationLicenseSnapshot;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -166,6 +167,59 @@ class OrganizationController extends Controller
             'price_per_active_user' => 15.00,
             'currency' => 'KES',
             'history' => $history,
+        ]);
+    }
+
+    public function updateLicenseBillingStatusById(Request $request, $id, $snapshotId)
+    {
+        $organization = Organization::find($id);
+        if (!$organization) {
+            return response()->json(['message' => 'Organization not found'], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'status' => 'required|in:billed,paid',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $snapshot = OrganizationLicenseSnapshot::where('organization_id', $organization->id)
+            ->where('id', $snapshotId)
+            ->first();
+
+        if (!$snapshot) {
+            return response()->json(['message' => 'Billing snapshot not found'], 404);
+        }
+
+        $status = $request->input('status');
+        $snapshot->status = $status;
+
+        if ($status === 'paid') {
+            if (!$snapshot->paid_at) {
+                $snapshot->paid_at = Carbon::now();
+            }
+        } else {
+            $snapshot->paid_at = null;
+        }
+
+        $snapshot->save();
+
+        // If the latest 3 snapshots are paid, automatically reactivate the organization.
+        $latestThreeStatuses = OrganizationLicenseSnapshot::where('organization_id', $organization->id)
+            ->orderByDesc('snapshot_month')
+            ->limit(3)
+            ->pluck('status');
+
+        if ($latestThreeStatuses->count() > 0 && $latestThreeStatuses->every(fn ($itemStatus) => $itemStatus === 'paid')) {
+            $organization->status = 'active';
+            $organization->save();
+        }
+
+        return response()->json([
+            'message' => 'Billing status updated successfully',
+            'snapshot' => $snapshot,
         ]);
     }
 
