@@ -378,14 +378,33 @@ class CustomerRadiusService
         $groupName = "package_" . $package->id;
 
         // 1. Format the Mikrotik Rate Limit string
-        // Standard format: speed_up/speed_down
-        $rateLimit = "{$package->speed_up}/{$package->speed_down}";
+        // Positional format:
+        // rx/tx [burst-rx/burst-tx [thr-rx/thr-tx [time-rx/time-tx [prio [min-rx/min-tx]]]]]
+        $rx = $package->speed_up;
+        $tx = $package->speed_down;
+        $rateLimit = "{$rx}/{$tx}";
 
-        // Add Bursting if available
-        if ($package->burst_limit_up && $package->burst_limit_down) {
-            $rateLimit .= " {$package->burst_limit_up}/{$package->burst_limit_down}";
-            $rateLimit .= " {$package->burst_threshold_up}/{$package->burst_threshold_down}";
-            $rateLimit .= " {$package->burst_time}/{$package->burst_time}";
+        $hasBurst = !empty($package->burst_limit_up) && !empty($package->burst_limit_down);
+        $hasPriority = !is_null($package->priority);
+        $hasMinLimit = !empty($package->min_limit_up) && !empty($package->min_limit_down);
+
+        if ($hasBurst || $hasPriority || $hasMinLimit) {
+            $burstRx = $package->burst_limit_up ?: $rx;
+            $burstTx = $package->burst_limit_down ?: $tx;
+            $thresholdRx = $package->burst_threshold_up ?: $rx;
+            $thresholdTx = $package->burst_threshold_down ?: $tx;
+            $time = $package->burst_time ?: '30/30';
+
+            $rateLimit .= " {$burstRx}/{$burstTx} {$thresholdRx}/{$thresholdTx} {$time}";
+
+            if ($hasPriority || $hasMinLimit) {
+                $priority = $package->priority ?: 8;
+                $rateLimit .= " {$priority}";
+
+                if ($hasMinLimit) {
+                    $rateLimit .= " {$package->min_limit_up}/{$package->min_limit_down}";
+                }
+            }
         }
 
         try {

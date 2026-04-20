@@ -8,6 +8,7 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
     const [uptime, setUptime] = useState<string>('Offline');
     const [isPolling, setIsPolling] = useState(false);
     const [isAccountingModalOpen, setIsAccountingModalOpen] = useState(false);
+  const [isResettingMac, setIsResettingMac] = useState(false);
     const isRequesting = useRef(false);
     const currentDelay = useRef(2000); // Use ref to persist delay across renders
     const startTimeIso = technicalSpecs?.start_time;
@@ -139,6 +140,9 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
     // }, [isOnline, onRefresh]);
 
     const onResetMAC = async (customerId: string) => {
+      if (isResettingMac) return;
+
+      setIsResettingMac(true);
       try {
         const response = await customersApi.resetMacBinding(customerId);
         onRefresh();
@@ -146,6 +150,8 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
       } catch (error) {
         console.error("Error resetting MAC binding:", error);
         toast.error("Failed to reset MAC binding.");
+      } finally {
+        setIsResettingMac(false);
       }
     };
 
@@ -256,10 +262,16 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
                     <div className="flex gap-2">
                       {
                         can('flash-mac-binding') && (
-                          <button onClick={() => onResetMAC(customer.id)} 
-                            className="w-1/2 py-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded-xl text-[9px] 
-                            font-black uppercase tracking-widest transition-all">
-                              Flush MAC
+                          <button
+                            onClick={() => onResetMAC(customer.id)}
+                            disabled={isResettingMac}
+                            className={`w-1/2 py-2 text-yellow-800 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                              isResettingMac
+                                ? 'bg-yellow-100 opacity-60 cursor-not-allowed'
+                                : 'bg-yellow-100 hover:bg-yellow-200'
+                            }`}
+                          >
+                              {isResettingMac ? 'Flushing...' : 'Flush MAC'}
                           </button>
                         )
                       }

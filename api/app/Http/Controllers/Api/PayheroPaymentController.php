@@ -44,7 +44,7 @@ class PayheroPaymentController extends Controller
                 'Authorization' => $this->getBasicAuthToken(),
                 'Content-Type' => 'application/json',
             ])->post($this->baseUrl, [
-                'amount' => 1,
+                'amount' => $request->amount,
                 'phone_number' => $request->phone,
                 'channel_id' => env('CHANNEL_ID'),
                 'provider' => 'm-pesa',
