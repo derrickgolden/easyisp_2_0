@@ -557,8 +557,23 @@ export const smsApi = {
 
 // Dashboard Endpoints
 export const dashboardApi = {
-  getStats: async () => {
-    const response = await axiosInstance.get('/dashboard/stats');
+  getStats: async (params?: {
+    days?: number;
+    lostMode?: 'expired' | 'offline' | 'either' | 'both';
+  }) => {
+    const query = new URLSearchParams();
+
+    if (params?.days) {
+      query.append('days', String(params.days));
+    }
+
+    if (params?.lostMode) {
+      query.append('lost_mode', params.lostMode);
+    }
+
+    const queryString = query.toString();
+    const url = queryString ? `/dashboard/stats?${queryString}` : '/dashboard/stats';
+    const response = await axiosInstance.get(url);
     return response.data;
   },
 

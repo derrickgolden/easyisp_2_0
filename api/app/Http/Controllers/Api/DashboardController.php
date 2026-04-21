@@ -19,6 +19,8 @@ class DashboardController extends Controller
     {
         $organizationId = $request->user()->organization_id;
         $now = Carbon::now();
+        $days = max((int) $request->query('days', 30), 1);
+        $lostMode = $request->query('lost_mode', 'either');
 
         // Active and online users count
         $activeUsers = Customer::where('organization_id', $organizationId)
@@ -46,18 +48,48 @@ class DashboardController extends Controller
             ->where('is_online', false)
             ->count();
 
-        // Clients gained in last 30 days
-        $oneMonthAgo = $now->copy()->subMonth();
+        // Clients gained by registration date within selected range.
+        $windowStart = $now->copy()->subDays($days);
         $clientsGained = Customer::where('organization_id', $organizationId)
-            ->where('created_at', '>=', $oneMonthAgo)
+            ->where('created_at', '>=', $windowStart)
             ->count();
 
-        // Clients lost in last 30 days (expired or suspended)
-        $clientsLost = Customer::where('organization_id', $organizationId)
-            ->whereIn('status', ['expired', 'suspended'])
-            ->where('expiry_date', '>=', $oneMonthAgo)
-            ->where('expiry_date', '<=', $now)
-            ->count();
+        // Lost filters:
+        // - expired: expiry_date within range and status expired/suspended
+        // - offline: no active RADIUS session
+        // - either: expired OR offline
+        // - both: expired AND offline
+        $expiredCondition = function ($query) use ($windowStart, $now) {
+            $query->whereIn('status', ['expired', 'suspended'])
+                ->whereNotNull('expiry_date')
+                ->whereBetween('expiry_date', [$windowStart, $now]);
+        };
+
+        $offlineCondition = function ($query) {
+            $query->whereRaw('NOT EXISTS (
+                SELECT 1 FROM radius.radacct
+                WHERE radacct.username COLLATE utf8mb4_unicode_ci = customers.radius_username
+                AND acctstoptime IS NULL
+            )');
+        };
+
+        $clientsLostQuery = Customer::where('organization_id', $organizationId);
+
+        if ($lostMode === 'expired') {
+            $clientsLostQuery->where($expiredCondition);
+        } elseif ($lostMode === 'offline') {
+            $clientsLostQuery->where($offlineCondition);
+        } elseif ($lostMode === 'both') {
+            $clientsLostQuery->where($expiredCondition)->where($offlineCondition);
+        } else {
+            $clientsLostQuery->where(function ($query) use ($expiredCondition, $offlineCondition) {
+                $query->where($expiredCondition)
+                    ->orWhere($offlineCondition);
+            });
+            $lostMode = 'either';
+        }
+
+        $clientsLost = $clientsLostQuery->count();
 
         return response()->json([
             'total_users' => $totalUsers,
@@ -67,6 +99,8 @@ class DashboardController extends Controller
             'offline_routers' => $offlineRouters,
             'clients_gained' => $clientsGained,
             'clients_lost' => $clientsLost,
+            'window_days' => $days,
+            'lost_mode' => $lostMode,
         ]);
     }
 

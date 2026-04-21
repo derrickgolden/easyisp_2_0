@@ -14,6 +14,8 @@ interface DashboardStats {
   offline_routers: number;
   clients_gained: number;
   clients_lost: number;
+  window_days?: number;
+  lost_mode?: 'expired' | 'offline' | 'either' | 'both';
 }
 
 interface RevenueChartData {
@@ -24,6 +26,8 @@ interface RevenueChartData {
 
 export const Dashboard: React.FC = () => {
   const [sites, setSites] = useState<Site[]>([]);
+  const [statsWindowDays, setStatsWindowDays] = useState(30);
+  const [lostMode, setLostMode] = useState<'expired' | 'offline' | 'either' | 'both'>('both');
   const [stats, setStats] = useState<DashboardStats>({
     total_users: 0,
     active_users: 0,
@@ -32,6 +36,8 @@ export const Dashboard: React.FC = () => {
     offline_routers: 0,
     clients_gained: 0,
     clients_lost: 0,
+    window_days: 30,
+    lost_mode: 'either',
   });
   const [revenueChartData, setRevenueChartData] = useState<RevenueChartData>({
     data: [],
@@ -47,7 +53,10 @@ export const Dashboard: React.FC = () => {
         // 🚀 FIRE ALL AT ONCE
         const [sitesRes, statsRes, chartRes] = await Promise.all([
           sitesApi.getAll(),
-          dashboardApi.getStats(),
+          dashboardApi.getStats({
+            days: statsWindowDays,
+            lostMode,
+          }),
           dashboardApi.getRevenueChart()
         ]);
 
@@ -64,7 +73,7 @@ export const Dashboard: React.FC = () => {
     };
 
     refreshDashboard();
-  }, []);
+  }, [statsWindowDays, lostMode]);
   
     // Format currency
     const formatCurrency = useMemo(() => (amount: number) => {
@@ -78,6 +87,13 @@ export const Dashboard: React.FC = () => {
 
     const formattedTotal = formatCurrency(revenueChartData.total);
     const formattedDailyRevenue = formatCurrency(stats.daily_revenue);
+    const netMomentum = stats.clients_gained - stats.clients_lost;
+    const lostModeLabelMap = {
+      expired: 'Expired only',
+      offline: 'Offline only',
+      either: 'Expired OR Offline',
+      both: 'Expired AND Offline',
+    } as const;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
@@ -88,10 +104,66 @@ export const Dashboard: React.FC = () => {
         <StatCard label="Total Users" value={stats.total_users} icon={<ICONS.CRM />} color={COLORS.primary} />
         <StatCard label="Active Users" value={stats.active_users} icon={<ICONS.CRM />} color={COLORS.primary} />
         <StatCard label="Online Now" value={stats.online_users} icon={<ICONS.Management />} color={COLORS.success} />
-        <StatCard label="System Alerts" value={stats.offline_routers} icon={<ICONS.Settings />} color={COLORS.danger} />
-        <StatCard label="Gained (30d)" value={`+${stats.clients_gained}`} icon={<ICONS.CRM />} color={COLORS.success} />
-        <StatCard label="Lost (30d)" value={`-${stats.clients_lost}`} icon={<ICONS.CRM />} color={COLORS.danger} />
+        {/* <StatCard label="System Alerts" value={stats.offline_routers} icon={<ICONS.Settings />} color={COLORS.danger} /> */}
       </div>
+
+      <Card title="Customer Momentum" className="overflow-hidden">
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-widest text-slate-500 font-black">Net Change ({statsWindowDays} days)</p>
+              <p className={`text-3xl font-black ${netMomentum >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                {netMomentum >= 0 ? '+' : ''}{netMomentum}
+              </p>
+              <p className="text-xs text-slate-500">Gained by registration date, lost by selected criteria</p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {[7, 14, 30, 60, 90].map((value) => (
+                <button
+                  key={value}
+                  onClick={() => setStatsWindowDays(value)}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all ${
+                    statsWindowDays === value
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {value}d
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/70 dark:border-emerald-500/20 dark:bg-emerald-500/10 p-4">
+              <p className="text-[11px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Gained</p>
+              <p className="text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1">+{stats.clients_gained}</p>
+              <p className="text-xs text-emerald-800/80 dark:text-emerald-200/70 mt-1">Customers registered in the last {statsWindowDays} days</p>
+            </div>
+
+            <div className="rounded-2xl border border-red-200/70 bg-red-50/70 dark:border-red-500/20 dark:bg-red-500/10 p-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-black uppercase tracking-widest text-red-700 dark:text-red-300">Lost</p>
+                <select
+                  value={lostMode}
+                  onChange={(event) => setLostMode(event.target.value as 'expired' | 'offline' | 'either' | 'both')}
+                  className="text-[11px] font-bold px-2 py-1 rounded-lg border border-red-200 bg-white text-red-700 dark:bg-slate-900 dark:border-red-400/30 dark:text-red-300"
+                >
+                  <option value="expired">Expired only</option>
+                  <option value="offline">Offline only</option>
+                  <option value="either">Expired OR Offline</option>
+                  <option value="both">Expired AND Offline</option>
+                </select>
+              </div>
+              <p className="text-3xl font-black text-red-600 dark:text-red-400">-{stats.clients_lost}</p>
+              <p className="text-xs text-red-800/80 dark:text-red-200/70">
+                Mode: {lostModeLabelMap[lostMode]}. Expiry checks use the last {statsWindowDays} days.
+              </p>
+            </div>
+          </div>
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
          <Card title="Revenue Trend (12M)" className="lg:col-span-2 overflow-hidden">
