@@ -165,38 +165,50 @@ export const PackageModal: React.FC<PackageModalProps> = ({
             <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4">
               <h5 className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-1">Level 2: Bursting Parameters</h5>
               <div className="grid grid-cols-2 gap-4">
-                <input 
-                  type="text" 
-                  pattern={bandwidthPattern}
-                  placeholder="Burst Up (e.g. 10M)" 
-                  value={editingPackage?.burst_limit_up || ''} 
-                  onChange={e => handleBandwidthChange('burst_limit_up', e.target.value)} 
-                  className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 text-xs font-mono uppercase invalid:text-red-500" 
-                />
-                <input 
-                  type="text" 
-                  pattern={bandwidthPattern}
-                  placeholder="Burst Down (e.g. 40M)" 
-                  value={editingPackage?.burst_limit_down || ''} 
-                  onChange={e => handleBandwidthChange('burst_limit_down', e.target.value)} 
-                  className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 text-xs font-mono uppercase invalid:text-red-500" 
-                />
-                <input 
-                  type="text" 
-                  pattern={bandwidthPattern}
-                  placeholder="Thr Up (e.g. 3M)" 
-                  value={editingPackage?.burst_threshold_up || ''} 
-                  onChange={e => handleBandwidthChange('burst_threshold_up', e.target.value)} 
-                  className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 text-xs font-mono uppercase invalid:text-red-500" 
-                />
-                <input 
-                  type="text" 
-                  pattern={bandwidthPattern}
-                  placeholder="Thr Down (e.g. 15M)" 
-                  value={editingPackage?.burst_threshold_down || ''} 
-                  onChange={e => handleBandwidthChange('burst_threshold_down', e.target.value)} 
-                  className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 text-xs font-mono uppercase invalid:text-red-500" 
-                />
+                <div>
+                  <label className="text-[9px] font-bold text-gray-400 uppercase ml-1">Burst Upload</label>
+                  <input 
+                    type="text" 
+                    pattern={bandwidthPattern}
+                    placeholder="e.g. 10M" 
+                    value={editingPackage?.burst_limit_up || ''} 
+                    onChange={e => handleBandwidthChange('burst_limit_up', e.target.value)} 
+                    className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 mt-1 text-xs font-mono uppercase invalid:text-red-500" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] font-bold text-gray-400 uppercase ml-1">Burst Download</label>
+                  <input 
+                    type="text" 
+                    pattern={bandwidthPattern}
+                    placeholder="e.g. 40M" 
+                    value={editingPackage?.burst_limit_down || ''} 
+                    onChange={e => handleBandwidthChange('burst_limit_down', e.target.value)} 
+                    className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 mt-1 text-xs font-mono uppercase invalid:text-red-500" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] font-bold text-gray-400 uppercase ml-1">Threshold Upload</label>
+                  <input 
+                    type="text" 
+                    pattern={bandwidthPattern}
+                    placeholder="e.g. 3M" 
+                    value={editingPackage?.burst_threshold_up || ''} 
+                    onChange={e => handleBandwidthChange('burst_threshold_up', e.target.value)} 
+                    className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 mt-1 text-xs font-mono uppercase invalid:text-red-500" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] font-bold text-gray-400 uppercase ml-1">Threshold Download</label>
+                  <input 
+                    type="text" 
+                    pattern={bandwidthPattern}
+                    placeholder="e.g. 15M" 
+                    value={editingPackage?.burst_threshold_down || ''} 
+                    onChange={e => handleBandwidthChange('burst_threshold_down', e.target.value)} 
+                    className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 mt-1 text-xs font-mono uppercase invalid:text-red-500" 
+                  />
+                </div>
                 <div className="col-span-2">
                    <label className="text-[9px] font-bold text-gray-400 uppercase ml-1">Burst Time (rx/tx)</label>
                    <input 

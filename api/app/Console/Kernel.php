@@ -4,7 +4,6 @@ namespace App\Console;
 
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
-use Illuminate\Support\Facades\DB;
 
 class Kernel extends ConsoleKernel
 {
@@ -27,11 +26,7 @@ class Kernel extends ConsoleKernel
 
         $schedule->command('license:sync-organization-statuses')->monthlyOn(5, '10:00')->withoutOverlapping();
 
-        $schedule->call(function () {
-            DB::connection('radius')->table('radpostauth')
-                ->where('authdate', '<', now()->subDays(30))
-                ->delete();
-        })->daily();
+        $schedule->command('radius:cleanup-logs')->daily()->withoutOverlapping();
     }
 
     /**
