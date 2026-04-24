@@ -6,6 +6,39 @@ import { confirmAction } from "../../../utils/alerts";
 import { Template } from "@/src/types";
 import { usePermissions } from "@/src/hooks/usePermissions";
 
+const DEFAULT_SYSTEM_TEMPLATES: Template[] = [
+    {
+        id: 'system-expiry-warning',
+        name: 'Expiry Reminder',
+        content: 'Dear {FirstName}, your internet subscription expires in {DaysUntilExpiry} day(s) on {Expiry}. Please renew to avoid service interruption.',
+        category: 'System',
+        isDefault: true,
+    },
+    {
+        id: 'system-expiry-notification',
+        name: 'Expiry Notification',
+        content: 'Dear {FirstName}, your internet subscription has expired as of {Expiry}. Please renew your account to restore service.',
+        category: 'System',
+        isDefault: true,
+    },
+];
+
+const ensureProtectedDefaultTemplate = (templates: Template[]): Template[] => {
+    const normalizedTemplates = templates.map(template => {
+        const protectedTemplate = DEFAULT_SYSTEM_TEMPLATES.find(item => item.id === template.id);
+
+        return protectedTemplate
+            ? { ...template, isDefault: true, category: 'System' as const }
+            : template;
+    });
+
+    const missingProtectedTemplates = DEFAULT_SYSTEM_TEMPLATES.filter(defaultTemplate =>
+        !normalizedTemplates.some(template => template.id === defaultTemplate.id)
+    );
+
+    return [...missingProtectedTemplates, ...normalizedTemplates];
+};
+
 const NotesTemplate = () => {
     const [templates, setTemplates] = React.useState<Template[]>([]);
     const [isTemplateModalOpen, setIsTemplateModalOpen] = React.useState(false);
@@ -17,9 +50,11 @@ const NotesTemplate = () => {
         const fetchTemplates = async () => {
             const response = await organizationApi.get();
             const orgSettings = response?.settings || {};
-            if (orgSettings['notes-template'] && Array.isArray(orgSettings['notes-template'].templates)) {
-                setTemplates(orgSettings['notes-template'].templates);
-            }
+            const savedTemplates = orgSettings['notes-template'] && Array.isArray(orgSettings['notes-template'].templates)
+                ? orgSettings['notes-template'].templates
+                : [];
+
+            setTemplates(ensureProtectedDefaultTemplate(savedTemplates));
         };
         fetchTemplates();
     }, []);
@@ -44,12 +79,12 @@ const NotesTemplate = () => {
             await organizationApi.update({
                 settings: {
                     'notes-template': {
-                        templates: updatedTemplates,
+                        templates: ensureProtectedDefaultTemplate(updatedTemplates),
                     },
                 },
             });
 
-            setTemplates(updatedTemplates);
+            setTemplates(ensureProtectedDefaultTemplate(updatedTemplates));
             toast.success('Template deleted successfully!');
         } catch (error) {
             console.error('Failed to delete template', error);
@@ -101,13 +136,13 @@ const NotesTemplate = () => {
             await organizationApi.update({
                 settings: {
                     'notes-template': {
-                        templates: updatedTemplates,
+                        templates: ensureProtectedDefaultTemplate(updatedTemplates),
                     },
                 },
             });
 
             toast.success('Template saved successfully!');
-            setTemplates(updatedTemplates);
+            setTemplates(ensureProtectedDefaultTemplate(updatedTemplates));
             setIsTemplateModalOpen(false);
             setEditingTemplate(null);
         } catch (error) {
@@ -185,6 +220,7 @@ const NotesTemplate = () => {
                     <p className="text-[9px] text-blue-500 leading-tight">
                     Use variables like <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{FirstName}"}</code>, 
                     <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{Expiry}"}</code>, 
+                    <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{DaysUntilExpiry}"}</code>, 
                     <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{PaidAmount}"}</code>, and 
                     <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{PackageName}"}</code> for dynamic insertion. Click tags below to insert them.
                     </p>
@@ -237,6 +273,7 @@ const NotesTemplate = () => {
                         { tag: '{LastName}', label: 'Last Name' },
                         { tag: '{Isp}', label: 'ISP Name' },
                         { tag: '{Expiry}', label: 'Expiry Date' },
+                        { tag: '{DaysUntilExpiry}', label: 'Days Left' },
                         { tag: '{PackageName}', label: 'Package' },
                         { tag: '{PaidAmount}', label: 'Paid Amt' },
                         { tag: '{PackageAmount}', label: 'Price' },

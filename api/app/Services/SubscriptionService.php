@@ -9,6 +9,14 @@ use Illuminate\Support\Facades\Log;
 
 class SubscriptionService
 {
+    private const DEFAULT_EXPIRY_WARNING_TEMPLATE_ID = 'system-expiry-warning';
+
+    private const DEFAULT_EXPIRY_TEMPLATE_ID = 'system-expiry-notification';
+
+    private const DEFAULT_EXPIRY_WARNING_TEMPLATE = 'Dear {FirstName}, your internet subscription expires in {DaysUntilExpiry} day(s) on {Expiry}. Please renew to avoid service interruption.';
+
+    private const DEFAULT_EXPIRY_TEMPLATE = 'Dear {FirstName}, your internet subscription has expired as of {Expiry}. Please renew your account to restore service.';
+
     /**
      * Process a single customer - can be called by Cron or on Payment
      */
@@ -240,8 +248,11 @@ class SubscriptionService
             $expiryDate = $this->getEffectiveExpiryDate($customer);
             $daysUntilExpiry = ceil($hoursUntilExpiry / 24);
 
-            $message = "Reminder: Your internet subscription expires in {$daysUntilExpiry} day" . ($daysUntilExpiry > 1 ? 's' : '') . 
-                      " on " . $expiryDate->format('M d, Y') . ". Please renew to avoid service interruption.";
+            $message = $this->renderExpiryWarningTemplate(
+                $customer,
+                $expiryDate->format('M d, Y'),
+                $daysUntilExpiry
+            );
 
             // Send SMS via the configured provider
             $this->sendSmsViaProvider($customer, $message, $smsSettings, 'expiry-warning');
@@ -271,8 +282,7 @@ class SubscriptionService
             // Get expiry date
             $expiryDate = $this->getEffectiveExpiryDate($customer);
 
-            $message = "Your internet subscription has expired as of " . $expiryDate->format('M d, Y') . 
-                      ". Please renew your account to restore service.";
+            $message = $this->renderExpiryNotificationTemplate($customer, $expiryDate->format('M d, Y'));
 
             // Send SMS via the configured provider
             $this->sendSmsViaProvider($customer, $message, $smsSettings, 'expiry-notification');
@@ -300,5 +310,68 @@ class SubscriptionService
             'customer_id' => $customer->id,
             'type' => $type,
         ]);
+    }
+
+    private function renderExpiryNotificationTemplate(Customer $customer, string $formattedExpiryDate): string
+    {
+        return $this->renderTemplate(
+            $customer,
+            self::DEFAULT_EXPIRY_TEMPLATE_ID,
+            self::DEFAULT_EXPIRY_TEMPLATE,
+            [
+                '{Expiry}' => $formattedExpiryDate,
+            ]
+        );
+    }
+
+    private function renderExpiryWarningTemplate(Customer $customer, string $formattedExpiryDate, int $daysUntilExpiry): string
+    {
+        return $this->renderTemplate(
+            $customer,
+            self::DEFAULT_EXPIRY_WARNING_TEMPLATE_ID,
+            self::DEFAULT_EXPIRY_WARNING_TEMPLATE,
+            [
+                '{Expiry}' => $formattedExpiryDate,
+                '{DaysUntilExpiry}' => (string) $daysUntilExpiry,
+                '{DaysLabel}' => $daysUntilExpiry === 1 ? 'day' : 'days',
+            ]
+        );
+    }
+
+    private function renderTemplate(Customer $customer, string $templateId, string $fallbackContent, array $replacements = []): string
+    {
+        $organization = $customer->organization;
+        $settings = $organization->settings ?? [];
+        $templates = $settings['notes-template']['templates'] ?? [];
+
+        $template = collect(is_array($templates) ? $templates : [])
+            ->first(function ($item) use ($templateId) {
+                return is_array($item)
+                    && (($item['id'] ?? null) === $templateId);
+            });
+
+        $content = is_array($template) && !empty($template['content'])
+            ? $template['content']
+            : $fallbackContent;
+
+        return str_ireplace(array_keys([
+            '{FirstName}' => $customer->first_name ?? '',
+            '{LastName}' => $customer->last_name ?? '',
+            '{Isp}' => $organization->name ?? 'ISP',
+            '{PackageName}' => $customer->package->name ?? '',
+            '{PaidAmount}' => '0',
+            '{PackageAmount}' => (string) ($customer->package->price ?? 0),
+            '{PhoneNumber}' => $customer->phone ?? '',
+            ...$replacements,
+        ]), array_values([
+            '{FirstName}' => $customer->first_name ?? '',
+            '{LastName}' => $customer->last_name ?? '',
+            '{Isp}' => $organization->name ?? 'ISP',
+            '{PackageName}' => $customer->package->name ?? '',
+            '{PaidAmount}' => '0',
+            '{PackageAmount}' => (string) ($customer->package->price ?? 0),
+            '{PhoneNumber}' => $customer->phone ?? '',
+            ...$replacements,
+        ]), $content);
     }
 }
