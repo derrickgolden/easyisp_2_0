@@ -13,7 +13,7 @@ interface PackageModalProps {
 }
 
 export const PackageModal: React.FC<PackageModalProps> = ({
-  isOpen, onClose, onSave, editingPackage, setEditingPackage
+  isOpen, onClose, onSave, editingPackage, setEditingPackage, isSaving = false
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -283,10 +283,11 @@ export const PackageModal: React.FC<PackageModalProps> = ({
 
         <button 
           type="submit" 
-          className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-xl hover:bg-blue-500 transition-all active:scale-95 group flex items-center justify-center gap-2"
+          disabled={isSaving}
+          className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-xl hover:bg-blue-500 transition-all active:scale-95 group flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-blue-600 disabled:active:scale-100"
         >
           <svg className="w-5 h-5 group-hover:rotate-12 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-          {editingPackage?.id ? "Sync Package Update" : "Deploy Network Package"}
+          {isSaving ? 'Saving...' : (editingPackage?.id ? "Sync Package Update" : "Deploy Network Package")}
         </button>
       </form>
     </Modal>

@@ -30,7 +30,7 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
   const [isChangeDateModalOpen, setIsChangeDateModalOpen] = useState({open: false, type:''});
   const [callApi, setCallApi] = useState(false);
   const lastFetchKeyRef = React.useRef<string | null>(null);
-
+console.log({technicalSpecs});
   const { state, actions } = useCustomerActions();
   const { can } = usePermissions();
 

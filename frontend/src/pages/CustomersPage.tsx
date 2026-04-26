@@ -46,6 +46,10 @@ export const CustomersPage: React.FC = () => {
   // Upload state
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploadConfigModalOpen, setIsUploadConfigModalOpen] = useState(false);
+  const [pendingUploadFile, setPendingUploadFile] = useState<File | null>(null);
+  const [uploadPackageId, setUploadPackageId] = useState('');
+  const [uploadFallbackLocation, setUploadFallbackLocation] = useState('');
 
   // Delete all state
   const [isDeleteAllModalOpen, setIsDeleteAllModalOpen] = useState(false);
@@ -180,155 +184,198 @@ export const CustomersPage: React.FC = () => {
     setIsCustomerModalOpen(true); 
   }
 
+  useEffect(() => {
+    if (!uploadPackageId && packages.length > 0) {
+      setUploadPackageId(packages[0].id);
+    }
+  }, [packages, uploadPackageId]);
+
+  const resetUploadConfig = () => {
+    setPendingUploadFile(null);
+    setUploadFallbackLocation('');
+    setUploadPackageId(packages[0]?.id || '');
+  };
+
+  const processCustomerUpload = async (file: File) => {
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    try {
+      const text = await file.text();
+      const lines = text.trim().split('\n');
+
+      if (lines.length < 2) {
+        toast.error('CSV file must contain at least a header row and one data row');
+        return;
+      }
+
+      const headers = lines[0].split(',').map(h => h.trim());
+      const expectedHeaders = ['Email', 'House No', 'Apartment', 'Location', 'Ip', 'Mac', 'Expiry Date', 'Name', 'Account', 'Radius Username', 'Radius Password', 'Phone'];
+
+      // Check if headers match (case insensitive)
+      const normalizedHeaders = headers.map(h => h.toLowerCase());
+      const normalizedExpected = expectedHeaders.map(h => h.toLowerCase());
+
+      const headersMatch = normalizedExpected.every(expected =>
+        normalizedHeaders.includes(expected)
+      );
+
+      if (!headersMatch) {
+        toast.error('CSV headers do not match expected format. Expected: ' + expectedHeaders.join(', '));
+        return;
+      }
+
+      const selectedPackage = packages.find(pkg => pkg.id === uploadPackageId);
+      if (!selectedPackage) {
+        toast.error('Please select a valid package before uploading.');
+        return;
+      }
+
+      const defaultSite = sites[0];
+      if (!defaultSite) {
+        toast.error('No sites available. Please create a site first.');
+        return;
+      }
+
+      const normalizedFallbackLocation = uploadFallbackLocation.trim();
+      const dataRows = lines.slice(1);
+      const customersToCreate = [];
+
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i].split(',').map(cell => cell.trim());
+
+        // Parse name into first and last name
+        const nameParts = row[7].split(' '); // Name is at index 7
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+        const csvLocation = row[3] || '';
+
+        const customer = {
+          first_name: firstName,
+          last_name: lastName || firstName, 
+          email: row[0] || undefined, // Email
+          phone: row[11], // Phone
+          house_no: row[1] || undefined, // House No
+          apartment: row[2] || undefined, // Apartment
+          location: csvLocation || normalizedFallbackLocation || undefined, // Location
+          ip_address: row[4] || undefined, // Ip
+          mac_address: row[5] || undefined, // Mac
+          expiry_date: row[6], // Expiry Date
+          radius_username: row[9], // Radius Username
+          radius_password: row[10], // Radius Password
+          connection_type: 'PPPoE',
+          package_id: selectedPackage.id,
+          site_id: defaultSite.id,
+          installation_fee: 0,
+          status: 'active',
+          balance: 0,
+          created_at: new Date().toISOString(),
+        };
+
+        customersToCreate.push(customer);
+      }
+
+      // Helper function to create customer with retry and delay
+      const createCustomerWithRetry = async (customer: any, attempt = 1): Promise<boolean> => {
+        const maxAttempts = 3;
+        const baseDelay = 2000; // 2000ms initial delay
+
+        try {
+          await customersApi.create(customer);
+          return true;
+        } catch (error: any) {
+          // Check if it's a rate limit error (429)
+          if (error.status === 429 && attempt < maxAttempts) {
+            // Exponential backoff: 2000ms, 4000ms, 8000ms
+            const delay = baseDelay * (2 ** (attempt - 1));
+            console.log(`Rate limited. Retrying in ${delay}ms (attempt ${attempt}/${maxAttempts})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return createCustomerWithRetry(customer, attempt + 1);
+          }
+          throw error;
+        }
+      };
+
+      // Create customers with rate limiting
+      let successCount = 0;
+      let errorCount = 0;
+      console.log('Starting customer upload:', customersToCreate);
+
+      for (let i = 0; i < customersToCreate.length; i++) {
+        try {
+          await createCustomerWithRetry(customersToCreate[i]);
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to create customer ${JSON.stringify(customersToCreate[i])}:`, error);
+          errorCount++;
+        }
+
+        // Add delay between requests to avoid rate limiting (2000ms)
+        if (i < customersToCreate.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+
+        setUploadProgress(Math.round(((i + 1) / customersToCreate.length) * 100));
+      }
+
+      // Refresh customers list
+      await fetchCustomers();
+
+      if (successCount > 0) {
+        toast.success(`Successfully uploaded ${successCount} customer${successCount > 1 ? 's' : ''}`);
+      }
+
+      if (errorCount > 0) {
+        toast.error(`Failed to upload ${errorCount} customer${errorCount > 1 ? 's' : ''}`);
+      }
+    } catch (error) {
+      console.error('Error uploading customers:', error);
+      toast.error('Failed to upload customers. Please check the file format.');
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
+      setIsUploadConfigModalOpen(false);
+      resetUploadConfig();
+    }
+  };
+
   const handleUploadCustomers = () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.csv';
-    input.onchange = async (e) => {
+    input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
 
-      setIsUploading(true);
-      setUploadProgress(0);
-
-      try {
-        const text = await file.text();
-        const lines = text.trim().split('\n');
-        
-        if (lines.length < 2) {
-          toast.error('CSV file must contain at least a header row and one data row');
-          return;
-        }
-
-        const headers = lines[0].split(',').map(h => h.trim());
-        const expectedHeaders = ['Email', 'House No', 'Apartment', 'Location', 'Ip', 'Mac', 'Expiry Date', 'Name', 'Account', 'Radius Username', 'Radius Password', 'Phone'];
-        
-        // Check if headers match (case insensitive)
-        const normalizedHeaders = headers.map(h => h.toLowerCase());
-        const normalizedExpected = expectedHeaders.map(h => h.toLowerCase());
-        
-        const headersMatch = normalizedExpected.every(expected => 
-          normalizedHeaders.includes(expected)
-        );
-
-        if (!headersMatch) {
-          toast.error('CSV headers do not match expected format. Expected: ' + expectedHeaders.join(', '));
-          return;
-        }
-
-        const dataRows = lines.slice(1);
-        const customersToCreate = [];
-        
-        for (let i = 0; i < dataRows.length; i++) {
-          const row = dataRows[i].split(',').map(cell => cell.trim());
-          
-          // Parse name into first and last name
-          const nameParts = row[7].split(' '); // Name is at index 7
-          const firstName = nameParts[0] || '';
-          const lastName = nameParts.slice(1).join(' ') || '';
-
-          // Get default package and site
-          const defaultPackage = packages[0];
-          const defaultSite = sites[0];
-
-          if (!defaultPackage) {
-            toast.error('No packages available. Please create a package first.');
-            return;
-          }
-
-          if (!defaultSite) {
-            toast.error('No sites available. Please create a site first.');
-            return;
-          }
-
-          const customer = {
-            first_name: firstName,
-            last_name: lastName,
-            email: row[0] || undefined, // Email
-            phone: row[11], // Phone
-            house_no: row[1] || undefined, // House No
-            apartment: row[2] || undefined, // Apartment
-            location: row[3] || undefined, // Location
-            ip_address: row[4] || undefined, // Ip
-            mac_address: row[5] || undefined, // Mac
-            expiry_date: row[6], // Expiry Date
-            radius_username: row[9], // Radius Username
-            radius_password: row[10], // Radius Password
-            connection_type: 'PPPoE',
-            package_id: defaultPackage.id,
-            site_id: defaultSite.id,
-            installation_fee: 0,
-            status: 'active',
-            balance: 0,
-            created_at: new Date().toISOString(),
-          };
-
-          customersToCreate.push(customer);
-        }
-
-        // Helper function to create customer with retry and delay
-        const createCustomerWithRetry = async (customer: any, attempt = 1): Promise<boolean> => {
-          const maxAttempts = 3;
-          const baseDelay = 500; // 500ms initial delay
-          
-          try {
-            await customersApi.create(customer);
-            return true;
-          } catch (error: any) {
-            // Check if it's a rate limit error (429)
-            if (error.status === 429 && attempt < maxAttempts) {
-              // Exponential backoff: 500ms, 1500ms, 3500ms
-              const delay = baseDelay * (2 ** (attempt - 1));
-              console.log(`Rate limited. Retrying in ${delay}ms (attempt ${attempt}/${maxAttempts})`);
-              await new Promise(resolve => setTimeout(resolve, delay));
-              return createCustomerWithRetry(customer, attempt + 1);
-            }
-            throw error;
-          }
-        };
-
-        // Create customers with rate limiting
-        let successCount = 0;
-        let errorCount = 0;
-        console.log('Starting customer upload:', customersToCreate);
-        
-        for (let i = 0; i < customersToCreate.length; i++) {
-          try {
-            await createCustomerWithRetry(customersToCreate[i]);
-            successCount++;
-          } catch (error) {
-            console.error(`Failed to create customer ${i + 1}:`, error);
-            errorCount++;
-          }
-          
-          // Add delay between requests to avoid rate limiting (500ms)
-          if (i < customersToCreate.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
-          
-          setUploadProgress(Math.round(((i + 1) / customersToCreate.length) * 100));
-        }
-
-        // Refresh customers list
-        await fetchCustomers();
-
-        if (successCount > 0) {
-          toast.success(`Successfully uploaded ${successCount} customer${successCount > 1 ? 's' : ''}`);
-        }
-        
-        if (errorCount > 0) {
-          toast.error(`Failed to upload ${errorCount} customer${errorCount > 1 ? 's' : ''}`);
-        }
-
-      } catch (error) {
-        console.error('Error uploading customers:', error);
-        toast.error('Failed to upload customers. Please check the file format.');
-      } finally {
-        setIsUploading(false);
-        setUploadProgress(0);
+      if (!packages.length) {
+        toast.error('No packages available. Please create a package first.');
+        return;
       }
+
+      if (!sites.length) {
+        toast.error('No sites available. Please create a site first.');
+        return;
+      }
+
+      setPendingUploadFile(file);
+      setUploadPackageId(prev => prev || packages[0].id);
+      setIsUploadConfigModalOpen(true);
     };
     input.click();
+  };
+
+  const handleStartUpload = async () => {
+    if (!pendingUploadFile) {
+      toast.error('Please select a CSV file first.');
+      return;
+    }
+
+    if (!uploadPackageId) {
+      toast.error('Please choose a package for imported customers.');
+      return;
+    }
+
+    await processCustomerUpload(pendingUploadFile);
   };
 
   const handleDownloadCustomers = () => {
@@ -409,6 +456,11 @@ export const CustomersPage: React.FC = () => {
         } catch (error) {
           console.error(`Failed to delete customer ${customers[i].id}:`, error);
           errorCount++;
+        }
+
+        // Pace requests so the API rate limiter is less likely to reject batch deletes.
+        if (i < customers.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 350));
         }
 
         setDeleteAllProgress(Math.round(((i + 1) / customers.length) * 100));
@@ -838,6 +890,69 @@ export const CustomersPage: React.FC = () => {
         packages={packages}
         sites={sites}
       />
+
+      <Modal
+        isOpen={isUploadConfigModalOpen}
+        onClose={() => {
+          if (isUploading) return;
+          setIsUploadConfigModalOpen(false);
+          resetUploadConfig();
+        }}
+        title="Import Customers"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Choose defaults for this CSV import. Missing location values will use the fallback location below.
+          </p>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-gray-600 dark:text-gray-300">Package for Imported Customers</label>
+            <select
+              value={uploadPackageId}
+              onChange={(e) => setUploadPackageId(e.target.value)}
+              disabled={isUploading}
+              className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm p-2.5 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
+            >
+              {packages.map(pkg => (
+                <option key={pkg.id} value={pkg.id}>{pkg.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-gray-600 dark:text-gray-300">Fallback Location (optional)</label>
+            <input
+              type="text"
+              value={uploadFallbackLocation}
+              onChange={(e) => setUploadFallbackLocation(e.target.value)}
+              disabled={isUploading}
+              placeholder="Used when CSV location is empty"
+              className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl text-sm p-2.5 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={() => {
+                setIsUploadConfigModalOpen(false);
+                resetUploadConfig();
+              }}
+              disabled={isUploading}
+              className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-bold text-sm transition-all disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleStartUpload}
+              disabled={isUploading || !uploadPackageId}
+              className="flex-1 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition-all active:scale-95 disabled:opacity-60"
+            >
+              {isUploading ? `Uploading... ${uploadProgress}%` : 'Start Upload'}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Delete All Customers Modal */}
       <Modal

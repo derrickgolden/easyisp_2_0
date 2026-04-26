@@ -24,6 +24,34 @@ export class ApiError extends Error {
   }
 }
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const retryOnRateLimit = async <T>(
+  operation: () => Promise<T>,
+  options: { maxAttempts?: number; baseDelayMs?: number } = {}
+): Promise<T> => {
+  const maxAttempts = options.maxAttempts ?? 4;
+  const baseDelayMs = options.baseDelayMs ?? 400;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      const status = error?.status;
+      const isLastAttempt = attempt === maxAttempts;
+
+      if (status !== 429 || isLastAttempt) {
+        throw error;
+      }
+
+      const delay = baseDelayMs * (2 ** (attempt - 1));
+      await sleep(delay);
+    }
+  }
+
+  throw new Error('Rate limit retry failed unexpectedly');
+};
+
 let authToken: string | null = null;
 let tokenExpiration: number | null = null;
 let onUnauthorized: (() => void) | null = null;
@@ -224,7 +252,10 @@ export const customersApi = {
   },
 
   delete: async (id: string) => {
-    const response = await axiosInstance.delete(`/customers/${id}`);
+    const response = await retryOnRateLimit(() => axiosInstance.delete(`/customers/${id}`), {
+      maxAttempts: 4,
+      baseDelayMs: 500,
+    });
     return response.data;
   },
 
