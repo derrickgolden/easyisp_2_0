@@ -240,9 +240,48 @@ export const CustomersPage: React.FC = () => {
       const normalizedFallbackLocation = uploadFallbackLocation.trim();
       const dataRows = lines.slice(1);
       const customersToCreate = [];
+      let skippedByExpiryWindow = 0;
+
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const threeMonthsAgo = new Date(today);
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+      const parseExpiryDate = (rawValue: string): Date | null => {
+        const value = rawValue.trim();
+        if (!value) return null;
+
+        // Support YYYY-MM-DD and DD/MM/YYYY style values from CSV exports.
+        const slashMatch = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (slashMatch) {
+          const day = Number(slashMatch[1]);
+          const month = Number(slashMatch[2]);
+          const year = Number(slashMatch[3]);
+          const parsed = new Date(year, month - 1, day);
+          if (
+            parsed.getFullYear() === year &&
+            parsed.getMonth() === month - 1 &&
+            parsed.getDate() === day
+          ) {
+            return parsed;
+          }
+          return null;
+        }
+
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return null;
+        return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+      };
 
       for (let i = 0; i < dataRows.length; i++) {
         const row = dataRows[i].split(',').map(cell => cell.trim());
+        const parsedExpiryDate = parseExpiryDate(row[6] || '');
+
+        // Import only customers who are already expired but not older than 3 months.
+        if (!parsedExpiryDate || parsedExpiryDate > today || parsedExpiryDate < threeMonthsAgo) {
+          skippedByExpiryWindow++;
+          continue;
+        }
 
         // Parse name into first and last name
         const nameParts = row[7].split(' '); // Name is at index 7
@@ -273,6 +312,11 @@ export const CustomersPage: React.FC = () => {
         };
 
         customersToCreate.push(customer);
+      }
+
+      if (!customersToCreate.length) {
+        toast.error('No customers matched the expiry rule (expired within the last 3 months).');
+        return;
       }
 
       // Helper function to create customer with retry and delay
@@ -327,6 +371,10 @@ export const CustomersPage: React.FC = () => {
 
       if (errorCount > 0) {
         toast.error(`Failed to upload ${errorCount} customer${errorCount > 1 ? 's' : ''}`);
+      }
+
+      if (skippedByExpiryWindow > 0) {
+        toast.info(`Skipped ${skippedByExpiryWindow} row${skippedByExpiryWindow > 1 ? 's' : ''} outside the expiry window.`);
       }
     } catch (error) {
       console.error('Error uploading customers:', error);
