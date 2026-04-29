@@ -68,8 +68,8 @@ export const setIsLoggingOut = (value: boolean) => {
 export const setAuthToken = (token: string | null) => {
   authToken = token;
   if (token) {
-    // Token expires in 1 hour
-    tokenExpiration = Date.now() + (1 * 60 * 60 * 1000);
+    // Token expires in 6 hours (matches backend Sanctum config)
+    tokenExpiration = Date.now() + (6 * 60 * 60 * 1000);
     localStorage.setItem('auth_token', token);
     localStorage.setItem('auth_token_expiration', tokenExpiration.toString());
     axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;

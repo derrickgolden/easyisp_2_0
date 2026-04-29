@@ -221,12 +221,12 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
 
                     <div className="grid grid-cols-2 gap-2">
                       <div className="rounded-xl bg-slate-800/60 p-2">
-                        <p className="text-[9px] uppercase tracking-widest text-slate-400 font-black">Download</p>
+                        <p className="text-[9px] uppercase tracking-widest text-slate-400 font-black">Upload</p>
                         <p className="text-sm font-mono font-bold text-blue-50 dark:text-blue-300">{formatBits(traffic.rx_bps ?? 0)}</p>
                         <p className="text-[9px] text-slate-100 dark:text-slate-500">Total: {formatBytes(traffic.rx_bytes ?? 0)}</p>
                       </div>
                       <div className="rounded-xl bg-slate-800/60 p-2">
-                        <p className="text-[9px] uppercase tracking-widest text-slate-400 font-black">Upload</p>
+                        <p className="text-[9px] uppercase tracking-widest text-slate-400 font-black">Download</p>
                         <p className="text-sm font-mono font-bold text-indigo-50 dark:text-indigo-300">{formatBits(traffic.tx_bps ?? 0)}</p>
                         <p className="text-[9px] text-slate-100 dark:text-slate-500">Total: {formatBytes(traffic.tx_bytes ?? 0)}</p>
                       </div>
