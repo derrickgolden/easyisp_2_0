@@ -4,7 +4,7 @@ const LOGIN_EMAIL = import.meta.env.VITE_LOGIN_EMAIL
 const LOGIN_PASSWORD = import.meta.env.VITE_LOGIN_PASSWORD
 
 interface LoginPageProps {
-  onLogin: (email: string, password: string) => void;
+  onLogin: (email: string, password: string, companyAcronym: string) => void;
   isLoading: boolean;
   error: string | null;
 }
@@ -12,11 +12,12 @@ interface LoginPageProps {
 export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, isLoading, error }) => {
   const [email, setEmail] = useState(LOGIN_EMAIL);
   const [password, setPassword] = useState(LOGIN_PASSWORD);
+  const [companyAcronym, setCompanyAcronym] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin(email, password);
+    onLogin(email, password, companyAcronym);
   };
 
   return (
@@ -35,6 +36,27 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, isLoading, error 
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1 mb-2">
+                Company Acronym
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-500">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M5 21V7l7-4 7 4v14M9 10h.01M9 13h.01M9 16h.01M12 10h.01M12 13h.01M12 16h.01M15 10h.01M15 13h.01M15 16h.01" />
+                  </svg>
+                </span>
+                <input 
+                  type="text" 
+                  required
+                  value={companyAcronym}
+                  onChange={(e) => setCompanyAcronym(e.target.value)}
+                  className="w-full bg-slate-800/50 border-none rounded-2xl py-4 pl-11 pr-4 text-white placeholder-slate-600 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  placeholder="ETC"
+                />
+              </div>
+            </div>
+
             <div>
               <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1 mb-2">Access Email</label>
               <div className="relative">

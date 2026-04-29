@@ -153,9 +153,19 @@ export const authApi = {
     return data;
   },
 
-  login: async (email: string, password: string) => {
-    const response = await axiosInstance.post('/auth/login', { email, password });
-    const data = response.data as { user: any; role?: any; token: string };
+  login: async (email: string, password: string, companyAcronym?: string) => {
+    const payload: Record<string, string> = { email, password };
+    if (companyAcronym && companyAcronym.trim()) {
+      payload.companyAcronym = companyAcronym.trim();
+    }
+
+    const response = await axiosInstance.post('/auth/login', payload);
+    const data = response.data as {
+      user: any;
+      role?: any;
+      organization?: { id: string; name: string; acronym: string };
+      token: string;
+    };
     if (data.token) {
       setAuthToken(data.token);
     }

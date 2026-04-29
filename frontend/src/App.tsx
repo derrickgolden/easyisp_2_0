@@ -110,11 +110,11 @@ const App: React.FC = () => {
     toast.success(message);
   };
 
-  const handleLogin = async (email: string, pass: string) => {
+  const handleLogin = async (email: string, pass: string, companyAcronym: string) => {
     setAuthLoading(true);
     setAuthError(null);
     try {
-      const result = await authApi.login(email, pass);
+      const result = await authApi.login(email, pass, companyAcronym);
       const roleFromAuth = result.role || null;
       const user: AdminUser = {
         id: result.user.id,
@@ -127,6 +127,7 @@ const App: React.FC = () => {
         password: '',
         isSuperAdmin: result.user.is_super_admin || false,
         role: roleFromAuth || undefined,
+        companyAcronym: result.organization?.acronym || companyAcronym,
       };
 
       setCurrentUser(user);

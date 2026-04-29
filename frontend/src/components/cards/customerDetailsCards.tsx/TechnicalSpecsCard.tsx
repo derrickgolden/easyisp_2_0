@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, Modal } from "../../UI";
 import { customersApi } from '../../../services/apiService';
 import { toast } from 'sonner';
 import { usePermissions } from '@/src/hooks/usePermissions';
 
-export const TechnicalSpecCard: React.FC<{technicalSpecs: any, customer: any, onRefresh: () => void}> = ({technicalSpecs, customer, onRefresh}) => {
+export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
     const [uptime, setUptime] = useState<string>('Offline');
     const [isPolling, setIsPolling] = useState(false);
-    const [isAccountingModalOpen, setIsAccountingModalOpen] = useState(false);
   const [isResettingMac, setIsResettingMac] = useState(false);
+    const [isAccountingModalOpen, setIsAccountingModalOpen] = useState(false);
     const isRequesting = useRef(false);
     const currentDelay = useRef(2000); // Use ref to persist delay across renders
     const startTimeIso = technicalSpecs?.start_time;
@@ -141,8 +141,8 @@ export const TechnicalSpecCard: React.FC<{technicalSpecs: any, customer: any, on
 
     const onResetMAC = async (customerId: string) => {
       if (isResettingMac) return;
-
       setIsResettingMac(true);
+
       try {
         const response = await customersApi.resetMacBinding(customerId);
         onRefresh();
@@ -222,13 +222,13 @@ export const TechnicalSpecCard: React.FC<{technicalSpecs: any, customer: any, on
                     <div className="grid grid-cols-2 gap-2">
                       <div className="rounded-xl bg-slate-800/60 p-2">
                         <p className="text-[9px] uppercase tracking-widest text-slate-400 font-black">Download</p>
-                        <p className="text-sm font-mono font-bold text-blue-50 dark:text-blue-300">{formatBits(traffic.tx_bps ?? 0)}</p>
-                        <p className="text-[9px] text-slate-100 dark:text-slate-500">Total: {formatBytes(traffic.tx_bytes ?? 0)}</p>
+                        <p className="text-sm font-mono font-bold text-blue-50 dark:text-blue-300">{formatBits(traffic.rx_bps ?? 0)}</p>
+                        <p className="text-[9px] text-slate-100 dark:text-slate-500">Total: {formatBytes(traffic.rx_bytes ?? 0)}</p>
                       </div>
                       <div className="rounded-xl bg-slate-800/60 p-2">
                         <p className="text-[9px] uppercase tracking-widest text-slate-400 font-black">Upload</p>
-                        <p className="text-sm font-mono font-bold text-indigo-50 dark:text-indigo-300">{formatBits(traffic.rx_bps ?? 0)}</p>
-                        <p className="text-[9px] text-slate-100 dark:text-slate-500">Total: {formatBytes(traffic.rx_bytes ?? 0)}</p>
+                        <p className="text-sm font-mono font-bold text-indigo-50 dark:text-indigo-300">{formatBits(traffic.tx_bps ?? 0)}</p>
+                        <p className="text-[9px] text-slate-100 dark:text-slate-500">Total: {formatBytes(traffic.tx_bytes ?? 0)}</p>
                       </div>
                     </div>
 
@@ -309,7 +309,7 @@ export const TechnicalSpecCard: React.FC<{technicalSpecs: any, customer: any, on
                         </tr>
                       </thead>
                       <tbody className="divide-y dark:divide-slate-800">
-                        {technicalSpecs?.sessions?.map((record: Record<string, any>, index: number) => {
+                        {technicalSpecs?.sessions?.map((record, index: number) => {
                           let offlineSeconds = -1;
                           const nextRecord = technicalSpecs.sessions[index + 1];
                           if (nextRecord && nextRecord.acctstoptime) {
@@ -342,8 +342,8 @@ export const TechnicalSpecCard: React.FC<{technicalSpecs: any, customer: any, on
                               </td>
                               <td className="py-4 px-6 whitespace-nowrap">
                                 <div className="flex flex-col">
-                                    <span className="text-blue-600 font-bold">DL: {formatBytes(record.acctoutputoctets)}</span>
-                                    <span className="text-indigo-600 font-bold">UL: {formatBytes(record.acctinputoctets)}</span>
+                                    <span className="text-blue-600 font-bold">DL: {formatBytes(record.acctinputoctets)}</span>
+                                    <span className="text-indigo-600 font-bold">UL: {formatBytes(record.acctoutputoctets)}</span>
                                 </div>
                               </td>
                               <td className="py-4 px-6 text-right">

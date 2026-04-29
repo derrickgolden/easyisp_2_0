@@ -52,8 +52,8 @@ const ChangePasswordCard = () => {
             return;
         }
 
-        const user = JSON.parse(savedUser) as { id?: string; email?: string };
-        if (!user?.id || !user?.email) {
+        const user = JSON.parse(savedUser) as { id?: string; email?: string; companyAcronym?: string };
+        if (!user?.id || !user?.email || !user?.companyAcronym) {
             const message = 'Missing user details. Please log in again.';
             setError(message);
             toast.error(message);
@@ -62,7 +62,7 @@ const ChangePasswordCard = () => {
 
         setIsLoading(true);
         try {
-        await authApi.login(user.email, passwordForm.current);
+        await authApi.login(user.email, passwordForm.current, user.companyAcronym);
         await usersApi.update(String(user.id), { password: passwordForm.next });
 
         setPasswordForm({ current: '', next: '', confirm: '' });

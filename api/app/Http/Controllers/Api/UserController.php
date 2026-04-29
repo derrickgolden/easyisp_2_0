@@ -62,9 +62,22 @@ class UserController extends Controller
     {
         $isSuperAdmin = $request->boolean('is_super_admin', false);
 
+        // Resolve organization_id early so we can scope the email uniqueness check
+        $requestUser = $request->user();
+        $resolvedOrgId = $requestUser instanceof SystemAdmin
+            ? $request->organization_id
+            : $requestUser->organization_id;
+        if (!$resolvedOrgId && $request->filled('organization_id')) {
+            $resolvedOrgId = $request->organization_id;
+        }
+
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
-            'email' => 'required|string|email|unique:users',
+            'email' => [
+                'required', 'string', 'email',
+                // Email must be unique within the same organization only
+                \Illuminate\Validation\Rule::unique('users')->where('organization_id', $resolvedOrgId),
+            ],
             'phone' => 'nullable|string',
             'password' => 'required|string|min:6',
             'role_id' => $isSuperAdmin ? 'nullable' : 'required|exists:roles,id',
@@ -77,13 +90,7 @@ class UserController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $requestUser = $request->user();
-        $organizationId = $requestUser instanceof SystemAdmin
-            ? $request->organization_id
-            : $requestUser->organization_id;
-        if (!$organizationId && $request->filled('organization_id')) {
-            $organizationId = $request->organization_id;
-        }
+        $organizationId = $resolvedOrgId;
 
         if (!$organizationId) {
             return response()->json(['message' => 'Organization is required'], 422);

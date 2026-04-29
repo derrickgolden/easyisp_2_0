@@ -17,6 +17,7 @@ class AuthController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'organization_name' => 'required|string|max:255',
+            'acronym' => 'required|string|max:5|unique:organizations,acronym',
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|unique:users',
             'password' => 'required|string|min:6|confirmed',
@@ -29,6 +30,7 @@ class AuthController extends Controller
         // Create organization
         $organization = Organization::create([
             'name' => $request->organization_name,
+            'acronym' => $request->acronym,
             'subscription_tier' => 'lite',
             'status' => 'active',
         ]);
@@ -68,6 +70,7 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $validator = Validator::make($request->all(), [
+            'companyAcronym' => 'required|string|max:5',
             'email' => 'required|string|email',
             'password' => 'required|string',
         ]);
@@ -76,7 +79,13 @@ class AuthController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $user = User::where('email', $request->email)->first();
+        $acronym = $request->input('companyAcronym');
+
+        $user = User::where('email', $request->email)
+            ->whereHas('organization', function ($query) use ($acronym) {
+                $query->where('acronym', $acronym);
+            })
+            ->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
@@ -85,7 +94,7 @@ class AuthController extends Controller
         }
 
         $user->update(['last_login' => now()]);
-        $user->load('role');
+        $user->load(['role', 'organization']);
         $token = $user->createToken('admin-token', ['access-admin'])->plainTextToken;
 
         return response()->json([
@@ -95,6 +104,11 @@ class AuthController extends Controller
                 'id' => (string) $user->role->id,
                 'name' => $user->role->name,
                 'permissions' => $user->role->permissions ?? [],
+            ] : null,
+            'organization' => $user->organization ? [
+                'id' => (string) $user->organization->id,
+                'name' => $user->organization->name,
+                'acronym' => $user->organization->acronym,
             ] : null,
             'token' => $token,
         ], 200);

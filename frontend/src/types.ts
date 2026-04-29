@@ -43,6 +43,7 @@ export interface AdminUser {
   id: string;
   name: string;
   email: string;
+  companyAcronym?: string;
   phone: string;
   password?: string; // Optional for edit, usually required for create
   role_id: string; // References Role id
