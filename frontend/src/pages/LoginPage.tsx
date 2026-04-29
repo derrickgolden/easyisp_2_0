@@ -48,11 +48,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, isLoading, error 
                 </span>
                 <input 
                   type="text" 
-                  required
                   value={companyAcronym}
                   onChange={(e) => setCompanyAcronym(e.target.value)}
                   className="w-full bg-slate-800/50 border-none rounded-2xl py-4 pl-11 pr-4 text-white placeholder-slate-600 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  placeholder="ETC"
+                  placeholder="CBA"
                 />
               </div>
             </div>

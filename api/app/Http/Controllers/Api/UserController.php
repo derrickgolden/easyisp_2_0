@@ -90,6 +90,20 @@ class UserController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        if ($isSuperAdmin) {
+            $existingSuperAdminWithEmail = User::where('email', $request->email)
+                ->where('is_super_admin', true)
+                ->exists();
+
+            if ($existingSuperAdminWithEmail) {
+                return response()->json([
+                    'errors' => [
+                        'email' => ['A super admin with this email already exists.'],
+                    ],
+                ], 422);
+            }
+        }
+
         $organizationId = $resolvedOrgId;
 
         if (!$organizationId) {

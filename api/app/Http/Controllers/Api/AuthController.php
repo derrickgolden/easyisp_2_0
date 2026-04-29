@@ -70,7 +70,7 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'companyAcronym' => 'required|string|max:5',
+            'companyAcronym' => 'nullable|string|max:5',
             'email' => 'required|string|email',
             'password' => 'required|string',
         ]);
@@ -79,13 +79,19 @@ class AuthController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $acronym = $request->input('companyAcronym');
+        $acronym = trim((string) $request->input('companyAcronym', ''));
 
-        $user = User::where('email', $request->email)
-            ->whereHas('organization', function ($query) use ($acronym) {
+        $userQuery = User::where('email', $request->email);
+
+        if ($acronym !== '') {
+            $userQuery->whereHas('organization', function ($query) use ($acronym) {
                 $query->where('acronym', $acronym);
-            })
-            ->first();
+            });
+        } else {
+            $userQuery->where('is_super_admin', true);
+        }
+
+        $user = $userQuery->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([
