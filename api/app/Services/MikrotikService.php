@@ -222,8 +222,14 @@ class MikrotikService
         } catch (\Throwable $e) {
             $message = strtolower($e->getMessage());
 
-            // Router closes the API connection immediately after accepting reboot command.
-            if (str_contains($message, 'connection') || str_contains($message, 'broken pipe')) {
+            // Router often drops API stream immediately after accepting reboot.
+            if (
+                str_contains($message, 'connection') ||
+                str_contains($message, 'broken pipe') ||
+                str_contains($message, 'timed out') ||
+                str_contains($message, 'stream timed out') ||
+                str_contains($message, 'timeout')
+            ) {
                 return;
             }
 
