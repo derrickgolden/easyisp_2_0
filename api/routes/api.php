@@ -130,6 +130,7 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     // Site management
     Route::apiResource('/sites', SiteController::class);
     Route::get('/sites/{id}/ipam', [SiteController::class, 'getIpamData']);
+    Route::post('/sites/{id}/reboot', [MikrotikController::class, 'rebootSite']);
     
     // Payment management
     Route::post('/payments/payhero/stkpush', [PayheroPaymentController::class, 'stkPush']);

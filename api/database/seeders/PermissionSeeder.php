@@ -24,6 +24,7 @@ class PermissionSeeder extends Seeder
             ['name' => 'view-sites', 'description' => 'View network sites and their details', 'group' => 'network'],
             ['name' => 'view-network-stats', 'description' => 'View network health and traffic statistics', 'group' => 'network'],
             ['name' => 'manage-radius', 'description' => 'Sync customers and manage RADIUS access', 'group' => 'network'],
+            ['name' => 'reboot-router', 'description' => 'Reboot network routers and devices', 'group' => 'network'],
         
             // BILLING
             ['name' => 'view-packages', 'description' => 'View service packages and pricing', 'group' => 'billing'],

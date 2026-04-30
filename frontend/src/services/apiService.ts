@@ -377,6 +377,11 @@ export const sitesApi = {
     return response.data;
   },
 
+  reboot: async (id: string) => {
+    const response = await axiosInstance.post(`/sites/${id}/reboot`);
+    return response.data;
+  },
+
   delete: async (id: string) => {
     const response = await axiosInstance.delete(`/sites/${id}`);
     return response.data;

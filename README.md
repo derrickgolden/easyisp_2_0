@@ -42,3 +42,21 @@ composer require laravel/reverb
 php artisan reverb:install
 # after config start reverb
 php artisan reverb:start
+
+
+Put app in maintenance mode (optional but safest for auth/role changes during peak usage).
+php artisan down
+
+Run only the permission seeder with force.
+php artisan db:seed --class=PermissionSeeder --force
+
+Clear Spatie permission cache explicitly.
+php artisan permission:cache-reset
+
+If you use queue workers or Horizon, restart workers so long-lived processes reload permissions.
+php artisan queue:restart
+php artisan horizon:terminate
+
+Bring app back up.
+php artisan up
+

@@ -7,6 +7,7 @@ import { STORAGE_KEYS } from '../constants/storage';
 import { ConfigModal, IPAMModal, SiteProvisionModal } from '../components/modals/SiteModals';
 import { toast } from 'sonner';
 import { usePermissions } from '../hooks/usePermissions';
+import Swal from 'sweetalert2';
 
 export const SitesPage: React.FC = () => {
   const [sites, setSites] = useState<Site[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.SITES) || '[]'));
@@ -15,6 +16,7 @@ export const SitesPage: React.FC = () => {
   const [isIPAMOpen, setIsIPAMOpen] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
+  const [rebootingSiteId, setRebootingSiteId] = useState<string | null>(null);
   const { can } = usePermissions();
 
   useEffect(() => {
@@ -67,6 +69,55 @@ export const SitesPage: React.FC = () => {
   };
   const onOpenIPAM = (s: Site) => { setSelectedSite(s); setIsIPAMOpen(true); };
   const onOpenConfig = (s: Site) => { setSelectedSite(s); setIsConfigOpen(true); };
+
+  const handleRebootSite = async (site: Site) => {
+    const isDark = document.documentElement.classList.contains('dark');
+
+    const confirmation = await Swal.fire({
+      title: 'Confirm Router Reboot',
+      html: `
+        <div style="text-align:left; display:grid; gap:10px;">
+          <div style="padding:12px; border-radius:10px; border:1px solid ${isDark ? '#7f1d1d' : '#fecaca'}; background:${isDark ? '#450a0a' : '#fef2f2'};">
+            <div style="font-weight:700; color:${isDark ? '#fca5a5' : '#b91c1c'}; margin-bottom:6px;">${site.name} (${site.ip_address})</div>
+            <div style="font-size:13px; color:${isDark ? '#fecaca' : '#7f1d1d'};">This will disconnect active sessions briefly.</div>
+          </div>
+          <div style="font-size:13px; color:${isDark ? '#cbd5e1' : '#334155'};">Type <b>rebbot</b> to confirm.</div>
+        </div>
+      `,
+      input: 'text',
+      inputPlaceholder: 'Type rebbot',
+      inputAutoTrim: true,
+      showCancelButton: true,
+      confirmButtonText: 'Reboot',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b',
+      background: isDark ? '#0f172a' : '#ffffff',
+      color: isDark ? '#e2e8f0' : '#0f172a',
+      preConfirm: (value) => {
+        if (value !== 'rebbot') {
+          Swal.showValidationMessage('Please type rebbot exactly to continue');
+          return false;
+        }
+        return value;
+      },
+    });
+
+    if (!confirmation.isConfirmed) {
+      return;
+    }
+
+    try {
+      setRebootingSiteId(site.id);
+      const res = await sitesApi.reboot(site.id);
+      toast.success(res?.message || 'Router reboot command sent');
+    } catch (error: any) {
+      console.error('Error rebooting router:', error);
+      toast.error(error?.message || 'Failed to reboot router');
+    } finally {
+      setRebootingSiteId(null);
+    }
+  };
 
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
@@ -121,24 +172,34 @@ export const SitesPage: React.FC = () => {
               />
             </div>
 
-            <div className="flex space-x-2">
+            <div className="grid grid-cols-2 gap-2">
               {can('manage-sites') && (
                 <button type="button"
                   onClick={() => onEdit(site)}
-                  className="flex-1 text-xs border border-gray-200 dark:border-slate-700 py-2 rounded-md hover:bg-gray-50 dark:hover:bg-slate-800">
+                  className="text-xs border border-gray-200 dark:border-slate-700 py-2 rounded-md hover:bg-gray-50 dark:hover:bg-slate-800">
                     Edit
                 </button>
               )}
               <button type="button" 
                 onClick={() => onOpenIPAM(site)} 
-                className="flex-1 text-xs border border-gray-200 dark:border-slate-700 py-2 rounded-md hover:bg-gray-50 dark:hover:bg-slate-800">
+                className="text-xs border border-gray-200 dark:border-slate-700 py-2 rounded-md hover:bg-gray-50 dark:hover:bg-slate-800">
                   IPAM
               </button>
               <button type="button" 
                 onClick={() => onOpenConfig(site)} 
-                className="flex-1 text-xs border border-gray-200 dark:border-slate-700 py-2 rounded-md hover:bg-gray-50 dark:hover:bg-slate-800">
+                className="text-xs border border-gray-200 dark:border-slate-700 py-2 rounded-md hover:bg-gray-50 dark:hover:bg-slate-800">
                   Config
               </button>
+              {can('reboot-router') && (
+                <button
+                  type="button"
+                  onClick={() => handleRebootSite(site)}
+                  disabled={rebootingSiteId === site.id}
+                  className="text-xs border border-red-200 text-red-700 dark:border-red-800 dark:text-red-300 py-2 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {rebootingSiteId === site.id ? 'Rebooting...' : 'Reboot Router'}
+                </button>
+              )}
             </div>
           </Card>
         ))}

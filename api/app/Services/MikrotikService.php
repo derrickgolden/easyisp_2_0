@@ -213,6 +213,24 @@ class MikrotikService
         ];
     }
 
+    public function rebootSite(Site $site): void
+    {
+        $client = $this->buildClient($this->mapSiteConfig($site));
+
+        try {
+            $client->query(new Query('/system/reboot'))->read();
+        } catch (\Throwable $e) {
+            $message = strtolower($e->getMessage());
+
+            // Router closes the API connection immediately after accepting reboot command.
+            if (str_contains($message, 'connection') || str_contains($message, 'broken pipe')) {
+                return;
+            }
+
+            throw $e;
+        }
+    }
+
     private function extractPair($value): array
     {
         if (!is_string($value) || strpos($value, '/') === false) {
