@@ -106,7 +106,7 @@ class RadiusController extends Controller
                     'speed_up' => $customer->package->speed_up,
                     'speed_down' => $customer->package->speed_down,
                     'type' => $customer->package->type,
-                    'validity_days' => $customer->package->validity_days,
+                    'validity' => $customer->package->validity,
                 ] : null,
                 'site' => $customer->site ? [
                     'name' => $customer->site->name,

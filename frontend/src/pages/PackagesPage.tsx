@@ -159,7 +159,7 @@ export const PackagesPage: React.FC = () => {
               <p className="text-3xl font-black text-blue-600 dark:text-blue-400">
                 <span className="text-sm font-medium mr-1 uppercase">KSH</span>
                 {pkg.price.toLocaleString()}
-                <span className="text-sm text-gray-400 font-medium ml-1">/ {pkg.validity_days} Days</span>
+                <span className="text-sm text-gray-400 font-medium ml-1">/ {pkg.validity} {pkg.validity_type === 'months' ? (pkg.validity === 1 ? 'Month' : 'Months') : (pkg.validity === 1 ? 'Day' : 'Days')}</span>
               </p>
             </div>
 

@@ -5,7 +5,7 @@ import { Package } from '../../types';
 interface PackageModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (e: React.FormEvent) => void;
+  onSave: (e: React.FormEvent<HTMLFormElement>) => void;
   editingPackage: Partial<Package> | null;
   setEditingPackage: (pkg: Partial<Package> | null) => void;
   isSaving?: boolean;
@@ -108,16 +108,26 @@ export const PackageModal: React.FC<PackageModalProps> = ({
             />
           </div>
           <div>
-            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Validity (Days)</label>
-            <input 
-              required
-              type="number" 
-              min="1"
-              value={editingPackage?.validity_days || ''} 
-              onChange={e => setEditingPackage({...editingPackage, validity_days: Number(e.target.value)})}
-              className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3.5 mt-1 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold" 
-              placeholder="30"
-            />
+            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Validity</label>
+            <div className="flex gap-2 mt-1">
+              <input 
+                required
+                type="number" 
+                min="1"
+                value={editingPackage?.validity || ''} 
+                onChange={e => setEditingPackage({...editingPackage, validity: Number(e.target.value)})}
+                className="flex-1 min-w-0 bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3.5 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold" 
+                placeholder={editingPackage?.validity_type === 'months' ? '1' : '30'}
+              />
+              <select
+                value={editingPackage?.validity_type || 'days'}
+                onChange={e => setEditingPackage({...editingPackage, validity_type: e.target.value as 'days' | 'months'})}
+                className="shrink-0 w-28 bg-gray-50 dark:bg-slate-800 border-none rounded-xl px-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold text-sm"
+              >
+                <option value="days">Days</option>
+                <option value="months">Months</option>
+              </select>
+            </div>
           </div>
         </div>
 

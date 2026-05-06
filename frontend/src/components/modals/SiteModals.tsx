@@ -398,7 +398,7 @@ add default-profile=pppoe-profile disabled=no interface=bridge-pppoe \
 
 # RADIUS Configuration
 /ppp aaa set use-radius=yes
-/radius add address=102.212.246.245 service=ppp,login,hotspot secret=p5D031tEhfRNXBwm
+/radius add address=10.30.30.1 service=ppp,login,hotspot secret=p5D031tEhfRNXBwm
 /radius incoming set accept=yes
 
 # WireGuard Configuration

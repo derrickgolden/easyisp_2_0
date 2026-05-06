@@ -23,6 +23,7 @@ import { AdminUser } from './types';
 import { toast } from 'sonner';
 import NotesTemplate from './components/cards/settingsCards/NotesTemplate';
 import { navItems } from './utils/navItems';
+import { clearLocalStorageData } from './constants/storage';
 
 const AUTH_KEY = 'easy-tech-auth';
 
@@ -48,7 +49,7 @@ const App: React.FC = () => {
     const handleUnauthorized = () => {
       setIsLoggingOut(true);
       setCurrentUser(null);
-      localStorage.removeItem(AUTH_KEY);
+      clearLocalStorageData();
       setAuthToken(null);
       showToast("Session expired. Please log in again.", "error");
     };
@@ -156,7 +157,7 @@ const App: React.FC = () => {
       console.error('Logout error:', error);
     } finally {
       setCurrentUser(null);
-      localStorage.removeItem(AUTH_KEY);
+      clearLocalStorageData();
       setAuthToken(null);
       showToast("Logged out safely", "info");
     }

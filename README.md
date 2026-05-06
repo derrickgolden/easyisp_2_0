@@ -43,7 +43,7 @@ php artisan reverb:install
 # after config start reverb
 php artisan reverb:start
 
-
+# how to insert new permissions
 Put app in maintenance mode (optional but safest for auth/role changes during peak usage).
 php artisan down
 
@@ -60,3 +60,5 @@ php artisan horizon:terminate
 Bring app back up.
 php artisan up
 
+# giving wireguard client permission to the server
+/etc/freeradius/3.0/clients.conf

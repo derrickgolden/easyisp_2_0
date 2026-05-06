@@ -273,7 +273,7 @@ console.log({technicalSpecs});
                         </div>
                         <p>
                         {/* <span className="font-bold text-sm text-gray-900 dark:text-white">Registered: </span> */}
-                          {new Date(customer.createdAt).toLocaleDateString()}
+                          {new Date(customer.createdAt).toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' })}
                         </p>
                     </div>
                     <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
@@ -321,12 +321,12 @@ console.log({technicalSpecs});
                   { customer?.extensionDate &&
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Extension Date</span>
-                      <span className="text-[10px] font-bold text-gray-500">{new Date(customer.extensionDate).toLocaleString()}</span>
+                      <span className="text-[10px] font-bold text-gray-500">{new Date(customer.extensionDate).toLocaleString('en-KE', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}</span>
                     </div>
                   }
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Expiry Date</span>
-                      <span className="text-[10px] font-bold text-gray-500">{new Date(customer.expiryDate).toLocaleString()}</span>
+                      <span className="text-[10px] font-bold text-gray-500">{new Date(customer.expiryDate).toLocaleString('en-KE', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}</span>
                     </div>
                     <p className={`text-xl font-black ${
                     effectivelyActive 

@@ -99,8 +99,9 @@ class SubscriptionService
         // 1. Deduct balance from the customer
         $customer->decrement('balance', $price);
 
-        // 2. Load validity days from the package (default to 30 if null)
-        $validityDays = $customer->package->validity_days ?? 30;
+        // 2. Load validity from the package
+        $validityDays = $customer->package->validity ?? 30;
+        $validityType = $customer->package->validity_type ?? 'days';
 
         // 3. Requirement 4: Calculate borrowed extension days
         $extensionDays = 0;
@@ -116,12 +117,13 @@ class SubscriptionService
             }
         }
 
-        // 4. Calculate final days to add (Validity - Borrowed Days)
-        // We use max(0, ...) to ensure we never subtract more days than the package has
-        $daysToAdd = max(0, $validityDays - $extensionDays); 
-        
-        // 5. Set new expiry date starting from NOW
-        $customer->expiry_date = Carbon::now()->addDays($daysToAdd)->endOfDay();
+        // 4. Set new expiry date starting from NOW, accounting for borrowed extension days
+        if ($validityType === 'months') {
+            $customer->expiry_date = Carbon::now()->addMonthsNoOverflow($validityDays)->subDays($extensionDays)->endOfDay();
+        } else {
+            $daysToAdd = max(0, $validityDays - $extensionDays);
+            $customer->expiry_date = Carbon::now()->addDays($daysToAdd)->endOfDay();
+        }
         
         // 6. Reset extension fields and status
         $customer->extension_date = null; 
@@ -130,9 +132,9 @@ class SubscriptionService
         $customer->save();
 
         \Log::info("Auto-Activation for {$customer->radius_username}: 
-            Package Validity: {$validityDays}, 
-            Extension Deducted: {$extensionDays}, 
-            Final Days Added: {$daysToAdd}");
+            Package Validity: {$validityDays} {$validityType}, 
+            Extension Deducted: {$extensionDays} days, 
+            New Expiry: {$customer->expiry_date}");
 
         return $this->applyActiveStatus($customer);
     }

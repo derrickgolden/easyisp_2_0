@@ -166,7 +166,7 @@ export const ChangePackageModal: React.FC<ChangePackageModalProps> = ({
                   </div>
                   <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-slate-700">
                     <span className="text-[10px] text-gray-500">
-                      {pkg.validity_days} days
+                      {pkg.validity} {pkg.validity_type === 'months' ? (pkg.validity === 1 ? 'month' : 'months') : (pkg.validity === 1 ? 'day' : 'days')}
                     </span>
                     <span className="text-lg font-black text-blue-600 dark:text-blue-400">
                       KSH {pkg.price.toLocaleString()}

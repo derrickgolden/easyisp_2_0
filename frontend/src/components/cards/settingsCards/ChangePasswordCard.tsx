@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card } from "../../UI";
 import { authApi, usersApi } from "../../../services/apiService";
-import { STORAGE_KEYS } from "../../../constants/storage";
+import { STORAGE_KEYS, clearLocalStorageData } from "../../../constants/storage";
 import { toast } from "sonner";
 
 const ChangePasswordCard = () => {
@@ -71,7 +71,7 @@ const ChangePasswordCard = () => {
         try {
           await authApi.logout();
         } finally {
-          localStorage.removeItem(STORAGE_KEYS.AUTH);
+          clearLocalStorageData();
           setTimeout(() => window.location.reload(), 800);
         }
         } catch (err: any) {

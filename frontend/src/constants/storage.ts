@@ -15,3 +15,15 @@ export const STORAGE_KEYS = {
   TICKETS: 'easy-tech-tickets',
   AUTH: 'easy-tech-auth',
 } as const;
+
+export const THEME_STORAGE_KEY = 'easy-tech-theme';
+
+export const clearLocalStorageData = () => {
+  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+
+  localStorage.clear();
+
+  if (savedTheme !== null) {
+    localStorage.setItem(THEME_STORAGE_KEY, savedTheme);
+  }
+};

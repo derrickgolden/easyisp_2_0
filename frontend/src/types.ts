@@ -59,7 +59,8 @@ export interface Package {
   speed_up: string;
   speed_down: string;
   price: number;
-  validity_days: number;
+  validity: number;
+  validity_type: 'days' | 'months';
   type: 'time' | 'data';
   // Burst configuration
   burst_limit_up?: string;
