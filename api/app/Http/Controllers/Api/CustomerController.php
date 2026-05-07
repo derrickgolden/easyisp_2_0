@@ -209,6 +209,15 @@ class CustomerController extends Controller
                 default => now()->addMinutes(30),
             };
 
+            // If creating a non-independent child, inherit the parent's expiry date
+            $isIndependent = filter_var($request->input('is_independent', false), FILTER_VALIDATE_BOOLEAN);
+            if ($isChild && !$isIndependent && !$request->filled('expiry_date')) {
+                $parent = Customer::find($request->input('parent_id'));
+                if ($parent && $parent->expiry_date) {
+                    $defaultExpiry = $parent->expiry_date;
+                }
+            }
+
             // Create customer first with a temporary username to get the ID
             $tempUsername = 'temp_' . uniqid();
             $customer = Customer::create(array_merge($customerData, [
@@ -391,6 +400,15 @@ class CustomerController extends Controller
             $customer->expiry_warning_sent_at = null; // Reset warning flag if expiry changes
             $customer->save();    
             $syncResult = $this->subscriptionService->syncSubscription($customer);
+
+            // Cascade expiry date to dependent (non-independent) sub-accounts
+            $dependentChildren = $customer->subAccounts()->where('is_independent', false)->get();
+            foreach ($dependentChildren as $child) {
+                $child->expiry_date = $customer->expiry_date;
+                $child->expiry_warning_sent_at = null;
+                $child->save();
+                $this->subscriptionService->syncSubscription($child);
+            }
         }
 
         return response()->json([

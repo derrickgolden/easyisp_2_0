@@ -30,7 +30,6 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
   const [isChangeDateModalOpen, setIsChangeDateModalOpen] = useState({open: false, type:''});
   const [callApi, setCallApi] = useState(false);
   const lastFetchKeyRef = React.useRef<string | null>(null);
-console.log({technicalSpecs});
   const { state, actions } = useCustomerActions();
   const { can } = usePermissions();
 
@@ -302,7 +301,7 @@ console.log({technicalSpecs});
           </div>
 
           {/* Subscription & Financial Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className={`grid grid-cols-1 ${(!customer.parentId || customer.isIndependent) ? 'md:grid-cols-2' : ''} gap-6`}>
             <Card title="Active Subscription" className="border-none shadow-sm rounded-[2.5rem] bg-blue-50/30 dark:bg-blue-900/5">
                <div className="space-y-4">
                  <div className="flex justify-between items-start">
@@ -342,6 +341,8 @@ console.log({technicalSpecs});
                  </div>
 
                  <div className="grid grid-cols-1 gap-2 pt-2">
+                  {!customer.parentId || customer.isIndependent ? ( 
+                    <>
                     <div className="grid grid-cols-2 gap-2">
                       <button 
                         onClick={() => actions.handlePauseService(customer)}
@@ -371,6 +372,16 @@ console.log({technicalSpecs});
                     >
                       Change Expiry Date
                     </button>
+                    </>
+                  ) : (
+                    <div className='pt-2'>
+                      <p className="text-sm text-gray-500 italic mb-2">This customer's subscription is managed by their parent account: <span className="font-bold text-gray-700">{parent?.firstName} {parent?.lastName}</span>.</p>
+                      <button onClick={() => parent && navigate(`/crm/customers/${parent.id}`)} 
+                        className="w-full p-3 bg-purple-100 dark:bg-purple-800 text-purple-600 dark:text-purple-300 rounded-lg text-[10px] font-black uppercase  tracking-[0.2em]">
+                        Switch To Parent Account
+                      </button>
+                    </div>
+                  )}
                     <button 
                       onClick={() => actions.setIsPackageModalOpen(true)}
                       disabled={!can('change-packages')}
@@ -382,7 +393,7 @@ console.log({technicalSpecs});
                </div>
             </Card>
 
-            <Card title="Financial Insight" className="border-none shadow-sm rounded-[2.5rem]">
+            {(!customer.parentId || customer.isIndependent) && <Card title="Financial Insight" className="border-none shadow-sm rounded-[2.5rem]">
                <div className="space-y-6">
                  <div className="flex items-center justify-between p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-800">
                     <div>
@@ -413,7 +424,7 @@ console.log({technicalSpecs});
                       </button>
                  </div>
                </div>
-            </Card>
+            </Card>}
           </div>
 
           {/* PAYMENT HISTORY LEDGER - AT BOTTOM */}
@@ -483,7 +494,7 @@ console.log({technicalSpecs});
                             <p className="text-sm font-bold text-gray-900 dark:text-white">{parent.firstName} {parent.lastName}</p>
                             <p className="text-[9px] text-gray-400 font-mono">@{parent.radiusUsername}</p>
                          </div>
-                         <button onClick={() => navigate(`/crm/customers/${parent.id}`)} className="px-3 py-1 bg-purple-100 dark:bg-purple-800 text-purple-600 dark:text-purple-300 rounded-lg text-[10px] font-black uppercase tracking-tighter">Switch</button>
+                         <button onClick={() => parent && navigate(`/crm/customers/${parent.id}`)} className="px-3 py-1 bg-purple-100 dark:bg-purple-800 text-purple-600 dark:text-purple-300 rounded-lg text-[10px] font-black uppercase tracking-tighter">Switch</button>
                       </div>
                    </div>
                  ) : (
@@ -505,9 +516,9 @@ console.log({technicalSpecs});
                    </div>
                  )}
 
-                 {customer.subAccounts?.length > 0 && (
+                 {(customer.subAccounts?.length ?? 0) > 0 && (
                    <div className="space-y-2 pt-2">
-                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-2">Sub-Accounts ({customer.subAccounts.length})</p>
+                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-2">Sub-Accounts ({customer.subAccounts?.length ?? 0})</p>
                       <div className="grid grid-cols-1 gap-2">
                         {customer.subAccounts?.map(child => {
 

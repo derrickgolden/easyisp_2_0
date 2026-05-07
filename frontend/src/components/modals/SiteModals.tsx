@@ -398,6 +398,7 @@ add default-profile=pppoe-profile disabled=no interface=bridge-pppoe \
 
 # RADIUS Configuration
 /ppp aaa set use-radius=yes
+/ppp aaa set interim-update=2m
 /radius add address=10.30.30.1 service=ppp,login,hotspot secret=p5D031tEhfRNXBwm
 /radius incoming set accept=yes
 

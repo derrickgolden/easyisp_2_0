@@ -196,8 +196,9 @@ class CustomerRadiusService
 
     public function disconnectCustomer($username)
     {
-        // Use the 'radius' connection to fetch sessions
-        $sessions = DB::connection('radius')
+        $radiusConnection = DB::connection('radius');
+
+        $sessions = $radiusConnection
             ->table('radacct')
             ->where('username', $username)
             ->whereNull('acctstoptime')
@@ -206,8 +207,21 @@ class CustomerRadiusService
         Log::info("--- START DISCONNECT: {$username} ---");
 
         if ($sessions->isEmpty()) {
-            Log::info("No active sessions found in DB for {$username}.");
-            return ['status' => false, 'message' => "⚠️ No active session found."];
+            $lastSession = $radiusConnection
+                ->table('radacct')
+                ->where('username', $username)
+                ->orderByDesc('radacctid')
+                ->first(['acctsessionid', 'nasipaddress', 'radacctid', 'acctterminatecause']);
+
+            if (!$lastSession || $lastSession->acctterminatecause !== 'Stale-Session') {
+                Log::info("No active session found, and latest session is not Stale-Session for {$username}.");
+
+                return ['status' => false, 'message' => "⚠️ No active session found, and latest session is not Stale-Session."];
+            }
+
+            $sessions = collect([$lastSession]);
+
+            Log::warning("No active sessions found for {$username}; attempting disconnect using latest stale-session record.");
         }
 
         $responses = [];

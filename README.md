@@ -62,3 +62,6 @@ php artisan up
 
 # giving wireguard client permission to the server
 /etc/freeradius/3.0/clients.conf
+
+# moving files for god admin
+cp -r /var/www/easyisp_2_0/admin/dist/* /var/www/easyisp_god_admin/

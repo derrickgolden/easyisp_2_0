@@ -131,6 +131,16 @@ class SubscriptionService
         $customer->status = 'active';
         $customer->save();
 
+        // Cascade new expiry to dependent (non-independent) sub-accounts
+        $customer->subAccounts()->where('is_independent', false)->each(function ($child) use ($customer) {
+            $child->expiry_date = $customer->expiry_date;
+            $child->extension_date = null;
+            $child->expiry_warning_sent_at = null;
+            $child->status = 'active';
+            $child->save();
+            $this->applyActiveStatus($child);
+        });
+
         \Log::info("Auto-Activation for {$customer->radius_username}: 
             Package Validity: {$validityDays} {$validityType}, 
             Extension Deducted: {$extensionDays} days, 
@@ -215,6 +225,11 @@ class SubscriptionService
     {
         // Skip if warning was already sent
         if ($customer->expiry_warning_sent_at) {
+            return;
+        }
+
+        // Skip dependent sub-accounts — their parent handles billing notifications
+        if ($customer->parent_id && !$customer->is_independent) {
             return;
         }
 

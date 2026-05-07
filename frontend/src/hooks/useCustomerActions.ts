@@ -64,6 +64,8 @@ export function useCustomerActions() {
         lastName: customer.lastName,
         phone: customer.phone,
         email: customer.email,
+        packageId: customer.packageId,
+        package: customer.package,
       }); 
       setIsCustomerModalOpen(true);
     }
