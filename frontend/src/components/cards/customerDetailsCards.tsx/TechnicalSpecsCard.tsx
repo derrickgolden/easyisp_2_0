@@ -265,7 +265,7 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
                           <button
                             onClick={() => onResetMAC(customer.id)}
                             disabled={isResettingMac}
-                            className={`w-1/2 py-2 text-yellow-800 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                            className={`w-1/2 py-2 text-yellow-800 border border-yellow-300 rounded-xl text-[12px] font-black uppercase tracking-widest transition-all ${
                               isResettingMac
                                 ? 'bg-yellow-100 opacity-60 cursor-not-allowed'
                                 : 'bg-yellow-100 hover:bg-yellow-200'
@@ -276,9 +276,9 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
                         )
                       }
                       <button onClick={() => setIsAccountingModalOpen(true)} 
-                        className="flex-1 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-xl text-[9px] 
-                        font-black uppercase tracking-widest transition-all">
-                          Sess Details
+                        className="flex-1 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-xl text-[12px] 
+                        border border-blue-300 font-black uppercase tracking-widest transition-all">
+                          In Detail
                       </button>
                     </div>
 

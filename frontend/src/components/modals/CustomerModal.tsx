@@ -30,7 +30,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
   const isSubAccount = !!editingCustomer?.parentId;
   const potentialParents = customers.filter(c => c.id !== editingCustomer?.id && !c.parentId);
   const labelClassName = 'text-[10px] font-black uppercase text-gray-600 dark:text-gray-200 tracking-widest ml-1';
-  const inputClassName = 'w-full border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 placeholder:font-normal placeholder:text-gray-300 dark:placeholder:text-gray-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-white';
+  const inputClassName = 'w-full border border-gray-300 dark:border-gray-700 focus:border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 placeholder:font-normal placeholder:text-gray-300 dark:placeholder:text-gray-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-white';
   const readOnlyInputClassName = 'w-full border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 placeholder:font-normal placeholder:text-gray-300 dark:placeholder:text-gray-600 bg-slate-200 dark:bg-slate-700 text-gray-500 cursor-not-allowed';
   const selectClassName = 'w-full border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 appearance-none bg-white dark:bg-slate-900 text-gray-900 dark:text-white';
 

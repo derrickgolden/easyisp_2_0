@@ -324,14 +324,7 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
                       </div>
                     </div>
                     {!(customer.parentId && !customer.isIndependent) && (
-                      <button onClick={openPriceOverrideModal}
-                          disabled={!can('change-packages')}
-                          className="flex-1 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-xl text-[9px] 
-                          font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed">Override{' '}
-                            <span className='text-blue-800'>
-                              KSH {displayedPackagePrice.toLocaleString()}
-                            </span>
-                      </button>
+                      <p className='text-2xl font-black text-green-700 leading-tight'>KSH {displayedPackagePrice.toLocaleString()}</p>
                     )}
                  </div>
 
@@ -387,7 +380,7 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
                     <button 
                       onClick={() => setIsChangeDateModalOpen({open: true, type: 'expiry'})}
                       disabled={!can('change-expiry')}
-                      className="w-full py-3 border border-red-200 dark:border-blue-800 text-red-600 dark:text-red-400 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-red-50 dark:hover:bg-red-900/10 transition-all"
+                      className="w-full py-3 border border-red-200 dark:border-blue-800 text-red-600 dark:text-red-400 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] bg-red-100 dark:bg-red-900/10 hover:bg-red-200 dark:hover:bg-red-900/20 transition-all"
                     >
                       Change Expiry Date
                     </button>
@@ -401,13 +394,21 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
                       </button>
                     </div>
                   )}
+                  <div className="grid grid-cols-2 gap-2">
                     <button 
                       onClick={() => actions.setIsPackageModalOpen(true)}
                       disabled={!can('change-packages')}
-                      className="w-full py-3 border border-dashed border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all"
-                    >
-                      Change Subscription Plan
+                        className="flex items-center justify-center gap-2 py-3 bg-gray-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-gray-500/20 hover:bg-gray-700 transition-all"
+                      >
+                      Change Package
                     </button>
+                    <button onClick={openPriceOverrideModal}
+                      disabled={!can('change-packages')}
+                        className="flex items-center justify-center gap-2 py-3 bg-yellow-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-yellow-500/20 hover:bg-yellow-700 transition-all"
+                        >
+                        Override Price
+                    </button>
+                  </div>
                  </div>
                </div>
             </Card>
@@ -438,7 +439,7 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
                       </button>
                     <button onClick={() => actions.setIsReconcileModalOpen(true)}
                       disabled={!can('manage-payments')} 
-                      className="py-3 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-[10px] font-black uppercase rounded-xl transition-all hover:bg-gray-50 dark:hover:bg-slate-800">
+                      className="py-3 border border-slate-200 dark:border-slate-700 text-white text-[10px] font-black uppercase rounded-xl transition-all bg-green-700 hover:bg-green-900 dark:hover:bg-green-800">
                         Reconcile M-Pesa
                       </button>
                  </div>
