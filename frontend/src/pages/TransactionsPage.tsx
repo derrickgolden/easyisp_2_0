@@ -5,6 +5,7 @@ import { Transaction } from '../types';
 import { transactionsApi } from '../services/apiService';
 import { STORAGE_KEYS } from '../constants/storage';
 import { toast } from 'sonner';
+import TableScrollModal from '../components/modals/TableScrollModal';
 
 export const TransactionsPage: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>(
@@ -12,21 +13,34 @@ export const TransactionsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   useEffect(() => {
     fetchTransactions();
-  }, [setTransactions]);
+  }, [currentPage, rowsPerPage, debouncedSearch]);
   
-  const fetchTransactions = async (isRefresh = false) => {
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1);
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [searchTerm]);
+
+  const fetchTransactions = async (isRefresh = false, page = currentPage) => {
     setIsSyncing(true);
     try {
-      const transactionsRes = await transactionsApi.getAll();
+      const transactionsRes = await transactionsApi.getAll(page, rowsPerPage, debouncedSearch);
 
       const transactionsList = transactionsRes.data || [];
       const filteredTransactions = transactionsList.map((t: any) => ({
         id: t.id.toString(),
         customer_id: t.customer_id.toString(),
-        customer_name: '',
+        customer_name: [t.customer?.first_name, t.customer?.last_name].filter(Boolean).join(' '),
         amount: t.amount,
         type: t.type,
         category: t.category,
@@ -39,6 +53,8 @@ export const TransactionsPage: React.FC = () => {
       }));
 
       setTransactions(filteredTransactions);
+      setTotalPages(transactionsRes.last_page || 1);
+      setCurrentPage(transactionsRes.current_page || page);
 
       localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(filteredTransactions));
 
@@ -52,12 +68,7 @@ export const TransactionsPage: React.FC = () => {
       setIsSyncing(false);
     }
   };
-  const filteredTransactions = transactions.filter(tx => 
-    tx.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tx.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tx.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tx.reference_id?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const displayedTransactions = transactions;
 
   const onExport = () => {
     if (transactions.length === 0) {
@@ -154,7 +165,7 @@ export const TransactionsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y dark:divide-slate-800">
-              {filteredTransactions.map((tx) => (
+              {displayedTransactions.map((tx) => (
                 <tr key={tx.id} className="group hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-all">
                   <td className="py-4 px-6 font-mono font-bold text-gray-500 text-[10px]">#{tx.id}</td>
                   <td className="py-4 px-6">
@@ -189,9 +200,22 @@ export const TransactionsPage: React.FC = () => {
                   </td>
                 </tr>
               ))}
+              {displayedTransactions.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="py-20 text-center text-gray-400 italic">No transactions found matching your search. Try adjusting your filters.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
+
+        <TableScrollModal 
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          totalPages={totalPages}
+          rowsPerPage={rowsPerPage}
+          setRowsPerPage={setRowsPerPage}
+        />
       </Card>
 
       {/* TRANSACTION DETAILS MODAL */}

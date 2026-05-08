@@ -156,6 +156,7 @@ class CustomerController extends Controller
             'apartment' => 'nullable|string',
             'house_no' => 'nullable|string',
             'package_id' => 'required|exists:packages,id',
+            'custom_package_price' => 'nullable|numeric|min:0',
             'site_id' => [
                 'nullable',
                 Rule::exists('sites', 'id')->where(fn ($query) => $query->where('organization_id', $orgId)),
@@ -321,6 +322,7 @@ class CustomerController extends Controller
             'apartment' => 'nullable|string',
             'house_no' => 'nullable|string',
             'package_id' => 'sometimes|exists:packages,id',
+            'custom_package_price' => 'nullable|numeric|min:0',
             'site_id' => [
                 'nullable',
                 Rule::exists('sites', 'id')->where(fn ($query) => $query->where('organization_id', $customer->organization_id)),

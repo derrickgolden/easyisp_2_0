@@ -15,6 +15,7 @@ import PaymentHistoryCard from '../components/cards/customerDetailsCards.tsx/Pay
 import SmsModal from '../components/modals/SmsModal';
 import SmsLogsCard from '../components/cards/customerDetailsCards.tsx/SmsLogsCard';
 import { usePermissions } from '../hooks/usePermissions';
+import { PriceOverrideModal } from '../components/modals/PriceOverrideModal.tsx';
 
 interface CustomerDetailPageProps {}
 
@@ -28,6 +29,7 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
   const [error, setError] = useState<string | null>(null);
   const [technicalSpecs, setTechnicalSpecs] = useState<TechnicalSpec>();
   const [isChangeDateModalOpen, setIsChangeDateModalOpen] = useState({open: false, type:''});
+  const [isPriceOverrideModalOpen, setIsPriceOverrideModalOpen] = useState(false);
   const [callApi, setCallApi] = useState(false);
   const lastFetchKeyRef = React.useRef<string | null>(null);
   const { state, actions } = useCustomerActions();
@@ -70,6 +72,10 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
   const isParentActive = useMemo(() => parent ? parent.status === 'active' : true, [parent?.status]);
   const isCutDueToParent = useMemo(() => parent && !customer?.isIndependent && !isParentActive, [parent, customer?.isIndependent, isParentActive]);
   const effectivelyActive = useMemo(() => customer?.status === 'active' && !isCutDueToParent, [customer?.status, isCutDueToParent]);
+  const displayedPackagePrice = useMemo(
+    () => customer?.effectivePackagePrice ?? customer?.package?.price ?? 0,
+    [customer?.effectivePackagePrice, customer?.package?.price]
+  );
 
   // Fetch customer and related data
   useEffect(() => {
@@ -120,6 +126,10 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
     } catch (error) {
       console.error('Error fetching payments:', error);
     }
+  };
+
+  const openPriceOverrideModal = () => {
+    setIsPriceOverrideModalOpen(true);
   };
 
   if (isLoading) {
@@ -313,7 +323,16 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
                         <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">{customer.package?.speed_down} Plan</span>
                       </div>
                     </div>
-                    <p className="text-2xl font-black text-blue-600">KSH {customer.package?.price.toLocaleString()}</p>
+                    {!(customer.parentId && !customer.isIndependent) && (
+                      <button onClick={openPriceOverrideModal}
+                          disabled={!can('change-packages')}
+                          className="flex-1 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-xl text-[9px] 
+                          font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed">Override{' '}
+                            <span className='text-blue-800'>
+                              KSH {displayedPackagePrice.toLocaleString()}
+                            </span>
+                      </button>
+                    )}
                  </div>
 
                  <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-blue-100 dark:border-blue-900/20">
@@ -599,6 +618,16 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
         onClose={() => actions.setIsReconcileModalOpen(false)}
         onSuccess={() => setCallApi(!callApi)}
       />  
+
+      <PriceOverrideModal
+        isOpen={isPriceOverrideModalOpen}
+        onClose={() => setIsPriceOverrideModalOpen(false)}
+        customerId={customer.id}
+        currentEffectivePrice={displayedPackagePrice}
+        defaultPackagePrice={customer.package?.price ?? 0}
+        initialCustomPrice={customer.customPackagePrice}
+        onSuccess={() => setCallApi(prev => !prev)}
+      />
 
     </div>
   );

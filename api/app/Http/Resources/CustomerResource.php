@@ -26,6 +26,8 @@ class CustomerResource extends JsonResource
             'location' => $this->location,
             'connectionType' => $this->connection_type,
             'packageId' => (string) $this->package_id,
+            'customPackagePrice' => $this->custom_package_price !== null ? (float) $this->custom_package_price : null,
+            'effectivePackagePrice' => $this->effective_package_price !== null ? (float) $this->effective_package_price : null,
             'siteId' => $this->site_id ? (string) $this->site_id : null,
             'installationFee' => (float) $this->installation_fee,
             'status' => $this->status,

@@ -783,7 +783,7 @@ export const CustomersPage: React.FC = () => {
               placeholder="Search by name, username, phone or email..." 
               value={searchTerm}
               onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 dark:text-white"
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-200 dark:bg-slate-700 border border-gray-500 dark:border-transparent rounded-xl text-sm focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 dark:text-white"
             />
           </div>
           <div className="flex items-center gap-4">

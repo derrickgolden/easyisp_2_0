@@ -26,27 +26,27 @@ class CloseStaleRadiusSessions extends Command
      */
     public function handle(): int
     {
-        // $this->info('Closing stale RADIUS sessions...');
+        $this->info('Closing stale RADIUS sessions...');
 
-        // try {
-        //     $affectedRows = DB::connection('radius')->affectingStatement("
-        //         UPDATE radacct
-        //         SET
-        //             acctstoptime = NOW(),
-        //             acctterminatecause = 'Stale-Session'
-        //         WHERE
-        //             acctstoptime IS NULL
-        //             AND acctupdatetime IS NOT NULL
-        //             AND acctupdatetime < (NOW() - INTERVAL 10 MINUTE)
-        //             AND acctstarttime < (NOW() - INTERVAL 15 MINUTE)
-        //     ");
-        // } catch (\Throwable $exception) {
-        //     $this->error('Failed to close stale RADIUS sessions: '.$exception->getMessage());
+        try {
+            $affectedRows = DB::connection('radius')->affectingStatement("
+                UPDATE radacct
+                SET
+                    acctstoptime = NOW(),
+                    acctterminatecause = 'Stale-Session'
+                WHERE
+                    acctstoptime IS NULL
+                    AND acctupdatetime IS NOT NULL
+                    AND acctupdatetime < (NOW() - INTERVAL 10 MINUTE)
+                    AND acctstarttime < (NOW() - INTERVAL 15 MINUTE)
+            ");
+        } catch (\Throwable $exception) {
+            $this->error('Failed to close stale RADIUS sessions: '.$exception->getMessage());
 
-        //     return self::FAILURE;
-        // }
+            return self::FAILURE;
+        }
 
-        // $this->info("Closed {$affectedRows} stale RADIUS session(s).");
+        $this->info("Closed {$affectedRows} stale RADIUS session(s).");
 
         return self::SUCCESS;
     }

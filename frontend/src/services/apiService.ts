@@ -495,13 +495,20 @@ export const paymentsApi = {
 
 // Transactions Endpoints
 export const transactionsApi = {
-  getAll: async (page = 1) => {
-    const response = await axiosInstance.get(`/transactions?page=${page}`);
+  getAll: async (page = 1, perPage = 10, search = '') => {
+    const query = new URLSearchParams();
+    query.append('page', String(page));
+    query.append('per_page', String(perPage));
+    if (search.trim()) {
+      query.append('search', search.trim());
+    }
+
+    const response = await axiosInstance.get(`/transactions?${query.toString()}`);
     return response.data;
   },
 
-  getByCustomer: async (customerId: string, page = 1) => {
-    const response = await axiosInstance.get(`/transactions/customer/${customerId}?page=${page}`);
+  getByCustomer: async (customerId: string, page = 1, perPage = 10) => {
+    const response = await axiosInstance.get(`/transactions/customer/${customerId}?page=${page}&per_page=${perPage}`);
     return response.data;
   },
 

@@ -92,6 +92,8 @@ export interface Customer {
   location: string;
   connectionType: 'PPPoE' | 'Static IP' | 'DHCP';
   packageId: string;
+  customPackagePrice?: number | null;
+  effectivePackagePrice?: number;
   siteId?: string; // Linked network site
   installationFee: number;
   status: 'active' | 'expired' | 'suspended';

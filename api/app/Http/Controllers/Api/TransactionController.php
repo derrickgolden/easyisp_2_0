@@ -19,11 +19,29 @@ class TransactionController extends Controller
 
     public function index(Request $request)
     {
-        $transactions = Transaction::where('organization_id', 
-            $request->user()
-            ->organization_id)
-            ->latest()
-            ->paginate(15);
+        $organizationId = $request->user()->organization_id;
+        $perPage = (int) $request->get('per_page', 10);
+        $search = trim((string) $request->get('search', ''));
+
+        $transactionsQuery = Transaction::with('customer:id,first_name,last_name')
+            ->where('organization_id', $organizationId)
+            ->latest();
+
+        if ($search !== '') {
+            $transactionsQuery->where(function ($query) use ($search) {
+                $query->where('id', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhere('reference_id', 'like', "%{$search}%")
+                    ->orWhere('method', 'like', "%{$search}%")
+                    ->orWhereHas('customer', function ($customerQuery) use ($search) {
+                        $customerQuery->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
+                            ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$search}%"]);
+                    });
+            });
+        }
+
+        $transactions = $transactionsQuery->paginate($perPage);
             
         return response()->json($transactions);
     }
@@ -72,7 +90,7 @@ class TransactionController extends Controller
             if ($request->type === 'credit') {
                 $customerForSync = $customer->fresh(['package']);
                 $wasExpired = $customerForSync->status === 'expired';
-                $packagePrice = $customerForSync->package?->price;
+                $packagePrice = $customerForSync->effective_package_price;
                 $canAutoRenew = $wasExpired && $packagePrice !== null && $customerForSync->balance >= $packagePrice;
                 $isOnline = false;
 
@@ -111,11 +129,15 @@ class TransactionController extends Controller
         }
     }
 
-    public function getByCustomer($customerId)
+    public function getByCustomer(Request $request, $customerId)
     {
+        $perPage = (int) $request->get('per_page', 10);
+
         $transactions = Transaction::where('customer_id', $customerId)
+            ->where('organization_id', $request->user()->organization_id)
             ->latest()
-            ->paginate(15);
+            ->paginate($perPage);
+
         return response()->json($transactions);
     }
 

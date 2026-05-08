@@ -37,9 +37,9 @@ class SubscriptionService
        
         if ($effectiveDate->isPast()) {
             // Customer is expired - check if they have enough balance to auto-renew
-            $packagePrice = $customer->package->price; // Assuming relationship exists
+            $packagePrice = $customer->effective_package_price;
 
-            if ($customer->balance >= $packagePrice) {
+            if ($packagePrice !== null && $customer->balance >= $packagePrice) {
                 $isOnline = DB::connection('radius')->table('radacct')
                     ->where('username', $customer->radius_username)
                     ->whereNull('acctstoptime')
@@ -377,7 +377,7 @@ class SubscriptionService
             '{Isp}' => $organization->name ?? 'ISP',
             '{PackageName}' => $customer->package->name ?? '',
             '{PaidAmount}' => '0',
-            '{PackageAmount}' => (string) ($customer->package->price ?? 0),
+            '{PackageAmount}' => (string) ($customer->effective_package_price ?? 0),
             '{PhoneNumber}' => $customer->phone ?? '',
             ...$replacements,
         ]), array_values([
@@ -386,7 +386,7 @@ class SubscriptionService
             '{Isp}' => $organization->name ?? 'ISP',
             '{PackageName}' => $customer->package->name ?? '',
             '{PaidAmount}' => '0',
-            '{PackageAmount}' => (string) ($customer->package->price ?? 0),
+            '{PackageAmount}' => (string) ($customer->effective_package_price ?? 0),
             '{PhoneNumber}' => $customer->phone ?? '',
             ...$replacements,
         ]), $content);

@@ -14,6 +14,7 @@ class Customer extends Model
         'organization_id',
         'parent_id',
         'package_id',
+        'custom_package_price',
         'site_id',
         'first_name',
         'last_name',
@@ -44,6 +45,7 @@ class Customer extends Model
 
     protected $casts = [
         'installation_fee' => 'decimal:2',
+        'custom_package_price' => 'decimal:2',
         'expiry_date' => 'datetime',
         'extension_date' => 'datetime',
         'expiry_warning_sent_at' => 'datetime',
@@ -94,6 +96,19 @@ class Customer extends Model
     public function getFullNameAttribute()
     {
         return "{$this->first_name} {$this->last_name}";
+    }
+
+    public function getEffectivePackagePriceAttribute()
+    {
+        if ($this->custom_package_price !== null) {
+            return (float) $this->custom_package_price;
+        }
+
+        if ($this->package?->price !== null) {
+            return (float) $this->package->price;
+        }
+
+        return null;
     }
 
     public function getExpiryDateAttribute($value)

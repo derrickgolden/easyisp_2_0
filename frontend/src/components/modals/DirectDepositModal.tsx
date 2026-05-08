@@ -13,9 +13,12 @@ interface DirectDepositModalProps {
 
 export const DirectDepositModal: React.FC<DirectDepositModalProps> = ({ isOpen, setIsDepositModalOpen, customer, onSuccess }) => {
     const [depositForm, setDepositForm] = React.useState<{amount: string; reason: string}>({ amount: '', reason: '' });
+    const [isSubmitting, setIsSubmitting] = React.useState(false);
 
     const handleDepositSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isSubmitting) return;
+
         if (!depositForm.amount || !depositForm.reason) {
             toast.warning("Amount and reason are required");
             return;
@@ -32,6 +35,7 @@ export const DirectDepositModal: React.FC<DirectDepositModalProps> = ({ isOpen, 
         const category = signedAmount < 0 ? 'Adjustment' : 'Deposit';
 
         try {
+            setIsSubmitting(true);
             const response = await transactionsApi.create({
                 customer_id: customer.id,
                 amount: absoluteAmount,
@@ -49,6 +53,8 @@ export const DirectDepositModal: React.FC<DirectDepositModalProps> = ({ isOpen, 
         } catch (error) {
             console.error('Error creating deposit:', error);
             toast.error('Failed to apply deposit. Please try again.');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -78,7 +84,13 @@ export const DirectDepositModal: React.FC<DirectDepositModalProps> = ({ isOpen, 
                         className="w-full bg-gray-50 dark:bg-slate-800 p-4 rounded-xl font-bold border-none mt-1 focus:ring-2 focus:ring-blue-500 text-sm" 
                     />
                     </div>
-                    <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-black shadow-lg hover:bg-blue-500 transition-all active:scale-95">Apply Manual Credit</button>
+                    <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="w-full bg-blue-600 text-white py-4 rounded-xl font-black shadow-lg hover:bg-blue-500 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
+                    >
+                        {isSubmitting ? 'Applying...' : 'Apply Manual Credit'}
+                    </button>
                 </form>
             </Modal>
         );
