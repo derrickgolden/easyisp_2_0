@@ -119,10 +119,12 @@ class CustomerController extends Controller
         return CustomerResource::collection($customers);
     }
 
-    public function showWithRelations($id)
+    public function showWithRelations(Request $request, $id)
     {
         // Load everything in one go or via lazy-loading
-        $customer = Customer::with(['package', 'site', 'parent', 'subAccounts'])->find($id);
+        $customer = Customer::with(['package', 'site', 'parent', 'subAccounts'])
+            ->where('organization_id', $request->user()->organization_id)
+            ->find($id);
 
         if (!$customer) {
             return response()->json(['message' => 'Customer not found'], 404);
@@ -166,7 +168,10 @@ class CustomerController extends Controller
             'balance' => 'sometimes|numeric|min:0',
             'ip_address' => 'nullable|string',
             'mac_address' => 'nullable|string',
-            'parent_id' => 'nullable|exists:customers,id',
+            'parent_id' => [
+                'nullable',
+                Rule::exists('customers', 'id')->where(fn ($query) => $query->where('organization_id', $orgId)),
+            ],
             'is_independent' => 'sometimes|boolean',
         ]);
         if ($validator->fails()) {
@@ -210,10 +215,18 @@ class CustomerController extends Controller
                 default => now()->addMinutes(30),
             };
 
+            // Enforce that parent account belongs to same organization
+            if ($request->filled('parent_id')) {
+                $parentInOrg = Customer::where('organization_id', $orgId)->find($request->input('parent_id'));
+                if (!$parentInOrg) {
+                    return response()->json(['errors' => ['parent_id' => ['Selected parent account is invalid.']]], 422);
+                }
+            }
+
             // If creating a non-independent child, inherit the parent's expiry date
             $isIndependent = filter_var($request->input('is_independent', false), FILTER_VALIDATE_BOOLEAN);
             if ($isChild && !$isIndependent && !$request->filled('expiry_date')) {
-                $parent = Customer::find($request->input('parent_id'));
+                $parent = Customer::where('organization_id', $orgId)->find($request->input('parent_id'));
                 if ($parent && $parent->expiry_date) {
                     $defaultExpiry = $parent->expiry_date;
                 }
@@ -283,9 +296,9 @@ class CustomerController extends Controller
         }
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
-        $customer = Customer::find($id);
+        $customer = Customer::where('organization_id', $request->user()->organization_id)->find($id);
         if (!$customer) {
             return response()->json(['message' => 'Customer not found'], 404);
         }
@@ -308,7 +321,7 @@ class CustomerController extends Controller
             return response()->json(['message' => 'Unauthorized to adjust customer balances'], 403);
         }
 
-        $customer = Customer::find($id);
+        $customer = Customer::where('organization_id', $request->user()->organization_id)->find($id);
         if (!$customer) {
             return response()->json(['message' => 'Customer not found'], 404);
         }
@@ -424,7 +437,9 @@ class CustomerController extends Controller
     public function destroy(Request $request, $id)
     {
         // Load subAccounts to check for existence
-        $customer = Customer::with('subAccounts')->findOrFail($id);
+        $customer = Customer::with('subAccounts')
+            ->where('organization_id', $request->user()->organization_id)
+            ->findOrFail($id);
 
         // If they have sub-accounts and the admin didn't confirm "cascade"
         if ($customer->subAccounts->count() > 0 && !$request->has('cascade')) {
@@ -455,8 +470,12 @@ class CustomerController extends Controller
         });
     }
 
-    public function pauseSubscription(Customer $customer)
+    public function pauseSubscription(Request $request, Customer $customer)
     {
+        if ((int) $customer->organization_id !== (int) $request->user()->organization_id) {
+            return response()->json(['message' => 'Customer not found'], 404);
+        }
+
         $now = Carbon::now();
         $expiry = Carbon::parse($customer->expiry_date);
 
@@ -479,8 +498,12 @@ class CustomerController extends Controller
         ]);
     }
 
-    public function resumeSubscription(Customer $customer)
+    public function resumeSubscription(Request $request, Customer $customer)
     {
+        if ((int) $customer->organization_id !== (int) $request->user()->organization_id) {
+            return response()->json(['message' => 'Customer not found'], 404);
+        }
+
         if ($customer->status !== 'suspended') {
             return response()->json([
                 'message' => 'Service is not paused',
@@ -515,9 +538,9 @@ class CustomerController extends Controller
     /**
      * Sync a specific customer to RADIUS database
      */
-    public function syncToRadius($id)
+    public function syncToRadius(Request $request, $id)
     {
-        $customer = Customer::find($id);
+        $customer = Customer::where('organization_id', $request->user()->organization_id)->find($id);
         if (!$customer) {
             return response()->json(['message' => 'Customer not found'], 404);
         }
@@ -565,9 +588,9 @@ class CustomerController extends Controller
     /**
      * Get RADIUS sync status for a customer
      */
-    public function getRadiusStatus($id)
+    public function getRadiusStatus(Request $request, $id)
     {
-        $customer = Customer::find($id);
+        $customer = Customer::where('organization_id', $request->user()->organization_id)->find($id);
         if (!$customer) {
             return response()->json(['message' => 'Customer not found'], 404);
         }
@@ -604,9 +627,9 @@ class CustomerController extends Controller
     /**
      * Reset/Flush MAC binding for a customer (remove and re-add to RADIUS)
      */
-    public function resetMacBinding($id)
+    public function resetMacBinding(Request $request, $id)
     {
-        $customer = Customer::find($id);
+        $customer = Customer::where('organization_id', $request->user()->organization_id)->find($id);
         if (!$customer) {
             return response()->json(['message' => 'Customer not found'], 404);
         }

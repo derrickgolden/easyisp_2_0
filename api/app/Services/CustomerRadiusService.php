@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Exception;
 use App\Models\Customer;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -311,9 +312,9 @@ class CustomerRadiusService
             ->delete();
     }
 
-    public function getTechnicalSpecs($id)
+    public function getTechnicalSpecs(Request $request, $id)
     {
-        $customer = Customer::find($id);
+        $customer = Customer::where('organization_id', $request->user()->organization_id)->find($id);
         if (!$customer) {
             throw new Exception("Customer not found");
         }
