@@ -4,6 +4,8 @@ namespace App\Console\Commands;
 
 use App\Events\RandomNumberBroadcasted;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class BroadcastRandomNumber extends Command
 {
@@ -26,21 +28,33 @@ class BroadcastRandomNumber extends Command
      */
     public function handle(): int
     {
-        $min = (int) $this->option('min');
-        $max = (int) $this->option('max');
+        try {
+            $min = (int) $this->option('min');
+            $max = (int) $this->option('max');
 
-        if ($min >= $max) {
-            $this->error('The min option must be less than max.');
+            if ($min >= $max) {
+                $this->error('The min option must be less than max.');
+
+                return self::FAILURE;
+            }
+
+            $number = random_int($min, $max);
+
+            event(new RandomNumberBroadcasted($number));
+
+            $this->info("Broadcasted random number: {$number}");
+
+            return self::SUCCESS;
+        } catch (Throwable $exception) {
+            Log::error('Random number broadcast failed', [
+                'message' => $exception->getMessage(),
+                'class' => $exception::class,
+                'trace' => $exception->getTraceAsString(),
+            ]);
+
+            $this->error('Random number broadcast failed: '.$exception->getMessage());
 
             return self::FAILURE;
         }
-
-        $number = random_int($min, $max);
-
-        event(new RandomNumberBroadcasted($number));
-
-        $this->info("Broadcasted random number: {$number}");
-
-        return self::SUCCESS;
     }
 }
