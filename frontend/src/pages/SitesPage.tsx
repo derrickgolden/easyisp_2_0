@@ -8,6 +8,12 @@ import { ConfigModal, IPAMModal, SiteProvisionModal } from '../components/modals
 import { toast } from 'sonner';
 import { usePermissions } from '../hooks/usePermissions';
 import Swal from 'sweetalert2';
+import echo from '../echo';
+
+type RandomNumberEvent = {
+  number?: number;
+  generatedAt?: string;
+};
 
 export const SitesPage: React.FC = () => {
   const [sites, setSites] = useState<Site[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.SITES) || '[]'));
@@ -17,10 +23,29 @@ export const SitesPage: React.FC = () => {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
   const [rebootingSiteId, setRebootingSiteId] = useState<string | null>(null);
+  const [latestRandomNumber, setLatestRandomNumber] = useState<number | null>(null);
+  const [latestRandomAt, setLatestRandomAt] = useState<string | null>(null);
   const { can } = usePermissions();
 
   useEffect(() => {
     fetchSites();
+  }, []);
+
+  useEffect(() => {
+    echo.channel('test.random-numbers')
+      .listen('.test.random-number', (event: RandomNumberEvent) => {
+        if (typeof event.number === 'number') {
+          setLatestRandomNumber(event.number);
+        }
+
+        if (event.generatedAt) {
+          setLatestRandomAt(event.generatedAt);
+        }
+      });
+
+    return () => {
+      echo.leave('test.random-numbers');
+    };
   }, []);
 
   const fetchSites = async () => {
@@ -119,6 +144,7 @@ export const SitesPage: React.FC = () => {
     }
   };
 
+
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
       <div className="flex justify-between items-center">
@@ -135,8 +161,8 @@ export const SitesPage: React.FC = () => {
           )
         }
       </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {sites.map(site => (
           <Card key={site.id} title={site.location}>
             <div className="flex justify-between items-start mb-4">
@@ -204,6 +230,22 @@ export const SitesPage: React.FC = () => {
           </Card>
         ))}
       </div>
+
+      <Card title="Reverb Test Stream - Under construction">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Latest random number</p>
+            <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+              {latestRandomNumber ?? '--'}
+            </p>
+          </div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            {latestRandomAt
+              ? `Received at ${new Date(latestRandomAt).toLocaleString()}`
+              : 'Waiting for broadcast...'}
+          </div>
+        </div>
+      </Card>
 
       <SiteProvisionModal 
         isOpen={isSiteProvisionOpen} 

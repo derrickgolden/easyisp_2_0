@@ -173,7 +173,7 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
           <span className='hidden sm:block'>Back to customers</span>
         </button>
         
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {/* {can('stk-push') && (
           <button 
             onClick={() => actions.handleStkPush(customer)}
@@ -504,7 +504,7 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
           </Card>
 
           {/* Relational Hierarchy with Sub-Account Details */}
-           <Card title="Relational Hierarchy" className="rounded-[2.5rem] border-none shadow-sm bg-purple-50/50 dark:bg-purple-900/5">
+           <Card title="Relational Hierarchy" className="rounded-[2.5rem] border border-purple-300 dark:border-purple-800 shadow-sm bg-purple-50/50 dark:bg-purple-900/5">
               <div className="space-y-4">
                  {parent ? (
                    <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-purple-200 dark:border-purple-800 shadow-sm">

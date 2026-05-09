@@ -15,6 +15,10 @@ class Kernel extends ConsoleKernel
         // $schedule->command('mikrotik:poll-users')->everySecond();
         // $schedule->command('app:poll-traffic')->everySecond();
 
+        if ((bool) env('REVERB_RANDOM_TEST_ENABLED', false)) {
+            $schedule->command('reverb:broadcast-random')->everySecond();
+        }
+
         // Use the $schedule variable provided in the function arguments
         $schedule->command('router:sync-status')->everyMinute();
 

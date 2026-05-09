@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\SmsController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\MikrotikController;
+use App\Events\RandomNumberBroadcasted;
 use App\Services\CustomerRadiusService;
 
 /*
@@ -85,6 +86,37 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     // Dashboard routes
     Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
     Route::get('/dashboard/revenue-chart', [DashboardController::class, 'getRevenueChart']);
+
+    // Reverb test routes
+    Route::post('/reverb/test/random-number', function (Request $request) {
+        $data = $request->validate([
+            'min' => ['nullable', 'integer'],
+            'max' => ['nullable', 'integer'],
+        ]);
+
+        $min = $data['min'] ?? 1;
+        $max = $data['max'] ?? 9999;
+
+        if ($min >= $max) {
+            return response()->json([
+                'message' => 'The min value must be less than max.',
+            ], 422);
+        }
+
+        $number = random_int($min, $max);
+
+        event(new RandomNumberBroadcasted($number));
+
+        return response()->json([
+            'message' => 'Random number broadcasted successfully.',
+            'channel' => 'test.random-numbers',
+            'event' => 'test.random-number',
+            'data' => [
+                'number' => $number,
+                'generatedAt' => now()->toIso8601String(),
+            ],
+        ]);
+    })->middleware('throttle:30,1');
     
     Route::get('/mikrotik/user-traffic', [MikrotikController::class, 'getUserTraffic']);
     
