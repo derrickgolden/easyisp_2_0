@@ -146,7 +146,7 @@ export const Layout: React.FC<LayoutProps> = ({
   };
 
   return (
-    <div className="min-h-dvh w-full flex bg-gray-50 dark:bg-slate-950 transition-all duration-300 font-sans">
+    <div className="min-h-dvh w-full flex bg-gray-200 dark:bg-slate-950 transition-all duration-300 font-sans">
       {/* Overlay for mobile sidebar */}
       {isSidebarOpen && (
         <div 

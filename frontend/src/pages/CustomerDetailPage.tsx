@@ -165,7 +165,7 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
       <div className="flex md:items-center justify-between gap-4">
         <button 
           onClick={() =>navigate('/crm/customers')}
-          className="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-blue-600 transition-colors w-fit group"
+          className="hidden sm:flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-blue-600 transition-colors w-fit group"
         >
           <div className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-gray-100 dark:border-slate-800 group-hover:border-blue-500 transition-all">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
@@ -312,7 +312,7 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
 
           {/* Subscription & Financial Row */}
           <div className={`grid grid-cols-1 ${(!customer.parentId || customer.isIndependent) ? 'md:grid-cols-2' : ''} gap-6`}>
-            <Card title="Active Subscription" className="border-none shadow-sm rounded-[2.5rem] bg-blue-50/30 dark:bg-blue-900/5">
+            <Card title="Active Subscription" className="border border-blue-300 dark:border-blue-900/50 shadow-sm rounded-[2.5rem] bg-blue-50/30 dark:bg-blue-900/5">
                <div className="space-y-4">
                  <div className="flex justify-between items-start">
                     <div>
