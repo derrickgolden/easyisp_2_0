@@ -89,6 +89,12 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
 
     // Reverb test routes
     Route::post('/reverb/test/random-number', function (Request $request) {
+        if (! filter_var(env('REVERB_RANDOM_TEST_ENABLED', false), FILTER_VALIDATE_BOOL)) {
+            return response()->json([
+                'message' => 'Random number broadcasting is disabled.',
+            ], 503);
+        }
+
         $data = $request->validate([
             'min' => ['nullable', 'integer'],
             'max' => ['nullable', 'integer'],

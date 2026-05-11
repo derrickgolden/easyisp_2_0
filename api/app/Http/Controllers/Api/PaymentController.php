@@ -206,7 +206,6 @@ class PaymentController extends Controller
             'environment' => 'nullable|string',
             'response_type' => 'nullable|in:Completed,Cancelled',
             'confirmation_url' => 'nullable|url',
-            'validation_url' => 'nullable|url',
         ]);
 
         if ($validator->fails()) {
@@ -216,49 +215,116 @@ class PaymentController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $environment = strtolower($request->input('environment', 'production'));
+        $paybill = trim((string) $request->input('paybill'));
+        $consumerKey = trim((string) $request->input('consumer_key'));
+        $consumerSecret = trim((string) $request->input('consumer_secret'));
+        $environment = strtolower(trim((string) $request->input('environment', 'production')));
         $baseUrl = str_contains($environment, 'sandbox')
             ? 'https://sandbox.safaricom.co.ke'
             : 'https://api.safaricom.co.ke';
 
         $appUrl = rtrim(config('app.url') ?: $request->getSchemeAndHttpHost(), '/');
-        $confirmationUrl = $request->input('confirmation_url', $appUrl . '/api/payments/c2b/confirmation');
-        $validationUrl = $request->input('validation_url', $appUrl . '/api/payments/c2b/validation');
+        $confirmationUrl = trim((string) $request->input('confirmation_url', $appUrl . '/api/payments/c2b/confirmation'));
+        $responseType = $request->input('response_type', 'Completed');
 
         Log::info('C2B URL registration initiated', [
-            'paybill' => $request->paybill,
+            'paybill' => $paybill,
             'environment' => $environment,
             'base_url' => $baseUrl,
             'confirmation_url' => $confirmationUrl,
-            'validation_url' => $validationUrl,
-            'response_type' => $request->input('response_type', 'Completed'),
-            'custom_urls_provided' => $request->has('confirmation_url') || $request->has('validation_url'),
+            'response_type' => $responseType,
+            'custom_url_provided' => $request->has('confirmation_url'),
         ]);
 
         try {
+            // Validate credentials format
+            if (strlen($consumerKey) < 10 || strlen($consumerSecret) < 5) {
+                return response()->json([
+                    'message' => 'Invalid consumer credentials format. Ensure they are correctly copied from Daraja API.',
+                    'hint' => 'Consumer key should be at least 10 characters, consumer secret at least 5 characters.',
+                ], 422);
+            }
+
+            $tokenUrl = $baseUrl . '/oauth/v1/generate?grant_type=client_credentials';
+            
             Log::debug('Requesting M-Pesa OAuth token', [
-                'endpoint' => $baseUrl . '/oauth/v1/generate',
-                'consumer_key_prefix' => substr($request->consumer_key, 0, 8) . '...',
+                'url' => $tokenUrl,
+                'consumer_key_prefix' => substr($consumerKey, 0, 8) . '...',
+                'consumer_key_suffix' => '...' . substr($consumerKey, -4),
+                'consumer_key_length' => strlen($consumerKey),
+                'consumer_secret_length' => strlen($consumerSecret),
+                'paybill' => $paybill,
+                'environment' => $environment,
             ]);
 
-            $tokenResponse = Http::withBasicAuth(
-                $request->consumer_key,
-                $request->consumer_secret
-            )->get($baseUrl . '/oauth/v1/generate', [
-                'grant_type' => 'client_credentials',
+            $tokenResponse = Http::acceptJson()
+                ->timeout(30)
+                ->withBasicAuth($consumerKey, $consumerSecret)
+                ->get($tokenUrl);
+
+            Log::debug('M-Pesa OAuth response received', [
+                'status' => $tokenResponse->status(),
+                'content_type' => $tokenResponse->header('content-type'),
+                'body_length' => strlen($tokenResponse->body()),
+                'body_preview' => substr($tokenResponse->body(), 0, 200),
+                'request_id' => $tokenResponse->header('x-request-id'),
             ]);
 
             if (!$tokenResponse->ok()) {
+                $responseBody = $tokenResponse->body();
+                $tokenError = [];
+                
+                // Try to parse as JSON first
+                $jsonParsed = $tokenResponse->json();
+                if (is_array($jsonParsed) && !empty($jsonParsed)) {
+                    $tokenError = $jsonParsed;
+                } else {
+                    // Fall back to raw body
+                    $tokenError = ['raw_body' => $responseBody];
+                }
+
+                $errorMessage = data_get($tokenError, 'errorMessage')
+                    ?? data_get($tokenError, 'error_description')
+                    ?? data_get($tokenError, 'error')
+                    ?? data_get($tokenError, 'raw_body')
+                    ?? 'Empty response from OAuth endpoint';
+
+                // Provide helpful hints based on error pattern
+                $hint = '';
+                if ($tokenResponse->status() === 400 && empty($responseBody)) {
+                    $hint = 'This usually means: (1) Consumer key and secret do not match this paybill, (2) Sandbox credentials are being used in Production mode (or vice versa), or (3) The credentials are invalid or expired. Verify in the Daraja dashboard that these credentials belong to the correct app and environment.';
+                } elseif ($tokenResponse->status() === 401) {
+                    $hint = 'Authentication failed. Verify that your consumer key and secret are correct and match the selected environment (Production vs Sandbox).';
+                } elseif ($tokenResponse->status() === 403) {
+                    $hint = 'Permission denied. This app may not have C2B registration permissions enabled. Contact Safaricom support to verify.';
+                }
+
+                Log::error('Failed to generate M-Pesa access token', [
+                    'status' => $tokenResponse->status(),
+                    'response' => $tokenError,
+                    'paybill' => $paybill,
+                    'environment' => $environment,
+                    'consumer_key_prefix' => substr($consumerKey, 0, 8) . '...',
+                ]);
+
                 return response()->json([
-                    'message' => 'Failed to generate M-Pesa access token',
-                    'details' => $tokenResponse->json() ?? $tokenResponse->body(),
+                    'message' => 'Failed to generate M-Pesa access token: ' . $errorMessage,
+                    'hint' => $hint,
+                    'details' => $tokenError,
                 ], $tokenResponse->status());
             }
 
-            $accessToken = $tokenResponse->json('access_token');
+            $accessToken = $tokenResponse->json('access_token')
+                ?? $tokenResponse->json('accessToken');
+
+            if (!$accessToken && str_contains($tokenResponse->body(), 'access_token=')) {
+                parse_str($tokenResponse->body(), $parsedTokenResponse);
+                $accessToken = $parsedTokenResponse['access_token'] ?? null;
+            }
+
             if (!$accessToken) {
                 Log::error('Missing access token in M-Pesa response', [
-                    'response' => $tokenResponse->json(),
+                    'response' => $tokenResponse->json() ?: $tokenResponse->body(),
                 ]);
                 return response()->json([
                     'message' => 'Missing access token from M-Pesa response',
@@ -270,12 +336,13 @@ class PaymentController extends Controller
                 'short_code' => $request->paybill,
             ]);
 
-            $registerResponse = Http::withToken($accessToken)
+            $registerResponse = Http::acceptJson()
+                ->timeout(30)
+                ->withToken($accessToken)
                 ->post($baseUrl . '/mpesa/c2b/v1/registerurl', [
-                    'ShortCode' => $request->paybill,
-                    'ResponseType' => $request->input('response_type', 'Completed'),
+                    'ShortCode' => $paybill,
+                    'ResponseType' => $responseType,
                     'ConfirmationURL' => $confirmationUrl,
-                    'ValidationURL' => $validationUrl,
                 ]);
 
             Log::info('M-Pesa C2B URL registration response received', [
@@ -295,26 +362,23 @@ class PaymentController extends Controller
                 ], $registerResponse->status());
             }
 
-            Log::info('C2B URLs registered successfully', [
-                'paybill' => $request->paybill,
+            Log::info('C2B URL registered successfully', [
+                'paybill' => $paybill,
                 'confirmation_url' => $confirmationUrl,
-                'validation_url' => $validationUrl,
             ]);
 
             return response()->json([
-                'message' => 'C2B URLs registered successfully',
+                'message' => 'C2B confirmation URL registered successfully',
                 'confirmation_url' => $confirmationUrl,
-                'validation_url' => $validationUrl,
                 'response' => $registerResponse->json(),
             ]);
         } catch (\Exception $e) {
             Log::error('C2B URL registration failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'paybill' => $request->paybill,
+                'paybill' => $paybill,
                 'environment' => $environment,
                 'confirmation_url' => $confirmationUrl,
-                'validation_url' => $validationUrl,
             ]);
 
             return response()->json([

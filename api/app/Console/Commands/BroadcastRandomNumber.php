@@ -29,6 +29,12 @@ class BroadcastRandomNumber extends Command
     public function handle(): int
     {
         try {
+            if (! filter_var(env('REVERB_RANDOM_TEST_ENABLED', false), FILTER_VALIDATE_BOOL)) {
+                $this->warn('Random number broadcasting is disabled.');
+
+                return self::SUCCESS;
+            }
+
             $min = (int) $this->option('min');
             $max = (int) $this->option('max');
 
