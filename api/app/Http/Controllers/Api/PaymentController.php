@@ -206,6 +206,7 @@ class PaymentController extends Controller
             'environment' => 'nullable|string',
             'response_type' => 'nullable|in:Completed,Cancelled',
             'confirmation_url' => 'nullable|url',
+            'validation_url' => 'nullable|url',
         ]);
 
         if ($validator->fails()) {
@@ -225,6 +226,7 @@ class PaymentController extends Controller
 
         $appUrl = rtrim(config('app.url') ?: $request->getSchemeAndHttpHost(), '/');
         $confirmationUrl = trim((string) $request->input('confirmation_url', $appUrl . '/api/payments/c2b/confirmation'));
+        $validationUrl = trim((string) $request->input('validation_url', $appUrl . '/api/payments/c2b/validation'));
         $responseType = $request->input('response_type', 'Completed');
 
         Log::info('C2B URL registration initiated', [
@@ -232,8 +234,9 @@ class PaymentController extends Controller
             'environment' => $environment,
             'base_url' => $baseUrl,
             'confirmation_url' => $confirmationUrl,
+            'validation_url' => $validationUrl,
             'response_type' => $responseType,
-            'custom_url_provided' => $request->has('confirmation_url'),
+            'custom_url_provided' => $request->has('confirmation_url') || $request->has('validation_url'),
         ]);
 
         try {
@@ -332,17 +335,18 @@ class PaymentController extends Controller
             }
 
             Log::debug('Registering C2B URLs with M-Pesa', [
-                'endpoint' => $baseUrl . '/mpesa/c2b/v1/registerurl',
+                'endpoint' => $baseUrl . '/mpesa/c2b/v2/registerurl',
                 'short_code' => $request->paybill,
             ]);
 
             $registerResponse = Http::acceptJson()
                 ->timeout(30)
                 ->withToken($accessToken)
-                ->post($baseUrl . '/mpesa/c2b/v1/registerurl', [
+                ->post($baseUrl . '/mpesa/c2b/v2/registerurl', [
                     'ShortCode' => $paybill,
                     'ResponseType' => $responseType,
                     'ConfirmationURL' => $confirmationUrl,
+                    'ValidationURL' => $validationUrl,
                 ]);
 
             Log::info('M-Pesa C2B URL registration response received', [
@@ -365,11 +369,13 @@ class PaymentController extends Controller
             Log::info('C2B URL registered successfully', [
                 'paybill' => $paybill,
                 'confirmation_url' => $confirmationUrl,
+                'validation_url' => $validationUrl,
             ]);
 
             return response()->json([
-                'message' => 'C2B confirmation URL registered successfully',
+                'message' => 'C2B confirmation and validation URLs registered successfully',
                 'confirmation_url' => $confirmationUrl,
+                'validation_url' => $validationUrl,
                 'response' => $registerResponse->json(),
             ]);
         } catch (\Exception $e) {
@@ -379,6 +385,7 @@ class PaymentController extends Controller
                 'paybill' => $paybill,
                 'environment' => $environment,
                 'confirmation_url' => $confirmationUrl,
+                'validation_url' => $validationUrl,
             ]);
 
             return response()->json([

@@ -37,7 +37,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
     consumer_secret: '',
     passkey: '',
     environment: 'Production',
-    confirmation_url: ''
+    confirmation_url: '',
+    validation_url: ''
   });
 
   // --- SMS GATEWAY ---
@@ -177,6 +178,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
       const consumerKey = paymentForm.consumer_key?.trim() || '';
       const consumerSecret = paymentForm.consumer_secret?.trim() || '';
       const confirmationUrl = paymentForm.confirmation_url?.trim() || '';
+      const validationUrl = paymentForm.validation_url?.trim() || '';
 
       if (!paybill || !consumerKey || !consumerSecret) {
         const message = 'Paybill, consumer key, and consumer secret are required.';
@@ -191,9 +193,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
         consumer_secret: consumerSecret,
         environment: paymentForm.environment,
         ...(confirmationUrl && { confirmation_url: confirmationUrl }),
+        ...(validationUrl && { validation_url: validationUrl }),
       });
 
-      onSave('C2B confirmation URL registered successfully');
+      onSave('C2B confirmation and validation URLs registered successfully');
     } catch (err: any) {
       const errorMsg = err.message || 'Failed to register C2B URLs';
       setError(errorMsg);
@@ -389,13 +392,24 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
                   />
                   <p className="text-[9px] text-gray-400 italic">Leave empty to use default server URL. Use ngrok/localtunnel for local testing.</p>
                 </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Validation URL</label>
+                  <input 
+                    type="url" 
+                    value={paymentForm.validation_url}
+                    onChange={e => setPaymentForm({ ...paymentForm, validation_url: e.target.value })}
+                    placeholder="https://your-ngrok-url.ngrok.io/api/payments/c2b/validation" 
+                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono text-sm" 
+                  />
+                  <p className="text-[9px] text-gray-400 italic">Leave empty to use default server URL. Use ngrok/localtunnel for local testing.</p>
+                </div>
               </div>
             </Card>
             
             <div className="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30 flex items-start gap-3">
               <svg className="w-5 h-5 text-blue-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               <div className="text-xs text-blue-700 dark:text-blue-300 font-medium space-y-1">
-                <p>Register your C2B confirmation URL with Daraja. M-Pesa requires a publicly accessible HTTPS URL.</p>
+                <p>Register your C2B confirmation and validation URLs with Daraja. M-Pesa requires publicly accessible HTTPS URLs.</p>
                 <p className="text-[10px] mt-1"><strong>For local testing:</strong> Use ngrok (ngrok http 8000) to expose your server with HTTPS.</p>
               </div>
             </div>
