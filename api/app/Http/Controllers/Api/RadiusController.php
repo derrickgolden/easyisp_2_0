@@ -28,8 +28,10 @@ class RadiusController extends Controller
             'password' => 'required|string',
         ]);
 
+        $username = trim($request->username);
+
         // Authenticate against RADIUS database
-        $result = $this->radiusService->authenticate($request->username, $request->password);
+        $result = $this->radiusService->authenticate($username, $request->password);
 
         if (!$result['success']) {
             return response()->json([
@@ -39,8 +41,8 @@ class RadiusController extends Controller
         }
 
         // Get user attributes (IP, package info, etc)
-        $userAttrs = $this->radiusService->getUserAttributes($request->username);
-        $userReplyAttrs = $this->radiusService->getUserReplyAttributes($request->username);
+        $userAttrs = $this->radiusService->getUserAttributes($username);
+        $userReplyAttrs = $this->radiusService->getUserReplyAttributes($username);
         $userGroups = $result['groups'] ?? [];
 
         // Get group reply attributes (bandwidth, session timeout)
@@ -50,13 +52,13 @@ class RadiusController extends Controller
         }
 
         // Try to match customer in local database for additional info
-        $customer = Customer::where('radius_username', $request->username)->first();
+        $customer = Customer::where('radius_username', $username)->first();
 
         return response()->json([
             'message' => 'Authentication successful',
             'status' => 'Access-Accept',
             'user' => [
-                'username' => $request->username,
+                'username' => $username,
                 'groups' => $userGroups,
             ],
             'attributes' => [
@@ -209,8 +211,10 @@ class RadiusController extends Controller
             'reply_attributes' => 'sometimes|array',
         ]);
 
+        $username = trim($request->username);
+
         $result = $this->radiusService->createUser(
-            $request->username,
+            $username,
             $request->password,
             [
                 'check' => $request->get('check_attributes', []),
@@ -224,7 +228,7 @@ class RadiusController extends Controller
 
         // Assign to group if provided
         if ($request->has('group')) {
-            $this->radiusService->assignUserToGroup($request->username, $request->group);
+            $this->radiusService->assignUserToGroup($username, $request->group);
         }
 
         return response()->json($result, 201);

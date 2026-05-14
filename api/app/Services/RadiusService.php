@@ -21,6 +21,8 @@ class RadiusService
      */
     public function authenticate($username, $password)
     {
+        $username = trim($username);
+
         try {
             // Query the radcheck table for User-Password attribute
             $userPassword = $this->radiusConnection->table('radcheck')
@@ -200,6 +202,8 @@ class RadiusService
      */
     public function createUser($username, $password, $attributes = [])
     {
+        $username = trim($username);
+
         try {
             // Insert User-Password check into radcheck table
             $this->radiusConnection->table('radcheck')->insert([
