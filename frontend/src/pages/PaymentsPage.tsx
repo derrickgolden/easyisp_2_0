@@ -144,7 +144,8 @@ export const PaymentsPage: React.FC = () => {
                   <tr>
                     <th className="py-4 px-6">M-Pesa Code</th>
                     <th className="py-4 px-6">Amount</th>
-                    <th className="py-4 px-6">Reference Input</th>
+                    <th className="py-4 px-6">Bill Reference</th>
+                    <th className="py-4 px-6">Sender Name</th>
                     <th className="py-4 px-6">Sender Phone</th>
                     <th className="py-4 px-6">Time Received</th>
                     <th className="py-4 px-6 text-right">Resolve</th>
@@ -163,8 +164,11 @@ export const PaymentsPage: React.FC = () => {
                       </td>
                       <td className="py-5 px-6">
                         <span className="text-[11px] bg-white dark:bg-slate-800 px-2 py-1 rounded border border-amber-100 dark:border-amber-900/30 text-gray-600 dark:text-gray-300 font-mono">
-                          {payment.lastName}
+                          {payment.billRef || '-'}
                         </span>
+                      </td>
+                      <td className="py-5 px-6">
+                        <span className="text-gray-900 dark:text-gray-100 font-medium text-xs truncate w-32">{payment.senderName || '-'}</span>
                       </td>
                       <td className="py-5 px-6">
                         <span className="text-gray-600 dark:text-gray-400 font-mono text-xs">{payment.phone}</span>
@@ -186,7 +190,7 @@ export const PaymentsPage: React.FC = () => {
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={6} className="py-20 text-center">
+                      <td colSpan={7} className="py-20 text-center">
                         <div className="flex flex-col items-center opacity-40">
                           <svg className="w-12 h-12 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                           <p className="font-medium italic">Reconciliation queue is empty.</p>

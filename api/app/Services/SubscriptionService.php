@@ -267,7 +267,7 @@ class SubscriptionService
 
             $message = $this->renderExpiryWarningTemplate(
                 $customer,
-                $expiryDate->format('M d, Y'),
+                $expiryDate->format('M d, Y h:i A'),
                 $daysUntilExpiry
             );
 
@@ -299,7 +299,7 @@ class SubscriptionService
             // Get expiry date
             $expiryDate = $this->getEffectiveExpiryDate($customer);
 
-            $message = $this->renderExpiryNotificationTemplate($customer, $expiryDate->format('M d, Y'));
+            $message = $this->renderExpiryNotificationTemplate($customer, $expiryDate->format('M d, Y h:i A'));
 
             // Send SMS via the configured provider
             $this->sendSmsViaProvider($customer, $message, $smsSettings, 'expiry-notification');
@@ -379,6 +379,7 @@ class SubscriptionService
             '{PaidAmount}' => '0',
             '{PackageAmount}' => (string) ($customer->effective_package_price ?? 0),
             '{PhoneNumber}' => $customer->phone ?? '',
+            '{RadiusUsername}' => $customer->radius_username ?? '',
             ...$replacements,
         ]), array_values([
             '{FirstName}' => $customer->first_name ?? '',
@@ -388,6 +389,7 @@ class SubscriptionService
             '{PaidAmount}' => '0',
             '{PackageAmount}' => (string) ($customer->effective_package_price ?? 0),
             '{PhoneNumber}' => $customer->phone ?? '',
+            '{RadiusUsername}' => $customer->radius_username ?? '',
             ...$replacements,
         ]), $content);
     }

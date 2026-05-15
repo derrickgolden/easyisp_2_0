@@ -222,7 +222,8 @@ const NotesTemplate = () => {
                     <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{Expiry}"}</code>, 
                     <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{DaysUntilExpiry}"}</code>, 
                     <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{PaidAmount}"}</code>, and 
-                    <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{PackageName}"}</code> for dynamic insertion. Click tags below to insert them.
+                    <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{PackageName}"}</code>, 
+                    <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{RadiusUsername}"}</code> for dynamic insertion. Click tags below to insert them.
                     </p>
                 </div>
 
@@ -272,12 +273,13 @@ const NotesTemplate = () => {
                         { tag: '{FirstName}', label: 'First Name' },
                         { tag: '{LastName}', label: 'Last Name' },
                         { tag: '{Isp}', label: 'ISP Name' },
-                        { tag: '{Expiry}', label: 'Expiry Date' },
+                        { tag: '{Expiry}', label: 'Expiry Date & Time' },
                         { tag: '{DaysUntilExpiry}', label: 'Days Left' },
                         { tag: '{PackageName}', label: 'Package' },
                         { tag: '{PaidAmount}', label: 'Paid Amt' },
                         { tag: '{PackageAmount}', label: 'Price' },
                         { tag: '{PhoneNumber}', label: 'Phone' },
+                        { tag: '{RadiusUsername}', label: 'Username' },
                         ].map(item => (
                         <button
                             key={item.tag}

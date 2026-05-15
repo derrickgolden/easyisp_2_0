@@ -47,15 +47,27 @@ const SmsModal = ({ state, actions, customer }: any) => {
 
     // Function to personalize message for the customer
     const personalizeMessage = (template: string, customer: Customer): string => {
+        const formattedExpiry = customer.expiryDate
+            ? new Date(customer.expiryDate).toLocaleString('en-KE', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+            })
+            : '';
+
         return template
             .replace(/{FirstName}/gi, customer.firstName || '')
             .replace(/{LastName}/gi, customer.lastName || '')
             .replace(/{Isp}/gi, (customer as any).organization?.name || 'ISP')
-            .replace(/{Expiry}/gi, customer.expiryDate || '')
+            .replace(/{Expiry}/gi, formattedExpiry)
             .replace(/{PackageName}/gi, customer.package?.name || '')
             .replace(/{PaidAmount}/gi, (customer as any).lastPayment?.amount?.toString() || '0')
             .replace(/{PackageAmount}/gi, customer.package?.price?.toString() || '0')
-            .replace(/{PhoneNumber}/gi, customer.phone || '');
+            .replace(/{PhoneNumber}/gi, customer.phone || '')
+            .replace(/{RadiusUsername}/gi, customer.radiusUsername || '');
     };
 
     const handleSendSms = async (customer: Customer) => {
@@ -111,11 +123,12 @@ const SmsModal = ({ state, actions, customer }: any) => {
                           { tag: '{FirstName}', label: 'First Name' },
                           { tag: '{LastName}', label: 'Last Name' },
                           { tag: '{Isp}', label: 'ISP Name' },
-                          { tag: '{Expiry}', label: 'Expiry Date' },
+                          { tag: '{Expiry}', label: 'Expiry Date & Time' },
                           { tag: '{PackageName}', label: 'Package' },
                           { tag: '{PaidAmount}', label: 'Paid Amt' },
                           { tag: '{PackageAmount}', label: 'Price' },
                           { tag: '{PhoneNumber}', label: 'Phone' },
+                          { tag: '{RadiusUsername}', label: 'Username' },
                           ].map(item => (
                           <button
                              key={item.tag}

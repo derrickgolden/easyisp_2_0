@@ -147,6 +147,7 @@ export interface Payment {
   phone: string;
   firstName: string;
   lastName: string;
+  senderName?: string;
   timestamp: string;
   status: 'completed' | 'pending' | 'reversed';
 }
