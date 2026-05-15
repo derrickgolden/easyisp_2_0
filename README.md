@@ -65,3 +65,6 @@ php artisan up
 
 # moving files for god admin
 cp -r /var/www/easyisp_2_0/admin/dist/* /var/www/easyisp_god_admin/
+
+# Generating CALLBACK ULRS token using artisan command
+artisan org:generate-callback-tokens <organizationAcronym> only generates if org <organizationAcronym> has no token, otherwise no change

@@ -52,9 +52,9 @@ Route::get('/radius/config/{username}', [RadiusController::class, 'getConfig']);
 Route::post('/radius/verify/{username}', [RadiusController::class, 'verify']);
 
 // Public M-Pesa C2B routes
-Route::post('/payments/c2b/validation', [PaymentController::class, 'c2bValidation']);
-Route::post('/payments/c2b/confirmation', [PaymentController::class, 'c2bConfirmation']);
-Route::post('/payments/payhero/stk/callback', [PayheroPaymentController::class, 'stkCallback']);
+Route::post('/payments/c2b/{token}/validation', [PaymentController::class, 'c2bValidation']);
+Route::post('/payments/c2b/{token}/confirmation', [PaymentController::class, 'c2bConfirmation']);
+Route::post('/payments/payhero/{token}/stk/callback', [PayheroPaymentController::class, 'stkCallback']);
 
 
 // system-admin-only routes

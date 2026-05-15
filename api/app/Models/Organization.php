@@ -15,6 +15,7 @@ class Organization extends Model
         'subscription_tier',
         'status',
         'balance',
+        'mpesa_callback_token',
         'settings',
     ];
 

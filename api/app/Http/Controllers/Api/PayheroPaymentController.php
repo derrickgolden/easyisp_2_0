@@ -79,11 +79,25 @@ class PayheroPaymentController extends Controller
         }
     }
 
-    public function stkCallback(Request $request)
+    public function stkCallback(Request $request, $token)
     {
+        $organization = Organization::where('mpesa_callback_token', $token)->first();
+        
+        if (!$organization) {
+            Log::warning('Payhero STK callback invalid token', [
+                'token' => $token,
+                'ip' => $request->ip(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid token',
+            ], 401);
+        }
+
         $payload = $request->all();
 
         Log::info('Payhero STK callback received', [
+            'organization_id' => $organization->id,
             'payload' => $payload,
             'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),

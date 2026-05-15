@@ -35,9 +35,23 @@ class PaymentController extends Controller
         ]);
     }
 
-    public function c2bValidation(Request $request)
+    public function c2bValidation(Request $request, $token)
     {
+        $organization = Organization::where('mpesa_callback_token', $token)->first();
+        
+        if (!$organization) {
+            Log::warning('C2B Validation invalid token', [
+                'token' => $token,
+                'ip' => $request->ip(),
+            ]);
+            return response()->json([
+                'ResultCode' => 1,
+                'ResultDesc' => 'Invalid token',
+            ], 401);
+        }
+
         Log::info('C2B Validation endpoint called', [
+            'organization_id' => $organization->id,
             'payload' => $request->all(),
             'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),
@@ -50,11 +64,25 @@ class PaymentController extends Controller
         ]);
     }
 
-    public function c2bConfirmation(Request $request)
+    public function c2bConfirmation(Request $request, $token)
     {
+        $organization = Organization::where('mpesa_callback_token', $token)->first();
+        
+        if (!$organization) {
+            Log::warning('C2B Confirmation invalid token', [
+                'token' => $token,
+                'ip' => $request->ip(),
+            ]);
+            return response()->json([
+                'ResultCode' => 1,
+                'ResultDesc' => 'Invalid token',
+            ], 401);
+        }
+
         $payload = $request->all();
 
         Log::info('C2B Confirmation endpoint called', [
+            'organization_id' => $organization->id,
             'payload' => $payload,
             'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),
@@ -103,25 +131,7 @@ class PaymentController extends Controller
             ]);
         }
 
-        // Resolve organization by paybill shortcode from settings
-        $organization = null;
-        if ($shortCode) {
-            $organization = Organization::where('settings->payment-gateway->paybill', $shortCode)
-                ->orWhere('settings->payment-gateway->paybill_short_code', $shortCode)
-                ->first();
-        }
-
-        if (!$organization) {
-            Log::warning('C2B payment received but paybill not configured or unmatched.', [
-                'shortcode' => $shortCode,
-                'mpesa_code' => $mpesaCode,
-            ]);
-
-            return response()->json([
-                'ResultCode' => 1,
-                'ResultDesc' => 'Paybill not configured',
-            ], 400);
-        }
+        // Organization already resolved from token
 
         $customer = $this->resolveCustomer($organization->id, $billRef, $phone);
 
