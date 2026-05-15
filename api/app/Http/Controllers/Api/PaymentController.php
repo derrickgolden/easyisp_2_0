@@ -215,8 +215,8 @@ class PaymentController extends Controller
             'consumer_secret' => 'required|string',
             'environment' => 'nullable|string',
             'response_type' => 'nullable|in:Completed,Cancelled',
-            'confirmation_url' => 'nullable|url',
-            'validation_url' => 'nullable|url',
+            'confirmation_url' => 'required|url',
+            'validation_url' => 'required|url',
         ]);
 
         if ($validator->fails()) {
@@ -234,9 +234,8 @@ class PaymentController extends Controller
             ? 'https://sandbox.safaricom.co.ke'
             : 'https://api.safaricom.co.ke';
 
-        $appUrl = rtrim(config('app.url') ?: $request->getSchemeAndHttpHost(), '/');
-        $confirmationUrl = trim((string) $request->input('confirmation_url', $appUrl . '/api/payments/c2b/confirmation'));
-        $validationUrl = trim((string) $request->input('validation_url', $appUrl . '/api/payments/c2b/validation'));
+        $confirmationUrl = trim((string) $request->input('confirmation_url'));
+        $validationUrl = trim((string) $request->input('validation_url'));
         $responseType = $request->input('response_type', 'Completed');
 
         Log::info('C2B URL registration initiated', [
@@ -246,7 +245,6 @@ class PaymentController extends Controller
             'confirmation_url' => $confirmationUrl,
             'validation_url' => $validationUrl,
             'response_type' => $responseType,
-            'custom_url_provided' => $request->has('confirmation_url') || $request->has('validation_url'),
         ]);
 
         try {
