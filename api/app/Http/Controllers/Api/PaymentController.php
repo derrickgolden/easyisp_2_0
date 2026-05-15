@@ -485,16 +485,38 @@ class PaymentController extends Controller
         $query = Customer::where('organization_id', $organizationId);
 
         if ($billRef) {
-            if (is_numeric($billRef)) {
-                $customer = (clone $query)->where('id', (int) $billRef)->first();
+            $normalizedBillRef = trim($billRef);
+
+            // 1) BillRef as radius username (case-insensitive + trims spaces)
+            $customer = (clone $query)
+                ->whereRaw('LOWER(TRIM(radius_username)) = ?', [strtolower($normalizedBillRef)])
+                ->first();
+            if ($customer) {
+                return $customer;
+            }
+
+            // 2) BillRef as phone number (e.g. 0714475702)
+            $billRefPhoneCandidates = $this->normalizePhoneCandidates($normalizedBillRef);
+            foreach ($billRefPhoneCandidates as $candidate) {
+                $customer = (clone $query)->where('phone', $candidate)->first();
+                if ($customer) {
+                    return $customer;
+                }
+
+                $customer = (clone $query)
+                    ->whereRaw('LOWER(TRIM(radius_username)) = ?', [strtolower(trim($candidate))])
+                    ->first();
                 if ($customer) {
                     return $customer;
                 }
             }
 
-            $customer = (clone $query)->where('radius_username', $billRef)->first();
-            if ($customer) {
-                return $customer;
+            // 3) Optional fallback: BillRef as numeric customer id
+            if (is_numeric($normalizedBillRef) && strlen($normalizedBillRef) <= 9) {
+                $customer = (clone $query)->where('id', (int) $normalizedBillRef)->first();
+                if ($customer) {
+                    return $customer;
+                }
             }
         }
 
@@ -502,6 +524,14 @@ class PaymentController extends Controller
             $candidates = $this->normalizePhoneCandidates($phone);
             foreach ($candidates as $candidate) {
                 $customer = (clone $query)->where('phone', $candidate)->first();
+                if ($customer) {
+                    return $customer;
+                }
+
+                // Some setups use phone-like usernames in RADIUS (case-insensitive)
+                $customer = (clone $query)
+                    ->whereRaw('LOWER(TRIM(radius_username)) = ?', [strtolower(trim($candidate))])
+                    ->first();
                 if ($customer) {
                     return $customer;
                 }
