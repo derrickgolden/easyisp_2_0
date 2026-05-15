@@ -33,6 +33,7 @@ class PaymentResource extends JsonResource
             'phone' => $this->phone,
             'firstName' => $firstName,
             'lastName' => $lastName,
+            'senderName' => $senderName,
             'timestamp' => $this->created_at?->toISOString(),
             'status' => $this->status,
         ];
