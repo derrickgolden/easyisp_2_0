@@ -73,9 +73,9 @@ export const CustomersPage: React.FC = () => {
   const fetchPackages = async () => {
     try {
       const res = await packagesApi.getAll();
-
-      setPackages(res.data || []);
-      localStorage.setItem(STORAGE_KEYS.PACKAGES, JSON.stringify(res.data || []));
+  const packagesList = Array.isArray(res) ? res : (res.data || []);
+  setPackages(packagesList);
+  localStorage.setItem(STORAGE_KEYS.PACKAGES, JSON.stringify(packagesList));
     } catch (error) {
       console.error('Error fetching packages:', error);
     }

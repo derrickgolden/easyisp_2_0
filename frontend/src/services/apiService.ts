@@ -324,8 +324,8 @@ export const customersApi = {
 
 // Packages Endpoints
 export const packagesApi = {
-  getAll: async (page = 1) => {
-    const response = await axiosInstance.get(`/packages?page=${page}`);
+  getAll: async () => {
+    const response = await axiosInstance.get(`/packages`);
     return response.data;
   },
 

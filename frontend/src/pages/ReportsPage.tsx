@@ -52,9 +52,9 @@ export const ReportsPage: React.FC = () => {
   const fetchPackages = async () => {
       try {
         const res = await packagesApi.getAll();
-  
-        localStorage.setItem(STORAGE_KEYS.PACKAGES, JSON.stringify(res.data || []));
-        setPackages(res.data || []);
+    const packagesList = Array.isArray(res) ? res : (res.data || []);
+    localStorage.setItem(STORAGE_KEYS.PACKAGES, JSON.stringify(packagesList));
+    setPackages(packagesList);
       } catch (error) {
         console.error('Error fetching packages:', error);
       }

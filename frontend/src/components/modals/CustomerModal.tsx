@@ -36,19 +36,20 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
-      const fetchPackages = async () => {
-        try {
-          const res = await packagesApi.getAll();
-    
-          localStorage.setItem(STORAGE_KEYS.PACKAGES, JSON.stringify(res.data || []));
-          setPackages(res.data || []);
-        } catch (error) {
-          console.error('Error fetching packages:', error);
-        }
-      };
-  
-      fetchPackages();
-    }, [setPackages]);
+    const fetchPackages = async () => {
+      try {
+        const res = await packagesApi.getAll();
+        const packagesList = Array.isArray(res) ? res : (res.data || []);
+
+        localStorage.setItem(STORAGE_KEYS.PACKAGES, JSON.stringify(packagesList));
+        setPackages(packagesList);
+      } catch (error) {
+        console.error('Error fetching packages:', error);
+      }
+    };
+
+    fetchPackages();
+  }, [isOpen]);
 
   const handleCustomerSave = async (e: React.FormEvent) => {
     e.preventDefault();

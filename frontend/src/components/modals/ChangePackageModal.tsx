@@ -38,7 +38,7 @@ export const ChangePackageModal: React.FC<ChangePackageModalProps> = ({
 
         // Fetch fresh from API
         const res = await packagesApi.getAll();
-        const packageList = res.data || [];
+        const packageList = Array.isArray(res) ? res : (res.data || []);
         setPackages(packageList);
         localStorage.setItem(STORAGE_KEYS.PACKAGES, JSON.stringify(packageList));
       } catch (error) {
