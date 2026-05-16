@@ -49,7 +49,7 @@ class PackageController extends Controller
 
     public function index(Request $request)
     {
-        $packages = Package::where('organization_id', $request->user()->organization_id)->paginate(15);
+        $packages = Package::where('organization_id', $request->user()->organization_id)->get();
         return response()->json($packages);
     }
 
