@@ -9,8 +9,15 @@ import { usePermissions } from "@/src/hooks/usePermissions";
 const DEFAULT_SYSTEM_TEMPLATES: Template[] = [
     {
         id: 'system-expiry-warning',
-        name: 'Expiry Reminder',
+        name: '2 days to expiry Reminder',
         content: 'Dear {FirstName}, your internet subscription expires in {DaysUntilExpiry} day(s) on {Expiry}. Please renew to avoid service interruption.',
+        category: 'System',
+        isDefault: true,
+    },
+    {
+        id: 'system-expiry-one-hour-warning',
+        name: '1 Hour To Expiry Reminder',
+        content: 'Dear {FirstName}, your internet subscription will expire in 1 hour at {Expiry}. Please renew now to avoid interruption.',
         category: 'System',
         isDefault: true,
     },
@@ -48,13 +55,30 @@ const NotesTemplate = () => {
 
     useEffect(() => {
         const fetchTemplates = async () => {
-            const response = await organizationApi.get();
-            const orgSettings = response?.settings || {};
-            const savedTemplates = orgSettings['notes-template'] && Array.isArray(orgSettings['notes-template'].templates)
-                ? orgSettings['notes-template'].templates
-                : [];
+            try {
+                const response = await organizationApi.get();
+                const orgSettings = response?.settings || {};
+                const savedTemplates = orgSettings['notes-template'] && Array.isArray(orgSettings['notes-template'].templates)
+                    ? orgSettings['notes-template'].templates
+                    : [];
 
-            setTemplates(ensureProtectedDefaultTemplate(savedTemplates));
+                const normalizedTemplates = ensureProtectedDefaultTemplate(savedTemplates);
+                setTemplates(normalizedTemplates);
+
+                // Persist missing protected templates so they exist in organization settings.
+                if (normalizedTemplates.length !== savedTemplates.length) {
+                    await organizationApi.update({
+                        settings: {
+                            'notes-template': {
+                                templates: normalizedTemplates,
+                            },
+                        },
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to fetch templates', error);
+                toast.error('Failed to load templates');
+            }
         };
         fetchTemplates();
     }, []);

@@ -29,6 +29,7 @@ class Customer extends Model
         'expiry_date',
         'extension_date',
         'expiry_warning_sent_at',
+        'expiry_one_hour_warning_sent_at',
         'balance',
         'is_independent',
         'radius_username',
@@ -49,6 +50,7 @@ class Customer extends Model
         'expiry_date' => 'datetime',
         'extension_date' => 'datetime',
         'expiry_warning_sent_at' => 'datetime',
+        'expiry_one_hour_warning_sent_at' => 'datetime',
         'balance' => 'decimal:2',
         'is_independent' => 'boolean',
     ];

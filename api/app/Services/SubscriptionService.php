@@ -9,13 +9,6 @@ use Illuminate\Support\Facades\Log;
 
 class SubscriptionService
 {
-    private const DEFAULT_EXPIRY_WARNING_TEMPLATE_ID = 'system-expiry-warning';
-
-    private const DEFAULT_EXPIRY_TEMPLATE_ID = 'system-expiry-notification';
-
-    private const DEFAULT_EXPIRY_WARNING_TEMPLATE = 'Dear {FirstName}, your internet subscription expires in {DaysUntilExpiry} day(s) on {Expiry}. Please renew to avoid service interruption.';
-
-    private const DEFAULT_EXPIRY_TEMPLATE = 'Dear {FirstName}, your internet subscription has expired as of {Expiry}. Please renew your account to restore service.';
 
     /**
      * Process a single customer - can be called by Cron or on Payment
@@ -32,8 +25,8 @@ class SubscriptionService
 
         $past = $effectiveDate->isPast() ? "true": "false";
 
-        // Check and send 48-hour expiry warning (sent only once)
-        $this->checkAndSend48HourWarning($customer, $effectiveDate);
+        // Check and send pre-expiry warnings (48-hour and 1-hour)
+        $this->checkAndSendExpiryWarnings($customer, $effectiveDate);
        
         if ($effectiveDate->isPast()) {
             // Customer is expired - check if they have enough balance to auto-renew
@@ -127,7 +120,8 @@ class SubscriptionService
         
         // 6. Reset extension fields and status
         $customer->extension_date = null; 
-        $customer->expiry_warning_sent_at = null; // Reset warning flag for new period
+        $customer->expiry_warning_sent_at = null; // Reset 48-hour warning flag for new period
+        $customer->expiry_one_hour_warning_sent_at = null; // Reset 1-hour warning flag for new period
         $customer->status = 'active';
         $customer->save();
 
@@ -136,6 +130,7 @@ class SubscriptionService
             $child->expiry_date = $customer->expiry_date;
             $child->extension_date = null;
             $child->expiry_warning_sent_at = null;
+            $child->expiry_one_hour_warning_sent_at = null;
             $child->status = 'active';
             $child->save();
             $this->applyActiveStatus($child);
@@ -155,7 +150,13 @@ class SubscriptionService
         $customer->update(['status' => 'expired']);
 
         // 2. Send expiry notification (account expired) SMS
-        $this->sendExpiryNotificationMessage($customer);
+        $expiryDate = $this->getEffectiveExpiryDate($customer);
+        $messagingService = new CustomerMessagingService();
+        $messagingService->send(
+            $customer,
+            CustomerMessagingService::TYPE_EXPIRY_NOTIFICATION,
+            ['{Expiry}' => $expiryDate->format('M d, Y h:i A')]
+        );
 
         // 3. Update RADIUS to "Expired" group for redirection
         DB::connection('radius')->table('radusergroup')
@@ -219,178 +220,71 @@ class SubscriptionService
     }
 
     /**
-     * Check if customer is within 48 hours of expiry and send warning SMS once
+     * Check and send pre-expiry warnings (48-hour and 1-hour) once each.
      */
-    private function checkAndSend48HourWarning(Customer $customer, Carbon $effectiveDate)
+    private function checkAndSendExpiryWarnings(Customer $customer, Carbon $effectiveDate)
     {
-        // Skip if warning was already sent
-        if ($customer->expiry_warning_sent_at) {
-            return;
-        }
-
         // Skip dependent sub-accounts — their parent handles billing notifications
         if ($customer->parent_id && !$customer->is_independent) {
             return;
         }
 
         $now = Carbon::now();
-        $hoursUntilExpiry = $now->diffInHours($effectiveDate);
+        $minutesUntilExpiry = $now->diffInMinutes($effectiveDate, false);
 
-        // Check if customer is within 48 hours and not yet expired
-        if ($hoursUntilExpiry > 0 && $hoursUntilExpiry <= 48) {
-            $this->sendExpiryWarningMessage($customer, $hoursUntilExpiry);
-
-            // Mark the warning as sent
-            $customer->update(['expiry_warning_sent_at' => $now]);
+        // Already expired or exactly at expiry time.
+        if ($minutesUntilExpiry <= 0) {
+            return;
         }
-    }
 
-    /**
-     * Send expiry warning SMS to customer
-     */
-    private function sendExpiryWarningMessage(Customer $customer, $hoursUntilExpiry)
-    {
-        try {
-            // Get organization SMS settings
-            $organization = $customer->organization;
-            $settings = $organization->settings ?? [];
-            $smsSettings = $settings['sms-gateway'] ?? null;
+        $updates = [];
+        $messagingService = new CustomerMessagingService();
 
-            if (!$smsSettings || !$smsSettings['provider'] || !$smsSettings['api_key']) {
-                Log::warning("SMS gateway not configured for organization {$organization->id}. Cannot send expiry warning.");
-                return;
-            }
+        // Send 48-hour warning only in the window (48h, 1h] and only once.
+        if (!$customer->expiry_warning_sent_at && $minutesUntilExpiry > 60 && $minutesUntilExpiry <= (48 * 60)) {
+            $daysUntilExpiry = max(1, (int) ceil($minutesUntilExpiry / (24 * 60)));
 
-            // Format the expiry date for display
-            $expiryDate = $this->getEffectiveExpiryDate($customer);
-            $daysUntilExpiry = ceil($hoursUntilExpiry / 24);
-
-            $message = $this->renderExpiryWarningTemplate(
+            $messagingService->send(
                 $customer,
-                $expiryDate->format('M d, Y h:i A'),
-                $daysUntilExpiry
+                CustomerMessagingService::TYPE_EXPIRY_WARNING,
+                [
+                    '{Expiry}' => $effectiveDate->format('M d, Y h:i A'),
+                    '{DaysUntilExpiry}' => (string) $daysUntilExpiry,
+                    '{DaysLabel}' => $daysUntilExpiry === 1 ? 'day' : 'days',
+                ]
             );
 
-            // Send SMS via the configured provider
-            $this->sendSmsViaProvider($customer, $message, $smsSettings, 'expiry-warning');
+            $updates['expiry_warning_sent_at'] = $now;
+        }
 
-            Log::info("Expiry warning sent to customer {$customer->id} ({$customer->phone})");
-        } catch (\Exception $e) {
-            Log::error("Failed to send expiry warning to customer {$customer->id}: " . $e->getMessage());
+        // Send 1-hour warning in the last hour and only once.
+        if (!$customer->expiry_one_hour_warning_sent_at && $minutesUntilExpiry <= 60) {
+            $messagingService->send(
+                $customer,
+                CustomerMessagingService::TYPE_EXPIRY_ONE_HOUR_WARNING,
+                [
+                    '{Expiry}' => $effectiveDate->format('M d, Y h:i A'),
+                ]
+            );
+
+            $updates['expiry_one_hour_warning_sent_at'] = $now;
+        }
+
+        if (!empty($updates)) {
+            $customer->update($updates);
         }
     }
 
     /**
-     * Send expiry notification SMS when account actually expires
+     * Central command for sending SMS messages to customers
+     * Uses the dedicated CustomerMessagingService for all message types
+     *
+     * @deprecated Use CustomerMessagingService::send() directly
+     * This method is kept for backwards compatibility during transition
      */
-    private function sendExpiryNotificationMessage(Customer $customer)
+    public function sendMessageToCustomer(Customer $customer, string $messageType, array $customReplacements = [], array $options = []): bool
     {
-        try {
-            // Get organization SMS settings
-            $organization = $customer->organization;
-            $settings = $organization->settings ?? [];
-            $smsSettings = $settings['sms-gateway'] ?? null;
-
-            if (!$smsSettings || !$smsSettings['provider'] || !$smsSettings['api_key']) {
-                Log::warning("SMS gateway not configured for organization {$organization->id}. Cannot send expiry notification.");
-                return;
-            }
-
-            // Get expiry date
-            $expiryDate = $this->getEffectiveExpiryDate($customer);
-
-            $message = $this->renderExpiryNotificationTemplate($customer, $expiryDate->format('M d, Y h:i A'));
-
-            // Send SMS via the configured provider
-            $this->sendSmsViaProvider($customer, $message, $smsSettings, 'expiry-notification');
-
-            Log::info("Expiry notification sent to customer {$customer->id} ({$customer->phone})");
-        } catch (\Exception $e) {
-            Log::error("Failed to send expiry notification to customer {$customer->id}: " . $e->getMessage());
-        }
-    }
-
-    /**
-     * Send SMS to customer via configured provider
-     */
-    private function sendSmsViaProvider(Customer $customer, $message, $smsSettings, $type = 'system')
-    {
-        $provider = $smsSettings['provider'];
-        $apiKey = $smsSettings['api_key'];
-        $apiUsername = $smsSettings['api_username'] ?? null;
-        $senderId = $smsSettings['sender_id'] ?? 'EASYTECH';
-
-        $smsService = new SmsProviderService();
-        $smsService->send($customer->phone, $message, $provider, $apiKey, $senderId, $apiUsername, [
-            'organization_id' => $customer->organization_id,
-            'user_id' => null,
-            'customer_id' => $customer->id,
-            'type' => $type,
-        ]);
-    }
-
-    private function renderExpiryNotificationTemplate(Customer $customer, string $formattedExpiryDate): string
-    {
-        return $this->renderTemplate(
-            $customer,
-            self::DEFAULT_EXPIRY_TEMPLATE_ID,
-            self::DEFAULT_EXPIRY_TEMPLATE,
-            [
-                '{Expiry}' => $formattedExpiryDate,
-            ]
-        );
-    }
-
-    private function renderExpiryWarningTemplate(Customer $customer, string $formattedExpiryDate, int $daysUntilExpiry): string
-    {
-        return $this->renderTemplate(
-            $customer,
-            self::DEFAULT_EXPIRY_WARNING_TEMPLATE_ID,
-            self::DEFAULT_EXPIRY_WARNING_TEMPLATE,
-            [
-                '{Expiry}' => $formattedExpiryDate,
-                '{DaysUntilExpiry}' => (string) $daysUntilExpiry,
-                '{DaysLabel}' => $daysUntilExpiry === 1 ? 'day' : 'days',
-            ]
-        );
-    }
-
-    private function renderTemplate(Customer $customer, string $templateId, string $fallbackContent, array $replacements = []): string
-    {
-        $organization = $customer->organization;
-        $settings = $organization->settings ?? [];
-        $templates = $settings['notes-template']['templates'] ?? [];
-
-        $template = collect(is_array($templates) ? $templates : [])
-            ->first(function ($item) use ($templateId) {
-                return is_array($item)
-                    && (($item['id'] ?? null) === $templateId);
-            });
-
-        $content = is_array($template) && !empty($template['content'])
-            ? $template['content']
-            : $fallbackContent;
-
-        return str_ireplace(array_keys([
-            '{FirstName}' => $customer->first_name ?? '',
-            '{LastName}' => $customer->last_name ?? '',
-            '{Isp}' => $organization->name ?? 'ISP',
-            '{PackageName}' => $customer->package->name ?? '',
-            '{PaidAmount}' => '0',
-            '{PackageAmount}' => (string) ($customer->effective_package_price ?? 0),
-            '{PhoneNumber}' => $customer->phone ?? '',
-            '{RadiusUsername}' => $customer->radius_username ?? '',
-            ...$replacements,
-        ]), array_values([
-            '{FirstName}' => $customer->first_name ?? '',
-            '{LastName}' => $customer->last_name ?? '',
-            '{Isp}' => $organization->name ?? 'ISP',
-            '{PackageName}' => $customer->package->name ?? '',
-            '{PaidAmount}' => '0',
-            '{PackageAmount}' => (string) ($customer->effective_package_price ?? 0),
-            '{PhoneNumber}' => $customer->phone ?? '',
-            '{RadiusUsername}' => $customer->radius_username ?? '',
-            ...$replacements,
-        ]), $content);
+        $messagingService = new CustomerMessagingService();
+        return $messagingService->send($customer, $messageType, $customReplacements, $options);
     }
 }

@@ -26,7 +26,7 @@ class Kernel extends ConsoleKernel
 
         $schedule->command('radius:close-stale-sessions')->everyFiveMinutes()->withoutOverlapping();
 
-        $schedule->command('isp:check-expirations')->everyMinute();
+        $schedule->command('isp:check-expirations')->everyMinute()->withoutOverlapping();
 
         $schedule->command('license:generate-monthly-bills')->monthlyOn(28, '02:36')->withoutOverlapping();
 

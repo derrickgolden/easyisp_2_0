@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Http\Resources\CustomerResource;
 use App\Models\Site;
+use App\Services\CustomerMessagingService;
 use App\Services\SubscriptionService;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
@@ -274,10 +275,27 @@ class CustomerController extends Controller
 
             // Update customer with the generated username
             $customer->radius_username = $radiusUsername;
+
+            // If expiry is within 1 hour (e.g. trial accounts), pre-stamp the 1-hour warning flag
+            // so the cron never fires that SMS for short-lived new accounts.
+            $expiryCarbon = Carbon::parse($customer->expiry_date);
+            if ($expiryCarbon->diffInMinutes(now(), false) >= -60) {
+                $customer->expiry_one_hour_warning_sent_at = now();
+            }
+
             $customer->save();
 
             // Sync to RADIUS
             $syncResult = $this->radiusService->syncCustomerToRadius($customer);
+
+            // Send registration SMS (non-blocking; service logs failures internally)
+            app(CustomerMessagingService::class)->send(
+                $customer,
+                CustomerMessagingService::TYPE_REGISTRATION,
+                [
+                    '{Expiry}' => $expiryCarbon->format('M d, Y h:i A'),
+                ]
+            );
 
             $customerResource = new CustomerResource($customer);
 
@@ -413,6 +431,7 @@ class CustomerController extends Controller
 
         if ($customer->wasChanged(['expiry_date', 'extension_date'])) {
             $customer->expiry_warning_sent_at = null; // Reset warning flag if expiry changes
+            $customer->expiry_one_hour_warning_sent_at = null;
             $customer->save();    
             $syncResult = $this->subscriptionService->syncSubscription($customer);
 
@@ -421,6 +440,7 @@ class CustomerController extends Controller
             foreach ($dependentChildren as $child) {
                 $child->expiry_date = $customer->expiry_date;
                 $child->expiry_warning_sent_at = null;
+                $child->expiry_one_hour_warning_sent_at = null;
                 $child->save();
                 $this->subscriptionService->syncSubscription($child);
             }
@@ -517,6 +537,7 @@ class CustomerController extends Controller
         if ($customer->paused_seconds_remaining > 0) {
             $customer->expiry_date = $now->addSeconds($customer->paused_seconds_remaining);
             $customer->expiry_warning_sent_at = null; // Reset warning flag for new expiry
+            $customer->expiry_one_hour_warning_sent_at = null;
         } else {
             // If they had no time left, resume them as expired so they have to pay
             $customer->expiry_date = $now->subMinute(); 
