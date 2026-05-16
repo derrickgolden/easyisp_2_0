@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\Organization;
 use App\Models\Transaction;
 use App\Services\SubscriptionService;
+use App\Services\CustomerMessagingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -179,6 +180,19 @@ class PaymentController extends Controller
             }
 
             DB::commit();
+
+            // Send payment SMS notification after successful commit
+            if ($customer) {
+                try {
+                    app(CustomerMessagingService::class)->send(
+                        $customer,
+                        CustomerMessagingService::TYPE_PAYMENT,
+                        ['{PaidAmount}' => number_format($amount, 2)]
+                    );
+                } catch (\Exception $e) {
+                    Log::warning('Payment SMS notification failed', ['customer_id' => $customer->id, 'error' => $e->getMessage()]);
+                }
+            }
 
             Log::info('C2B Confirmation payment processed successfully', [
                 'payment_id' => $payment->id,
@@ -470,6 +484,17 @@ class PaymentController extends Controller
 
             DB::commit();
 
+            // Send payment SMS notification after successful commit
+            try {
+                app(CustomerMessagingService::class)->send(
+                    $customer,
+                    CustomerMessagingService::TYPE_PAYMENT,
+                    ['{PaidAmount}' => number_format((float) $payment->amount, 2)]
+                );
+            } catch (\Exception $e) {
+                Log::warning('Payment SMS notification failed', ['customer_id' => $customer->id, 'error' => $e->getMessage()]);
+            }
+
             return response()->json([
                 'message' => 'Payment resolved and applied',
                 'payment' => new PaymentResource($payment->fresh()),
@@ -617,6 +642,19 @@ class PaymentController extends Controller
             }
 
             DB::commit();
+
+            // Send payment SMS notification after successful commit
+            if ($request->customer_id && isset($customer)) {
+                try {
+                    app(CustomerMessagingService::class)->send(
+                        $customer,
+                        CustomerMessagingService::TYPE_PAYMENT,
+                        ['{PaidAmount}' => number_format((float) $request->amount, 2)]
+                    );
+                } catch (\Exception $e) {
+                    Log::warning('Payment SMS notification failed', ['customer_id' => $customer->id, 'error' => $e->getMessage()]);
+                }
+            }
 
             return response()->json([
                 'message' => 'Payment recorded successfully',
