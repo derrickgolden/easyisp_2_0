@@ -1,9 +1,19 @@
 import React, { useEffect, useMemo } from "react";
 import { Modal } from "../UI";
 import { customersApi, paymentsApi } from "@/src/services/apiService";
+import { Customer, Payment } from "@/src/types";
+import { formatPhone } from "@/src/pages/PaymentsPage";
 
-export const ResolveMpesaModal = ({ isResolveModalOpen, setIsResolveModalOpen, reconcilingPayment, setReconcilingPayment, onResolved }) => {
-    const [customers, setCustomers] = React.useState([]);
+interface ResolveMpesaModalProps {
+  isResolveModalOpen: boolean;
+  setIsResolveModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  reconcilingPayment: Payment | null;
+  setReconcilingPayment: React.Dispatch<React.SetStateAction<Payment | null>>;
+  onResolved?: () => void;
+}
+
+export const ResolveMpesaModal: React.FC<ResolveMpesaModalProps> = ({ isResolveModalOpen, setIsResolveModalOpen, reconcilingPayment, setReconcilingPayment, onResolved }) => {
+    const [customers, setCustomers] = React.useState<Customer[]>([]);
     const [targetCustomerId, setTargetCustomerId] = React.useState("");
   const [customerSearch, setCustomerSearch] = React.useState("");
     const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -19,7 +29,7 @@ export const ResolveMpesaModal = ({ isResolveModalOpen, setIsResolveModalOpen, r
             //fetch customers if needed, or ensure they are up to date
             customersApi.getAll().then(res => {
               const list = Array.isArray(res?.data) ? res.data : res?.data?.data || [];
-              setCustomers(list);
+              setCustomers(list as Customer[]);
             }).catch(err => {
                 console.error("Error fetching customers for reconciliation:", err);
                 setCustomers([]);
@@ -90,7 +100,15 @@ export const ResolveMpesaModal = ({ isResolveModalOpen, setIsResolveModalOpen, r
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-[10px] font-bold text-gray-500 uppercase">Sender Phone</span>
-                <span className="text-xs font-mono font-bold text-gray-700 dark:text-gray-300">{reconcilingPayment.phone}</span>
+                <span className="text-xs font-mono font-bold text-gray-700 dark:text-gray-300">{formatPhone(reconcilingPayment.phone)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-bold text-gray-500 uppercase">Sender Name</span>
+                <span className="text-xs font-mono font-bold text-gray-700 dark:text-gray-300">{reconcilingPayment.firstName} {reconcilingPayment.lastName}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-bold text-gray-500 uppercase">Reference</span>
+                <span className="text-xs font-mono font-bold text-gray-700 dark:text-gray-300">{reconcilingPayment.billRef}</span>
               </div>
             </div>
           )}
@@ -112,18 +130,18 @@ export const ResolveMpesaModal = ({ isResolveModalOpen, setIsResolveModalOpen, r
                 placeholder="Search name, phone, or username..."
                 value={customerSearch}
                 onChange={(event) => setCustomerSearch(event.target.value)}
-                className="w-full pl-9 pr-4 py-3 bg-gray-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
+                className="w-full pl-9 pr-4 py-3 bg-gray-50 dark:bg-slate-800 border border-gray-400 dark:border-slate-700 rounded-xl text-xs font-bold  text-gray-900 dark:text-white"
               />
             </div>
-            <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+            <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1 custom-scrollbar mb-4">
               {filteredCustomers.length > 0 ? (
                 filteredCustomers.map((customer) => (
                   <div
                     key={customer.id}
                     onClick={() => setTargetCustomerId(customer.id)}
-                    className={`p-4 rounded-xl border transition-all group shadow-sm flex items-center justify-between cursor-pointer ${
+                    className={`p-4 rounded-xl border transition-all group shadow-lg flex items-center justify-between cursor-pointer ${
                       targetCustomerId === customer.id
-                        ? "bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700"
+                        ? "bg-blue-50 dark:bg-blue-900/30 border-blue-400 dark:border-blue-700"
                         : "bg-white dark:bg-slate-800 border-gray-100 dark:border-slate-700 hover:border-blue-500"
                     }`}
                   >

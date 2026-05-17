@@ -2,6 +2,7 @@ import { paymentsApi } from "@/src/services/apiService";
 import React, { useEffect, useMemo } from "react";
 import { Modal } from "../UI";
 import { Customer, Payment } from "@/src/types";
+import { formatPhone } from "@/src/pages/PaymentsPage";
 
 interface ReconcileMpesaModalProps {
   customer: Customer | null;
@@ -173,7 +174,7 @@ export const ReconcileMpesaModal: React.FC<ReconcileMpesaModalProps> = ({
             placeholder="Search M-Pesa Code or Phone..."
             value={paymentSearchTerm}
             onChange={(event) => setPaymentSearchTerm(event.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-slate-800 border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-slate-800 border border-gray-400 dark:border-slate-700 rounded-xl text-sm font-bold"
           />
         </div>
 
@@ -196,11 +197,11 @@ export const ReconcileMpesaModal: React.FC<ReconcileMpesaModalProps> = ({
               <div
                 key={payment.id}
                 onClick={() => handleRequestConfirmation(payment)}
-                className={`p-4 bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 transition-all group shadow-sm ${
+                className={`p-4 bg-white dark:bg-slate-800 rounded-xl border border-gray-300 dark:border-slate-700 transition-all group shadow-lg ${
                   isResolving ? "cursor-not-allowed opacity-70" : "hover:border-blue-500 cursor-pointer"
                 }`}
               >
-                <div className="flex justify-between items-start mb-2">
+                <div className="flex justify-between items-start ">
                   <span className="font-mono font-black text-gray-900 dark:text-white tracking-tight">
                     {payment.mpesaCode}
                   </span>
@@ -208,9 +209,27 @@ export const ReconcileMpesaModal: React.FC<ReconcileMpesaModalProps> = ({
                     KSH {payment.amount.toLocaleString()}
                   </span>
                 </div>
+                <div className="flex justify-between">
+                  <div>
+                    <span className="text-[10px] text-gray-500 uppercase tracking-tight">
+                      Sender:
+                    </span>
+                    <span className="text-xs font-mono font-bold text-gray-700 dark:text-gray-300 ml-1">
+                      {payment.firstName} {payment.lastName}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-gray-500 uppercase tracking-tight">
+                      Reference:
+                    </span>
+                    <span className="text-xs font-mono font-bold text-gray-700 dark:text-gray-300 ml-1">
+                      {payment.billRef || "-"}
+                    </span>
+                  </div>
+                </div>
                 <div className="flex justify-between items-center text-[10px]">
                   <span className="text-gray-400 font-bold uppercase tracking-tighter">
-                    Phone: {payment.phone}
+                    Phone: {formatPhone(payment.phone)}
                   </span>
                   <span className="text-blue-500 font-black uppercase tracking-widest transition-opacity">
                     {reconcilingPayment?.id === payment.id ? "Linking..." : "Select Payment & Link"}
@@ -259,9 +278,6 @@ export const ReconcileMpesaModal: React.FC<ReconcileMpesaModalProps> = ({
                     KSH {paymentToConfirm?.amount.toLocaleString()}
                   </span>
                 </div>
-                <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-300">
-                  Phone: {paymentToConfirm?.phone || "-"}
-                </p>
               </div>
 
               <div className="mt-5 grid grid-cols-2 gap-3">

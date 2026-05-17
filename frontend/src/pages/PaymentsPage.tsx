@@ -7,10 +7,16 @@ import { ResolveMpesaModal } from '../components/modals/ResolveMpesaModal';
 import { STORAGE_KEYS } from '../constants/storage';
 import { toast } from 'sonner';
 
-const formatPhone = (value: string | null | undefined): string => {
+export const formatPhone = (value: string | null | undefined): string => {
   if (!value) return '_';
   // A valid phone: only digits, spaces, +, -, (), max 15 significant digits
   return /^[+\d\s\-()]{6,20}$/.test(value.trim()) ? value : '_';
+};
+
+const formatTimestamp = (value: string | null | undefined): string => {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 };
 
 export const PaymentsPage: React.FC = () => {
@@ -180,7 +186,7 @@ export const PaymentsPage: React.FC = () => {
                         <span className="text-gray-600 dark:text-gray-400 font-mono text-xs">{formatPhone(payment.phone)}</span>
                       </td>
                       <td className="py-5 px-6">
-                        <p className="text-gray-500 dark:text-gray-400 font-medium text-xs truncate w-32">{payment.timestamp}</p>
+                        <p className="text-gray-500 dark:text-gray-400 font-medium text-xs truncate w-32">{formatTimestamp(payment.timestamp)}</p>
                       </td>
                       <td className="py-5 px-6 text-right">
                         <button 
@@ -256,7 +262,7 @@ export const PaymentsPage: React.FC = () => {
                         </div>
                       </td>
                       <td className="py-5 px-6">
-                        <p className="text-gray-500 dark:text-gray-400 font-medium text-xs truncate w-32">{new Date(payment.timestamp).toLocaleString()}</p>
+                        <p className="text-gray-500 dark:text-gray-400 font-medium text-xs truncate w-32">{formatTimestamp(payment.timestamp)}</p>
                       </td>
                       <td className="py-5 px-6 text-right">
                         <button className="p-2 text-slate-400 hover:text-blue-600 transition-colors">
