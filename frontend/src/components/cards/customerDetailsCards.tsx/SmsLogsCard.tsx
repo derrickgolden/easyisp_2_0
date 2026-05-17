@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Card } from "../../UI";
+import { Card, Modal } from "../../UI";
 import { smsApi } from "../../../services/apiService";
 import { toast } from "sonner";
 
@@ -27,6 +27,7 @@ const SmsLogsCard: React.FC<SmsLogsCardProps> = ({ customerId }) => {
   const [logs, setLogs] = useState<SmsLog[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<SmsLog | null>(null);
 
   useEffect(() => {
     if (isExpanded && !hasLoaded) {
@@ -135,7 +136,7 @@ const SmsLogsCard: React.FC<SmsLogsCardProps> = ({ customerId }) => {
                         {formatDate(log.created_at)}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 relative group">
                       <div className="max-w-xs">
                         <p className="text-xs text-gray-900 dark:text-white line-clamp-2">
                           {log.message}
@@ -146,6 +147,18 @@ const SmsLogsCard: React.FC<SmsLogsCardProps> = ({ customerId }) => {
                           </p>
                         )}
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedLog(log)}
+                        className="absolute top-2 right-2 p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 transition-all"
+                        title="View full message"
+                        aria-label="View full message"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      </button>
                     </td>
                     <td className="px-6 py-4">
                       <span
@@ -165,6 +178,52 @@ const SmsLogsCard: React.FC<SmsLogsCardProps> = ({ customerId }) => {
           )}
         </div>
       )}
+
+      <Modal
+        isOpen={!!selectedLog}
+        onClose={() => setSelectedLog(null)}
+        title="SMS Message Details"
+        maxWidth="max-w-lg"
+      >
+        {selectedLog && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-gray-50 dark:bg-slate-800 rounded-xl p-3">
+                <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black mb-1">Phone</p>
+                <p className="text-sm font-mono text-gray-900 dark:text-white break-all">{selectedLog.phone || '-'}</p>
+              </div>
+              <div className="bg-gray-50 dark:bg-slate-800 rounded-xl p-3">
+                <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black mb-1">Status</p>
+                <p className="text-sm font-bold text-gray-900 dark:text-white uppercase">{selectedLog.status}</p>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 dark:bg-slate-800 rounded-xl p-4">
+              <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black mb-2">Full Message</p>
+              <p className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap break-words leading-relaxed">
+                {selectedLog.message || '-'}
+              </p>
+            </div>
+
+            {selectedLog.error_message && (
+              <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-xl p-3">
+                <p className="text-[10px] uppercase tracking-widest text-red-500 font-black mb-1">Provider Error</p>
+                <p className="text-xs text-red-700 dark:text-red-300 break-words">{selectedLog.error_message}</p>
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedLog(null)}
+                className="px-4 py-2 rounded-lg bg-slate-900 dark:bg-white dark:text-slate-900 text-white text-xs font-black uppercase"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </Card>
   );
 };
