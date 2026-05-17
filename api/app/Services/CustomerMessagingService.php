@@ -48,7 +48,7 @@ class CustomerMessagingService
         ],
         self::TYPE_PAYMENT => [
             'template_id' => 'system-payment',
-            'default' => 'Payment received. Amount: {PaidAmount}. Thank you.',
+            'default' => 'Payment received. Amount: KSH {PaidAmount}. Thank you.',
         ],
         self::TYPE_REMINDER => [
             'template_id' => 'system-reminder',

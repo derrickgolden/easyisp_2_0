@@ -214,15 +214,15 @@ class CustomerRadiusService
                 ->orderByDesc('radacctid')
                 ->first(['acctsessionid', 'nasipaddress', 'radacctid', 'acctterminatecause']);
 
-            if (!$lastSession || $lastSession->acctterminatecause !== 'Stale-Session') {
-                Log::info("No active session found, and latest session is not Stale-Session for {$username}.");
+            if (!$lastSession) {
+                Log::info("No active session found, and no previous session exists for {$username}.");
 
-                return ['status' => false, 'message' => "⚠️ No active session found, and latest session is not Stale-Session."];
+                return ['status' => false, 'message' => "⚠️ No active session found"];
             }
 
             $sessions = collect([$lastSession]);
 
-            Log::warning("No active sessions found for {$username}; attempting disconnect using latest stale-session record.");
+            Log::warning("No active sessions found for {$username}; attempting disconnect using latest session record.");
         }
 
         $responses = [];
