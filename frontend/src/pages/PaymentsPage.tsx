@@ -7,6 +7,12 @@ import { ResolveMpesaModal } from '../components/modals/ResolveMpesaModal';
 import { STORAGE_KEYS } from '../constants/storage';
 import { toast } from 'sonner';
 
+const formatPhone = (value: string | null | undefined): string => {
+  if (!value) return '_';
+  // A valid phone: only digits, spaces, +, -, (), max 15 significant digits
+  return /^[+\d\s\-()]{6,20}$/.test(value.trim()) ? value : '_';
+};
+
 export const PaymentsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'completed' | 'pending'>('completed');
@@ -171,7 +177,7 @@ export const PaymentsPage: React.FC = () => {
                         <span className="text-gray-900 dark:text-gray-100 font-medium text-xs truncate w-32">{payment.senderName || '-'}</span>
                       </td>
                       <td className="py-5 px-6">
-                        <span className="text-gray-600 dark:text-gray-400 font-mono text-xs">{payment.phone}</span>
+                        <span className="text-gray-600 dark:text-gray-400 font-mono text-xs">{formatPhone(payment.phone)}</span>
                       </td>
                       <td className="py-5 px-6">
                         <p className="text-gray-500 dark:text-gray-400 font-medium text-xs truncate w-32">{payment.timestamp}</p>
@@ -246,7 +252,7 @@ export const PaymentsPage: React.FC = () => {
                       <td className="py-5 px-6">
                         <div>
                           <p className="font-bold text-gray-900 dark:text-white leading-none mb-1">{payment.firstName}</p>
-                          <p className="text-[10px] text-gray-400 font-mono tracking-tighter truncate w-24">{payment.phone}</p>
+                          <p className="text-[10px] text-gray-400 font-mono tracking-tighter truncate w-24">{formatPhone(payment.phone)}</p>
                         </div>
                       </td>
                       <td className="py-5 px-6">
