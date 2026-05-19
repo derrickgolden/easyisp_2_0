@@ -16,6 +16,7 @@ import SmsModal from '../components/modals/SmsModal';
 import SmsLogsCard from '../components/cards/customerDetailsCards.tsx/SmsLogsCard';
 import { usePermissions } from '../hooks/usePermissions';
 import { PriceOverrideModal } from '../components/modals/PriceOverrideModal.tsx';
+import { formatPhone, isMobileDevice } from '../utils/callFactionality.ts';
 
 interface CustomerDetailPageProps {}
 
@@ -132,6 +133,20 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
     setIsPriceOverrideModalOpen(true);
   };
 
+  const handleCallClick = (): void => {
+    if (!customer || typeof customer.phone !== 'string' || !customer.phone.trim()) return;
+    const formattedPhone: string = formatPhone(customer.phone);
+    if (!formattedPhone || formattedPhone.length !== 10) {
+      alert('Invalid phone number.');
+      return;
+    }
+    if (isMobileDevice()) {
+      window.location.href = `tel:${formattedPhone}`;
+    } else {
+      alert('Calling is only supported on mobile devices.');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -173,7 +188,7 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
           <span className='hidden sm:block'>Back to customers</span>
         </button>
         
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="w-full grid grid-cols-2 md:grid-cols-4 gap-2 items-center">
           {/* {can('stk-push') && (
           <button 
             onClick={() => actions.handleStkPush(customer)}
@@ -187,17 +202,28 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
             can('send-message') && (
             <button 
               onClick={() => actions.setIsSmsModalOpen(true)}
-              className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/20"
+              className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 w-full"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
               Send SMS
             </button>
             )
           }
+
+
+            <button 
+              onClick={handleCallClick}
+              className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 w-full"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              </svg>
+              Call Customer
+            </button>
           
           <button 
             onClick={() => actions.handleEdit(customer)}
-            className="px-4 py-2 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-gray-100 dark:border-slate-800 rounded-xl text-sm font-bold hover:bg-gray-50 dark:hover:bg-slate-800 transition-all flex items-center gap-2"
+            className="px-4 py-2 bg-yellow-600 dark:bg-yellow-900 text-white dark:text-slate-300 border border-gray-100 dark:border-slate-800 rounded-xl text-sm font-bold hover:bg-yellow-700 dark:hover:bg-yellow-800 transition-all flex items-center justify-center gap-2 w-full"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
             Edit Profile
@@ -206,10 +232,11 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
           <button 
             onClick={() => { actions.deleteCustomer(customer) }}
             disabled={!can('delete-customers')}
-            className="p-2 bg-red-500/10 text-red-600 rounded-xl hover:bg-red-500/20 transition-all"
+            className="p-2 bg-red-500/10 text-red-600 rounded-xl hover:bg-red-500/20 transition-all flex items-center justify-center gap-2 w-full"
             title="Delete Account"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            Delete
           </button>
         </div>
       </div>

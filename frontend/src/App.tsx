@@ -133,7 +133,7 @@ const App: React.FC = () => {
 
       setCurrentUser(user);
       localStorage.setItem(AUTH_KEY, JSON.stringify(user));
-      showToast(`Authorized as ${user.name}`);
+      // showToast(`Authorized as ${user.name}`);
       
       // Load initial data after login
     } catch (error) {
