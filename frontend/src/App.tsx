@@ -264,7 +264,7 @@ const App: React.FC = () => {
                   </RequirePermission>
                 } />
                 <Route path='/settings/notes-template' element={
-                  <RequirePermission perms={['view-templates']}>
+                  <RequirePermission perms={['view-templates', 'manage-templates']}>
                     <NotesTemplate />
                   </RequirePermission>
                 } />

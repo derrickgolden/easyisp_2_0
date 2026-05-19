@@ -170,7 +170,7 @@ class SubscriptionService
         
     }
         
-    private function applyActiveStatus(Customer $customer)
+    public function applyActiveStatus(Customer $customer)
     {
         $customer->update(['status' => 'active']);
 
@@ -242,15 +242,14 @@ class SubscriptionService
 
         // Send 48-hour warning only in the window (48h, 1h] and only once.
         if (!$customer->expiry_warning_sent_at && $minutesUntilExpiry > 60 && $minutesUntilExpiry <= (48 * 60)) {
-            $daysUntilExpiry = max(1, (int) ceil($minutesUntilExpiry / (24 * 60)));
+                $hoursUntilExpiry = max(1, (int) ceil($minutesUntilExpiry / 60));
 
             $messagingService->send(
                 $customer,
                 CustomerMessagingService::TYPE_EXPIRY_WARNING,
                 [
                     '{Expiry}' => $effectiveDate->format('M d, Y h:i A'),
-                    '{DaysUntilExpiry}' => (string) $daysUntilExpiry,
-                    '{DaysLabel}' => $daysUntilExpiry === 1 ? 'day' : 'days',
+                        '{HoursUntilExpiry}' => (string) $hoursUntilExpiry,
                 ]
             );
 
@@ -259,11 +258,14 @@ class SubscriptionService
 
         // Send 1-hour warning in the last hour and only once.
         if (!$customer->expiry_one_hour_warning_sent_at && $minutesUntilExpiry <= 60) {
+            $hoursUntilExpiry = max(1, (int) ceil($minutesUntilExpiry / 60));
+
             $messagingService->send(
                 $customer,
                 CustomerMessagingService::TYPE_EXPIRY_ONE_HOUR_WARNING,
                 [
                     '{Expiry}' => $effectiveDate->format('M d, Y h:i A'),
+                    '{HoursUntilExpiry}' => (string) $hoursUntilExpiry,
                 ]
             );
 

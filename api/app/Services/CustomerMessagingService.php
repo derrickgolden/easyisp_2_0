@@ -32,11 +32,11 @@ class CustomerMessagingService
     private const MESSAGE_TEMPLATES = [
         self::TYPE_EXPIRY_WARNING => [
             'template_id' => 'system-expiry-warning',
-            'default' => 'Dear {FirstName}, your internet subscription expires in {DaysUntilExpiry} day(s) on {Expiry}. Please renew to avoid service interruption.',
+              'default' => 'Dear {FirstName}, your internet subscription expires in {HoursUntilExpiry} hour(s) on {Expiry}. Please renew to avoid service interruption.',
         ],
         self::TYPE_EXPIRY_ONE_HOUR_WARNING => [
             'template_id' => 'system-expiry-one-hour-warning',
-            'default' => 'Dear {FirstName}, your internet subscription will expire at {Expiry}. Please renew now to avoid interruption.',
+            'default' => 'Dear {FirstName}, your internet subscription expires in less than {HoursUntilExpiry} hour(s) at {Expiry}. Please renew now to avoid interruption.',
         ],
         self::TYPE_EXPIRY_NOTIFICATION => [
             'template_id' => 'system-expiry-notification',
@@ -110,6 +110,11 @@ class CustomerMessagingService
     private function sendMessage(Customer $customer, string $messageType, array $customReplacements = [], array $options = []): bool
     {
         try {
+            if ($this->shouldSuppressExpiryMessage($customer, $messageType)) {
+                Log::info("Skipping {$messageType} message for customer {$customer->id}: balance can cover next subscription.");
+                return false;
+            }
+
             // Validate customer and organization
             $organization = $customer->organization;
             if (!$organization) {
@@ -171,6 +176,30 @@ class CustomerMessagingService
             ]);
             return false;
         }
+    }
+
+    /**
+     * Prevent expiry messages when customer has enough balance for next subscription.
+     */
+    private function shouldSuppressExpiryMessage(Customer $customer, string $messageType): bool
+    {
+        $expiryMessageTypes = [
+            self::TYPE_EXPIRY_WARNING,
+            self::TYPE_EXPIRY_ONE_HOUR_WARNING,
+            self::TYPE_EXPIRY_NOTIFICATION,
+        ];
+
+        if (!in_array($messageType, $expiryMessageTypes, true)) {
+            return false;
+        }
+
+        $packageAmount = (float) ($customer->effective_package_price ?? 0);
+        if ($packageAmount <= 0) {
+            return false;
+        }
+
+        $balance = (float) ($customer->balance ?? 0);
+        return $balance >= $packageAmount;
     }
 
     /**

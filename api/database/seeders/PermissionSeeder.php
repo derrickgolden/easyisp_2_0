@@ -61,8 +61,8 @@ class PermissionSeeder extends Seeder
             // SYSTEM
             ['name' => 'view-dashboard', 'description' => 'Access system overview dashboards', 'group' => 'system'],
             ['name' => 'system-settings', 'description' => 'Access and modify system settings', 'group' => 'system'],
-            ['name' => 'view-templates', 'description' => 'View sms, email and document templates', 'group' => 'system'],
-            ['name' => 'manage-templates', 'description' => 'Create and edit sms, email and document templates', 'group' => 'system'],
+            ['name' => 'view-templates', 'description' => 'Access and view notes templates', 'group' => 'system'],
+            ['name' => 'manage-templates', 'description' => 'Create, edit and customize notes templates', 'group' => 'system'],
         ];
         
         foreach ($permissions as $permission) {

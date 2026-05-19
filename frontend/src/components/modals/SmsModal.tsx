@@ -58,11 +58,16 @@ const SmsModal = ({ state, actions, customer }: any) => {
             })
             : '';
 
+         const hoursUntilExpiry = customer.expiryDate
+            ? Math.max(1, Math.ceil((new Date(customer.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60)))
+            : 0;
+
         return template
             .replace(/{FirstName}/gi, customer.firstName || '')
             .replace(/{LastName}/gi, customer.lastName || '')
             .replace(/{Isp}/gi, (customer as any).organization?.name || 'ISP')
             .replace(/{Expiry}/gi, formattedExpiry)
+            .replace(/{HoursUntilExpiry}/gi, hoursUntilExpiry > 0 ? hoursUntilExpiry.toString() : '')
             .replace(/{PackageName}/gi, customer.package?.name || '')
             .replace(/{PaidAmount}/gi, (customer as any).lastPayment?.amount?.toString() || '0')
             .replace(/{PackageAmount}/gi, customer.package?.price?.toString() || '0')
@@ -124,6 +129,7 @@ const SmsModal = ({ state, actions, customer }: any) => {
                           { tag: '{LastName}', label: 'Last Name' },
                           { tag: '{Isp}', label: 'ISP Name' },
                           { tag: '{Expiry}', label: 'Expiry Date & Time' },
+                          { tag: '{HoursUntilExpiry}', label: 'Hours Left' },
                           { tag: '{PackageName}', label: 'Package' },
                           { tag: '{PaidAmount}', label: 'Paid Amt' },
                           { tag: '{PackageAmount}', label: 'Price' },

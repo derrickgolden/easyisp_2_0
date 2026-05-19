@@ -89,11 +89,16 @@ const BulkSmsModal: React.FC<BulkSmsModalProps> = ({
             })
             : '';
 
+        const hoursUntilExpiry = customer.expiryDate
+            ? Math.max(1, Math.ceil((new Date(customer.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60)))
+            : 0;
+
         return template
             .replace(/{FirstName}/gi, customer.firstName || '')
             .replace(/{LastName}/gi, customer.lastName || '')
             .replace(/{Isp}/gi, customer.organization?.name || 'ISP')
             .replace(/{Expiry}/gi, formattedExpiry)
+            .replace(/{HoursUntilExpiry}/gi, hoursUntilExpiry > 0 ? hoursUntilExpiry.toString() : '')
             .replace(/{PackageName}/gi, customer.package?.name || '')
             .replace(/{PaidAmount}/gi, customer.lastPayment?.amount?.toString() || '0')
             .replace(/{PackageAmount}/gi, customer.package?.price?.toString() || '0')

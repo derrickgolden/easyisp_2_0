@@ -430,20 +430,40 @@ class CustomerController extends Controller
         }
 
         if ($customer->wasChanged(['expiry_date', 'extension_date'])) {
-            $customer->expiry_warning_sent_at = null; // Reset warning flag if expiry changes
-            $customer->expiry_one_hour_warning_sent_at = null;
-            $customer->save();    
-            $syncResult = $this->subscriptionService->syncSubscription($customer);
+                $newExpiry = $this->subscriptionService->getEffectiveExpiryDate($customer);
 
-            // Cascade expiry date to dependent (non-independent) sub-accounts
-            $dependentChildren = $customer->subAccounts()->where('is_independent', false)->get();
-            foreach ($dependentChildren as $child) {
-                $child->expiry_date = $customer->expiry_date;
-                $child->expiry_warning_sent_at = null;
-                $child->expiry_one_hour_warning_sent_at = null;
-                $child->save();
-                $this->subscriptionService->syncSubscription($child);
-            }
+                $customer->expiry_warning_sent_at = null;
+                $customer->expiry_one_hour_warning_sent_at = null;
+
+                if ($newExpiry->isFuture()) {
+                    // New expiry is in the future — force active immediately without a full sync.
+                    // Running syncSubscription here can race with the cron and misread a near-future
+                    // expiry as expired. The cron (isp:check-expirations) manages it from here on.
+                    $customer->status = 'active';
+                    $customer->save();
+                    $this->subscriptionService->applyActiveStatus($customer);
+                } else {
+                    // Expiry is already in the past — run a full sync (may auto-renew or expire).
+                    $customer->save();
+                    $this->subscriptionService->syncSubscription($customer);
+                }
+
+                // Cascade expiry date to dependent (non-independent) sub-accounts
+                $dependentChildren = $customer->subAccounts()->where('is_independent', false)->get();
+                foreach ($dependentChildren as $child) {
+                    $child->expiry_date = $customer->expiry_date;
+                    $child->expiry_warning_sent_at = null;
+                    $child->expiry_one_hour_warning_sent_at = null;
+
+                    if ($newExpiry->isFuture()) {
+                        $child->status = 'active';
+                        $child->save();
+                        $this->subscriptionService->applyActiveStatus($child);
+                    } else {
+                        $child->save();
+                        $this->subscriptionService->syncSubscription($child);
+                    }
+                }
         }
 
         return response()->json([

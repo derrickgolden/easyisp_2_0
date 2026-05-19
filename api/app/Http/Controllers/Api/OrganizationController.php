@@ -13,8 +13,8 @@ class OrganizationController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:system-settings')->except(['show', 'index', 'licenseBilling', 'licenseBillingById']);
-        $this->middleware('permission:view-templates')->only(['show', 'index', 'licenseBilling']);
+        $this->middleware('permission:system-settings')->except(['show', 'index', 'licenseBilling', 'licenseBillingById', 'update']);
+        $this->middleware('permission:view-templates|manage-templates')->only(['index', 'licenseBilling']);
     }
 
     public function listAll()
@@ -97,6 +97,11 @@ class OrganizationController extends Controller
     public function update(Request $request)
     {
         $organization = $request->user()->organization;
+
+        $isTemplateOnlyUpdate = $this->isTemplateOnlyUpdate($request);
+        if (!$request->user()->can('system-settings') && !($isTemplateOnlyUpdate && $request->user()->can('manage-templates'))) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
         
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|string|max:255',
@@ -135,6 +140,23 @@ class OrganizationController extends Controller
             'message' => 'Organization updated successfully',
             'organization' => $organization,
         ]);
+    }
+
+    private function isTemplateOnlyUpdate(Request $request): bool
+    {
+        $payload = $request->all();
+
+        if (array_diff(array_keys($payload), ['settings'])) {
+            return false;
+        }
+
+        $settings = $request->input('settings');
+
+        if (!is_array($settings) || array_diff(array_keys($settings), ['notes-template'])) {
+            return false;
+        }
+
+        return is_array($settings['notes-template'] ?? null);
     }
 
     public function show($id)

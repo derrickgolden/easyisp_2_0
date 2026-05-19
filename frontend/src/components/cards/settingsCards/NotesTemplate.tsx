@@ -10,7 +10,7 @@ const DEFAULT_SYSTEM_TEMPLATES: Template[] = [
     {
         id: 'system-expiry-warning',
         name: '2 days to expiry Reminder',
-        content: 'Dear {FirstName}, your internet subscription expires in {DaysUntilExpiry} day(s) on {Expiry}. Please renew to avoid service interruption.',
+        content: 'Dear {FirstName}, your internet subscription expires in {HoursUntilExpiry} hour(s) on {Expiry}. Please renew to avoid service interruption.',
         category: 'System',
         isDefault: true,
     },
@@ -244,7 +244,7 @@ const NotesTemplate = () => {
                     <p className="text-[9px] text-blue-500 leading-tight">
                     Use variables like <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{FirstName}"}</code>, 
                     <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{Expiry}"}</code>, 
-                    <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{DaysUntilExpiry}"}</code>, 
+                    <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{HoursUntilExpiry}"}</code>, 
                     <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{PaidAmount}"}</code>, and 
                     <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{PackageName}"}</code>, 
                     <code className="bg-white dark:bg-slate-800 px-1 rounded">{"{RadiusUsername}"}</code> for dynamic insertion. Click tags below to insert them.
@@ -298,7 +298,7 @@ const NotesTemplate = () => {
                         { tag: '{LastName}', label: 'Last Name' },
                         { tag: '{Isp}', label: 'ISP Name' },
                         { tag: '{Expiry}', label: 'Expiry Date & Time' },
-                        { tag: '{DaysUntilExpiry}', label: 'Days Left' },
+                            { tag: '{HoursUntilExpiry}', label: 'Hours Left' },
                         { tag: '{PackageName}', label: 'Package' },
                         { tag: '{PaidAmount}', label: 'Paid Amt' },
                         { tag: '{PackageAmount}', label: 'Price' },
