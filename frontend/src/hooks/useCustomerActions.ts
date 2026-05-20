@@ -20,11 +20,12 @@ export function useCustomerActions() {
     const navigate = useNavigate();
   
     const deleteCustomer = async (customer: Customer) => {
-      const hasSubAccounts = customer.subAccounts && customer.subAccounts.length > 0;
+      const subAccounts = customer.subAccounts ?? [];
+      const hasSubAccounts = subAccounts.length > 0;
       
       // Custom message if children exist
       const warningText = hasSubAccounts 
-        ? `Warning: This account has ${customer.subAccounts.length} sub-accounts (${customer.subAccounts.map(s => s.radiusUsername).join(', ')}). Deleting this master account will delete ALL of them.`
+        ? `Warning: This account has ${subAccounts.length} sub-accounts (${subAccounts.map(s => s.radiusUsername).join(', ')}). Deleting this master account will delete ALL of them.`
         : 'This will permanently remove the customer and their RADIUS access.';
   
       const result = await Swal.fire({
@@ -111,63 +112,130 @@ export function useCustomerActions() {
       }
     };
 
-    const handleStkPush = async (customer: Customer) => {
+    const handleStkPush = (customer: Customer) => {
       if (!customer?.phone) {
         toast.error('Customer phone number is missing');
         return;
       }
 
       const defaultAmount = Math.max(1, Number(customer.package?.price || 1));
+      const isDarkMode = document.documentElement.classList.contains('dark');
+      const theme = isDarkMode
+        ? {
+            cardBorder: '#334155',
+            cardBg: 'linear-gradient(180deg, #0f172a 0%, #111827 100%)',
+            headerBg: '#1e3a8a',
+            headerText: '#f8fafc',
+            labelText: '#94a3b8',
+            valueText: '#e2e8f0',
+            inputBorder: '#334155',
+            inputBg: '#0b1220',
+            inputText: '#f8fafc',
+            helperText: '#94a3b8',
+            modalBg: '#0f172a',
+            modalText: '#e2e8f0',
+          }
+        : {
+            cardBorder: '#dbeafe',
+            cardBg: 'linear-gradient(180deg, #f8fafc 0%, #eff6ff 100%)',
+            headerBg: '#1d4ed8',
+            headerText: '#ffffff',
+            labelText: '#64748b',
+            valueText: '#0f172a',
+            inputBorder: '#bfdbfe',
+            inputBg: '#ffffff',
+            inputText: '#0f172a',
+            helperText: '#475569',
+            modalBg: '#ffffff',
+            modalText: '#0f172a',
+          };
 
-      const result = await Swal.fire({
+      const escapeHtml = (value: string = '') =>
+        value
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+
+      const customerName = `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Customer';
+      const packageName = customer.package?.name || 'N/A';
+
+      Swal.fire({
         title: 'Initiate STK Push',
-        html: `<div style="text-align:left;">` +
-          `<div style="margin-bottom:8px;"><strong>Customer:</strong> ${customer.firstName || ''} ${customer.lastName || ''}</div>` +
-          `<div style="margin-bottom:8px;"><strong>Phone:</strong> ${customer.phone}</div>` +
-          `<div style="margin-bottom:8px;"><strong>Package:</strong> ${customer.package?.name || 'N/A'}</div>` +
-        `</div>`,
-        input: 'number',
-        inputLabel: 'Amount (KSH)',
-        inputValue: defaultAmount,
-        inputAttributes: {
-          min: '1',
-          step: '1',
+        background: theme.modalBg,
+        color: theme.modalText,
+        html:
+          `<div style="text-align:left; border:1px solid ${theme.cardBorder}; border-radius:20px; overflow:hidden; background:${theme.cardBg};">` +
+            `<div style="padding:14px 16px; background:${theme.headerBg}; color:${theme.headerText};">` +
+              `<div style="font-weight:800; font-size:14px; letter-spacing:0.04em; text-transform:uppercase; opacity:0.9;">M-Pesa Prompt</div>` +
+              `<div style="font-weight:900; font-size:18px; margin-top:4px;">${escapeHtml(customerName)}</div>` +
+            `</div>` +
+            `<div style="padding:16px;">` +
+              `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">` +
+                `<span style="font-size:11px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:${theme.labelText};">Package</span>` +
+                `<span style="font-size:12px; font-weight:700; color:${theme.valueText};">${escapeHtml(packageName)}</span>` +
+              `</div>` +
+              `<label for="swal-stk-phone" style="display:block; margin-bottom:6px; font-size:11px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:${theme.labelText};">Phone Number</label>` +
+              `<input id="swal-stk-phone" type="tel" value="${escapeHtml(customer.phone)}" placeholder="07XXXXXXXX" style="width:100%; box-sizing:border-box; padding:11px 12px; border-radius:12px; border:1px solid ${theme.inputBorder}; background:${theme.inputBg}; color:${theme.inputText}; font-size:14px; font-weight:700; margin-bottom:12px; outline:none;" />` +
+              `<label for="swal-stk-amount" style="display:block; margin-bottom:6px; font-size:11px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:${theme.labelText};">Amount (KSH)</label>` +
+              `<input id="swal-stk-amount" type="number" min="1" step="1" value="${defaultAmount}" style="width:100%; box-sizing:border-box; padding:11px 12px; border-radius:12px; border:1px solid ${theme.inputBorder}; background:${theme.inputBg}; color:${theme.inputText}; font-size:14px; font-weight:800; outline:none;" />` +
+              `<p style="margin:10px 0 0; font-size:12px; color:${theme.helperText};">The customer will receive a prompt and must enter their M-Pesa PIN.</p>` +
+            `</div>` +
+          `</div>`,
+        customClass: {
+          popup: 'rounded-[1.75rem]',
+          confirmButton: 'rounded-xl px-5 py-3 font-extrabold',
+          cancelButton: 'rounded-xl px-5 py-3 font-bold'
         },
         showCancelButton: true,
+        confirmButtonColor: '#059669',
         confirmButtonText: 'Send STK Push',
         cancelButtonText: 'Cancel',
-        preConfirm: (value) => {
-          const amount = Number(value);
+        focusConfirm: false,
+        preConfirm: () => {
+          const phoneInput = document.getElementById('swal-stk-phone') as HTMLInputElement | null;
+          const amountInput = document.getElementById('swal-stk-amount') as HTMLInputElement | null;
+
+          const phone = (phoneInput?.value || '').trim();
+          const amount = Number(amountInput?.value || 0);
+
+          if (!phone) {
+            Swal.showValidationMessage('Enter a phone number');
+            return null;
+          }
+
           if (!amount || Number.isNaN(amount) || amount < 1) {
             Swal.showValidationMessage('Enter a valid amount');
             return null;
           }
-          return amount;
+
+          return { phone, amount };
         },
+      }).then(async (result) => {
+        if (!result.isConfirmed) return;
+
+        try {
+          Swal.fire({
+            title: 'Sending STK Push...',
+            allowOutsideClick: false,
+            didOpen: () => {
+              Swal.showLoading();
+            },
+          });
+
+          await paymentsApi.stkPushPayhero({
+            phone: result.value.phone,
+            amount: Number(result.value.amount),
+          });
+
+          Swal.close();
+          toast.success('STK push initiated. Ask the customer to enter their PIN.');
+        } catch (err: any) {
+          Swal.close();
+          toast.error(err?.message || 'Failed to initiate STK push');
+        }
       });
-
-      if (!result.isConfirmed) return;
-
-      try {
-        Swal.fire({
-          title: 'Sending STK Push...',
-          allowOutsideClick: false,
-          didOpen: () => {
-            Swal.showLoading();
-          },
-        });
-
-        await paymentsApi.stkPushPayhero({
-          phone: customer.phone,
-          amount: Number(result.value),
-        });
-
-        Swal.close();
-        toast.success('STK push initiated. Ask the customer to enter their PIN.');
-      } catch (err: any) {
-        Swal.close();
-        toast.error(err?.message || 'Failed to initiate STK push');
-      }
     };
 
     

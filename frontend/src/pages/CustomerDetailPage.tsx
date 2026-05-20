@@ -189,15 +189,15 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
         </button>
         
         <div className="w-full grid grid-cols-2 md:grid-cols-4 gap-2 items-center">
-          {/* {can('stk-push') && (
+          {can('stk-push') && (
           <button 
             onClick={() => actions.handleStkPush(customer)}
-            className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/20"
+            className="px-4 py-2 bg-gray-600 text-white rounded-xl text-sm font-bold hover:bg-gray-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
             STK Push
           </button>
-          )} */}
+          )}
           {
             can('send-message') && (
             <button 
@@ -232,7 +232,7 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
           <button 
             onClick={() => { actions.deleteCustomer(customer) }}
             disabled={!can('delete-customers')}
-            className="p-2 bg-red-500/10 text-red-600 rounded-xl hover:bg-red-500/20 transition-all flex items-center justify-center gap-2 w-full"
+            className="p-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all flex items-center justify-center gap-2 w-full"
             title="Delete Account"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>

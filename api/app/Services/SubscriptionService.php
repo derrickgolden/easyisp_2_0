@@ -111,11 +111,12 @@ class SubscriptionService
         }
 
         // 4. Set new expiry date starting from NOW, accounting for borrowed extension days
+        // Keep exact timestamp instead of forcing end-of-day cutoffs.
         if ($validityType === 'months') {
-            $customer->expiry_date = Carbon::now()->addMonthsNoOverflow($validityDays)->subDays($extensionDays)->endOfDay();
+            $customer->expiry_date = Carbon::now()->addMonthsNoOverflow($validityDays)->subDays($extensionDays);
         } else {
             $daysToAdd = max(0, $validityDays - $extensionDays);
-            $customer->expiry_date = Carbon::now()->addDays($daysToAdd)->endOfDay();
+            $customer->expiry_date = Carbon::now()->addDays($daysToAdd);
         }
         
         // 6. Reset extension fields and status
