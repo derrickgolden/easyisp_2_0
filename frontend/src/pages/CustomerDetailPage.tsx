@@ -210,7 +210,6 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
             )
           }
 
-
             <button 
               onClick={handleCallClick}
               className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 w-full"

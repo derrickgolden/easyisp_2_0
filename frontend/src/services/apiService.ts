@@ -492,6 +492,54 @@ export const paymentsApi = {
       throw new Error(message);
     }
   },
+
+  stkPushDaraja: async (data: {
+    phone: string;
+    amount: number;
+    account_reference?: string;
+    transaction_desc?: string;
+    transaction_type?: 'CustomerPayBillOnline' | 'CustomerBuyGoodsOnline';
+  }) => {
+    const normalizeKenyanPhone = (phone: string) => {
+      const digits = (phone || '').replace(/\D/g, '');
+      if (!digits) return null;
+
+      if (digits.startsWith('0') && digits.length === 10) {
+        return `254${digits.slice(1)}`;
+      }
+      if ((digits.startsWith('7') || digits.startsWith('1')) && digits.length === 9) {
+        return `254${digits}`;
+      }
+      if (/^254(7|1)\d{8}$/.test(digits)) {
+        return digits;
+      }
+
+      return null;
+    };
+
+    const phone = normalizeKenyanPhone(data.phone);
+
+    if (!phone) {
+      throw new Error('Invalid phone format. Use 07XXXXXXXX, 7XXXXXXXX, or 2547XXXXXXXX.');
+    }
+
+    try {
+      const response = await axiosInstance.post('/payments/daraja/stkpush', {
+        ...data,
+        phone,
+      });
+      return response.data;
+    } catch (err: any) {
+      const responseData = err?.response?.data;
+      const message =
+        responseData?.message ||
+        responseData?.error ||
+        (responseData?.errors ? JSON.stringify(responseData.errors) : null) ||
+        err?.message ||
+        'Failed to initiate Daraja STK push';
+      throw new Error(message);
+    }
+  },
 };
 
 // Transactions Endpoints

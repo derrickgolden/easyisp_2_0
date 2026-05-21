@@ -106,6 +106,8 @@ const BulkSmsModal: React.FC<BulkSmsModalProps> = ({
             .replace(/{RadiusUsername}/gi, customer.radiusUsername || '');
     };
 
+            const normalizePhoneForDedup = (phone: string): string => phone.replace(/\D+/g, '');
+
     const handleBulkSmsSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -119,9 +121,25 @@ const BulkSmsModal: React.FC<BulkSmsModalProps> = ({
             return;
         }
 
+        const customersWithPhones = filteredCustomers.filter(customer => customer.phone);
+        const seenPhones = new Set<string>();
+        let duplicatesDetected = 0;
+
+        const uniqueTargetCount = customersWithPhones.reduce((count, customer) => {
+            const normalizedPhone = normalizePhoneForDedup(String(customer.phone));
+
+            if (seenPhones.has(normalizedPhone)) {
+                duplicatesDetected += 1;
+                return count;
+            }
+
+            seenPhones.add(normalizedPhone);
+            return count + 1;
+        }, 0);
+
         const result = await confirmAction(
             'Send Bulk SMS?',
-            `You are about to send SMS to ${filteredCustomers.length} customer(s). This action cannot be undone.`,
+            `You are about to send SMS to ${uniqueTargetCount} unique phone number(s). This action cannot be undone.${duplicatesDetected > 0 ? `\n\n${duplicatesDetected} duplicate entr${duplicatesDetected === 1 ? 'y' : 'ies'} will be skipped automatically.` : ''}`,
             {
                 confirmButtonText: 'Send SMS',
                 confirmButtonColor: '#2563eb',
@@ -133,12 +151,22 @@ const BulkSmsModal: React.FC<BulkSmsModalProps> = ({
         if (!result.isConfirmed) return;
 
         setIsSending(true);
-        setSendingProgress({ current: 0, total: filteredCustomers.length });
+        setSendingProgress({ current: 0, total: uniqueTargetCount });
 
         try {
-            // Prepare recipients with personalized messages
-            const recipients = filteredCustomers
-                .filter(customer => customer.phone) // Only customers with phone numbers
+            // Prepare recipients with personalized messages and dedup by normalized phone.
+            const dedupSeenPhones = new Set<string>();
+            const recipients = customersWithPhones
+                .filter(customer => {
+                    const normalizedPhone = normalizePhoneForDedup(String(customer.phone));
+
+                    if (dedupSeenPhones.has(normalizedPhone)) {
+                        return false;
+                    }
+
+                    dedupSeenPhones.add(normalizedPhone);
+                    return true;
+                })
                 .map(customer => ({
                     phone: customer.phone,
                     message: personalizeMessage(bulkSmsMessage, customer),
@@ -156,11 +184,13 @@ const BulkSmsModal: React.FC<BulkSmsModalProps> = ({
             const response = await smsApi.sendBulk(recipients);
 
             // Handle async response (202 Accepted)
-            const { total_recipients, jobs_dispatched, estimated_time_minutes } = response.data;
+            const payload = response?.data ?? response;
+            const { total_recipients, duplicates_removed, jobs_dispatched, estimated_time_minutes } = payload;
 
             toast.success(
                 `📤 Bulk SMS Queued Successfully!\n\n` +
                 `📊 ${total_recipients} messages queued in ${jobs_dispatched} batches\n` +
+                `${(duplicates_removed ?? 0) > 0 ? `🧹 ${(duplicates_removed ?? 0)} duplicate entr${(duplicates_removed ?? 0) === 1 ? 'y was' : 'ies were'} skipped\n` : ''}` +
                 `⏱️ Estimated processing time: ${estimated_time_minutes} minutes\n\n` +
                 `Messages will be sent in the background.`,
                 { duration: 6000 }

@@ -142,6 +142,25 @@ class SmsController extends Controller
             }
 
             $recipients = $request->input('recipients');
+
+            // Safety dedup: keep first occurrence per normalized phone number.
+            $seenPhones = [];
+            $uniqueRecipients = [];
+            $duplicatesRemoved = 0;
+
+            foreach ($recipients as $recipient) {
+                $normalizedPhone = $this->normalizePhoneForDedup((string) $recipient['phone']);
+
+                if (isset($seenPhones[$normalizedPhone])) {
+                    $duplicatesRemoved++;
+                    continue;
+                }
+
+                $seenPhones[$normalizedPhone] = true;
+                $uniqueRecipients[] = $recipient;
+            }
+
+            $recipients = $uniqueRecipients;
             $totalRecipients = count($recipients);
 
             // Process in chunks of 50 recipients per job
@@ -164,6 +183,7 @@ class SmsController extends Controller
 
             Log::info('Bulk SMS jobs dispatched', [
                 'total_recipients' => $totalRecipients,
+                'duplicates_removed' => $duplicatesRemoved,
                 'jobs_dispatched' => $jobsDispatched,
                 'chunk_size' => $chunkSize,
                 'organization_id' => $organization->id,
@@ -174,6 +194,7 @@ class SmsController extends Controller
                 'message' => "Bulk SMS queued successfully. Processing {$totalRecipients} messages in {$jobsDispatched} batches.",
                 'data' => [
                     'total_recipients' => $totalRecipients,
+                    'duplicates_removed' => $duplicatesRemoved,
                     'jobs_dispatched' => $jobsDispatched,
                     'chunk_size' => $chunkSize,
                     'estimated_time_minutes' => ceil($totalRecipients / 10), // Rough estimate
@@ -209,5 +230,13 @@ class SmsController extends Controller
             ->get();
 
         return response()->json(['data' => $logs]);
+    }
+
+    /**
+     * Normalize phone for dedup comparisons while preserving original send value.
+     */
+    private function normalizePhoneForDedup(string $phone): string
+    {
+        return preg_replace('/\D+/', '', $phone) ?? $phone;
     }
 }

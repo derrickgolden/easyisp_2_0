@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\PackageController;
 use App\Http\Controllers\Api\SiteController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PayheroPaymentController;
+use App\Http\Controllers\Api\DarajaPaymentController;
 use App\Http\Controllers\Api\TransactionController;
 use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\ExpenseController;
@@ -55,6 +56,7 @@ Route::post('/radius/verify/{username}', [RadiusController::class, 'verify']);
 Route::post('/payments/c2b/{token}/validation', [PaymentController::class, 'c2bValidation']);
 Route::post('/payments/c2b/{token}/confirmation', [PaymentController::class, 'c2bConfirmation']);
 Route::post('/payments/payhero/{token}/stk/callback', [PayheroPaymentController::class, 'stkCallback']);
+Route::post('/payments/daraja/{token}/stk/callback', [DarajaPaymentController::class, 'stkCallback']);
 
 
 // system-admin-only routes
@@ -172,6 +174,7 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     
     // Payment management
     Route::post('/payments/payhero/stkpush', [PayheroPaymentController::class, 'stkPush']);
+    Route::post('/payments/daraja/stkpush', [DarajaPaymentController::class, 'stkPush']);
     Route::get('/payments/payhero/check-status', [PaymentController::class, 'checkPaymentStatus']);
     Route::get('/payments/pending', [PaymentController::class, 'pending']);
     Route::get('/payments/customer/{customerId}', [PaymentController::class, 'getByCustomer']);

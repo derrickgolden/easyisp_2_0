@@ -180,6 +180,17 @@ export function useCustomerActions() {
               `<input id="swal-stk-phone" type="tel" value="${escapeHtml(customer.phone)}" placeholder="07XXXXXXXX" style="width:100%; box-sizing:border-box; padding:11px 12px; border-radius:12px; border:1px solid ${theme.inputBorder}; background:${theme.inputBg}; color:${theme.inputText}; font-size:14px; font-weight:700; margin-bottom:12px; outline:none;" />` +
               `<label for="swal-stk-amount" style="display:block; margin-bottom:6px; font-size:11px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:${theme.labelText};">Amount (KSH)</label>` +
               `<input id="swal-stk-amount" type="number" min="1" step="1" value="${defaultAmount}" style="width:100%; box-sizing:border-box; padding:11px 12px; border-radius:12px; border:1px solid ${theme.inputBorder}; background:${theme.inputBg}; color:${theme.inputText}; font-size:14px; font-weight:800; outline:none;" />` +
+              `<label style="display:block; margin:12px 0 6px; font-size:11px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:${theme.labelText};">Gateway</label>` +
+              `<div style="display:flex; gap:8px; margin-bottom:8px;">` +
+                `<label for="swal-stk-provider-payhero" style="flex:1; display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; border:1px solid ${theme.inputBorder}; border-radius:12px; padding:10px 12px; background:${theme.inputBg}; color:${theme.inputText}; font-weight:800; font-size:12px;">` +
+                  `<input id="swal-stk-provider-payhero" type="radio" name="swal-stk-provider" value="payhero" />` +
+                  `<span>PayHero</span>` +
+                `</label>` +
+                `<label for="swal-stk-provider-daraja" style="flex:1; display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; border:1px solid ${theme.inputBorder}; border-radius:12px; padding:10px 12px; background:${theme.inputBg}; color:${theme.inputText}; font-weight:800; font-size:12px;">` +
+                  `<input id="swal-stk-provider-daraja" type="radio" name="swal-stk-provider" value="daraja" checked/>` +
+                  `<span>Daraja</span>` +
+                `</label>` +
+              `</div>` +
               `<p style="margin:10px 0 0; font-size:12px; color:${theme.helperText};">The customer will receive a prompt and must enter their M-Pesa PIN.</p>` +
             `</div>` +
           `</div>`,
@@ -196,9 +207,11 @@ export function useCustomerActions() {
         preConfirm: () => {
           const phoneInput = document.getElementById('swal-stk-phone') as HTMLInputElement | null;
           const amountInput = document.getElementById('swal-stk-amount') as HTMLInputElement | null;
+          const providerInput = document.querySelector('input[name="swal-stk-provider"]:checked') as HTMLInputElement | null;
 
           const phone = (phoneInput?.value || '').trim();
           const amount = Number(amountInput?.value || 0);
+          const provider = (providerInput?.value || 'payhero').trim();
 
           if (!phone) {
             Swal.showValidationMessage('Enter a phone number');
@@ -210,7 +223,7 @@ export function useCustomerActions() {
             return null;
           }
 
-          return { phone, amount };
+          return { phone, amount, provider };
         },
       }).then(async (result) => {
         if (!result.isConfirmed) return;
@@ -224,13 +237,22 @@ export function useCustomerActions() {
             },
           });
 
-          await paymentsApi.stkPushPayhero({
-            phone: result.value.phone,
-            amount: Number(result.value.amount),
-          });
+          const provider = result.value.provider === 'daraja' ? 'daraja' : 'payhero';
+
+          if (provider === 'daraja') {
+            await paymentsApi.stkPushDaraja({
+              phone: result.value.phone,
+              amount: Number(result.value.amount),
+            });
+          } else {
+            await paymentsApi.stkPushPayhero({
+              phone: result.value.phone,
+              amount: Number(result.value.amount),
+            });
+          }
 
           Swal.close();
-          toast.success('STK push initiated. Ask the customer to enter their PIN.');
+          toast.success(`${provider === 'daraja' ? 'Daraja' : 'PayHero'} STK push initiated. Ask the customer to enter their PIN.`);
         } catch (err: any) {
           Swal.close();
           toast.error(err?.message || 'Failed to initiate STK push');

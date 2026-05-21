@@ -62,6 +62,8 @@ php artisan up
 
 # giving wireguard client permission to the server
 /etc/freeradius/3.0/clients.conf
+# after changes
+systemctl restart freeradius
 
 # moving files for god admin
 cp -r /var/www/easyisp_2_0/admin/dist/* /var/www/easyisp_god_admin/
@@ -78,3 +80,6 @@ Generated token for organization 1 (Easy Tech Cloud).
 Callback URL: /payments/c2b/gDfe1cLVv91bPeSys9J6/validation
 Callback URL: /payments/c2b/gDfe1cLVv91bPeSys9J6/confirmation
 Callback URL: /payments/payhero/gDfe1cLVv91bPeSys9J6/stk/callback
+
+
+#reversing wrongly closed sessions

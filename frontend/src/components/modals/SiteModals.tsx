@@ -6,6 +6,7 @@ import { sitesApi } from '../../services/apiService';
 import { toast } from 'sonner';
 const WIREGUARD_PUBLIC_KEY = import.meta.env.VITE_WIREGUARD_PUBLIC_KEY;
 const WIREGUARD_ALLOWED_ADDRESS = import.meta.env.VITE_WIREGUARD_ALLOWED_ADDRESS;
+const WIREGUARD_ENDPOINT_ADDRESS = import.meta.env.VITE_WIREGUARD_ENDPOINT_ADDRESS;
 
 interface SiteProvisionModalProps {
   isOpen: boolean;
@@ -405,7 +406,7 @@ add default-profile=pppoe-profile disabled=no interface=bridge-pppoe \
 # WireGuard Configuration
 /interface wireguard add name=wg-client listen-port=13231
 /interface wireguard peers add interface=wg-client public-key="${WIREGUARD_PUBLIC_KEY}" \
-endpoint-address=10.30.30.1 endpoint-port=51820 allowed-address=${WIREGUARD_ALLOWED_ADDRESS} persistent-keepalive=25s
+endpoint-address=${WIREGUARD_ENDPOINT_ADDRESS} endpoint-port=51820 allowed-address=${WIREGUARD_ALLOWED_ADDRESS} persistent-keepalive=25s
 
 # WireGuard IP Address Configuration
 /ip address add address=${selectedSite?.ip_address}/24 interface=wg-client \
@@ -431,7 +432,13 @@ add chain=input protocol=tcp dst-port=8728 action=drop comment="Drop API from ot
 /user add name=apiuser password=hjdTY162JGFkas group=full
 
 # System Clock
-/system clock set time-zone-name=Africa/Nairobi`}
+/system clock set time-zone-name=Africa/Nairobi
+
+# Other common configurations can be added here as needed
+/ip firewall address-list add list=POOLED address=10.254.0.0/24 comment="PPPoE Pool Address List for EasyTech"
+
+/ip firewall filter disable [find action=fasttrack-connection]`}
+
       </pre>
     </div>
     <button onClick={onCopy} className="w-full mt-4 py-2 border border-gray-200 dark:border-slate-700 text-xs font-bold rounded-xl dark:text-gray-300">

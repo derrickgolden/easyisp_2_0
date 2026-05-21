@@ -1,6 +1,7 @@
 import { useState } from "react";
 import TableScrollModal from "../../modals/TableScrollModal";
 import { Badge, Card } from "../../UI";
+import { formatPhone } from "@/src/pages/PaymentsPage";
 
 const PaymentHistoryCard = ({ customerPayments }) => {
   const [currentPage, setCurrentPage] = useState(1);
@@ -19,7 +20,7 @@ const PaymentHistoryCard = ({ customerPayments }) => {
                              <th className="py-4 px-6">Date</th>
                              <th className="py-4 px-6">M-Pesa Code</th>
                              <th className="py-4 px-6">Description</th>
-                             <th className="py-4 px-6">Amount</th>
+                             <th className="py-4 px-6">Amount(KSH)</th>
                              <th className="py-4 px-6">Phone</th>
                              <th className="py-4 px-6 text-right">Status</th>
                            </tr>
@@ -30,8 +31,8 @@ const PaymentHistoryCard = ({ customerPayments }) => {
                                 <td className="py-4 px-6 text-xs text-gray-500 font-medium">{new Date(p.timestamp).toLocaleString()}</td>
                                 <td className="py-4 px-6 font-mono font-black text-gray-900 dark:text-white tracking-widest">{p.mpesaCode}</td>
                                 <td className="py-4 px-6 text-xs text-gray-400">{p.billRef}</td>
-                                <td className="py-4 px-6 font-black text-emerald-600">KSH {p.amount.toLocaleString()}</td>
-                                <td className="py-4 px-6 font-mono text-gray-700 dark:text-gray-300">{p.phone}</td>
+                                <td className="py-4 px-6 font-black text-emerald-600">{p.amount.toLocaleString()}</td>
+                                <td className="py-4 px-6 font-mono text-gray-700 dark:text-gray-300">{formatPhone(p.phone)}</td>
                                 <td className="py-4 px-6 text-right"><Badge variant={p.status}>{p.status.toUpperCase()}</Badge></td>
                               </tr>
                             )) : (

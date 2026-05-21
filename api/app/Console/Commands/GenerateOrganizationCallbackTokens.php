@@ -51,6 +51,7 @@ class GenerateOrganizationCallbackTokens extends Command
         $this->line("Callback URL: /payments/c2b/{$token}/validation");
         $this->line("Callback URL: /payments/c2b/{$token}/confirmation");
         $this->line("Callback URL: /payments/payhero/{$token}/stk/callback");
+        $this->line("Callback URL: /payments/daraja/{$token}/stk/callback");
 
         return self::SUCCESS;
     }
