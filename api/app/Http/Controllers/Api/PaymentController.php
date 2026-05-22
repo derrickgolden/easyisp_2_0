@@ -8,6 +8,7 @@ use App\Models\Payment;
 use App\Models\Customer;
 use App\Models\Organization;
 use App\Models\Transaction;
+use App\Services\IncomingPaymentService;
 use App\Services\SubscriptionService;
 use App\Services\CustomerMessagingService;
 use Illuminate\Http\Request;
@@ -100,15 +101,6 @@ class PaymentController extends Controller
         $lastName = $payload['LastName'] ?? '';
         $senderName = trim("{$firstName} {$middleName} {$lastName}") ?: null;
 
-        Log::debug('C2B Confirmation parsed data', [
-            'mpesa_code' => $mpesaCode,
-            'amount' => $amount,
-            'bill_ref' => $billRef,
-            'phone' => $phone,
-            'short_code' => $shortCode,
-            'sender_name' => $senderName,
-        ]);
-
         if (!$mpesaCode || !$amount || !$phone || !is_numeric($amount) || (float) $amount <= 0) {
             Log::warning('C2B Confirmation invalid payload', [
                 'mpesa_code' => $mpesaCode,
@@ -119,17 +111,6 @@ class PaymentController extends Controller
                 'ResultCode' => 1,
                 'ResultDesc' => 'Invalid payload',
             ], 400);
-        }
-
-        // Idempotency: if already processed, acknowledge
-        if (Payment::where('mpesa_code', $mpesaCode)->exists()) {
-            Log::info('C2B Confirmation duplicate payment ignored', [
-                'mpesa_code' => $mpesaCode,
-            ]);
-            return response()->json([
-                'ResultCode' => 0,
-                'ResultDesc' => 'Duplicate ignored',
-            ]);
         }
 
         // Organization already resolved from token
@@ -145,54 +126,24 @@ class PaymentController extends Controller
         ]);
 
         try {
-            DB::beginTransaction();
+            $result = app(IncomingPaymentService::class)->processC2BPayment(
+                $organization,
+                $customer,
+                (string) $mpesaCode,
+                (float) $amount,
+                $billRef,
+                $phone,
+                $senderName,
+            );
 
-            $payment = Payment::create([
-                'organization_id' => $organization->id,
-                'customer_id' => $customer?->id,
-                'mpesa_code' => $mpesaCode,
-                'amount' => $amount,
-                'bill_ref' => $billRef,
-                'phone' => $phone,
-                'sender_name' => $senderName,
-                'status' => $customer ? 'completed' : 'pending',
-            ]);
-
-            if ($customer) {
-                $balanceBefore = $customer->balance;
-                $customer->increment('balance', $amount);
-
-                Transaction::create([
-                    'organization_id' => $organization->id,
-                    'customer_id' => $customer->id,
-                    'amount' => $amount,
-                    'type' => 'credit',
-                    'category' => 'payment',
-                    'method' => 'mpesa',
-                    'description' => 'C2B Paybill Payment',
-                    'balance_before' => $balanceBefore,
-                    'balance_after' => $customer->balance,
-                    'reference_id' => $mpesaCode,
+            if ($result['duplicate']) {
+                return response()->json([
+                    'ResultCode' => 0,
+                    'ResultDesc' => 'Duplicate ignored',
                 ]);
-
-                // If expired and balance is sufficient, this will auto-activate
-                app(SubscriptionService::class)->syncSubscription($customer);
             }
 
-            DB::commit();
-
-            // Send payment SMS notification after successful commit
-            if ($customer) {
-                try {
-                    app(CustomerMessagingService::class)->send(
-                        $customer,
-                        CustomerMessagingService::TYPE_PAYMENT,
-                        ['{PaidAmount}' => number_format($amount, 2)]
-                    );
-                } catch (\Exception $e) {
-                    Log::warning('Payment SMS notification failed', ['customer_id' => $customer->id, 'error' => $e->getMessage()]);
-                }
-            }
+            $payment = $result['payment'];
 
             Log::info('C2B Confirmation payment processed successfully', [
                 'payment_id' => $payment->id,
@@ -208,7 +159,6 @@ class PaymentController extends Controller
                 'payment_id' => $payment->id,
             ]);
         } catch (\Exception $e) {
-            DB::rollBack();
             Log::error('C2B payment processing failed', [
                 'error' => $e->getMessage(),
                 'mpesa_code' => $mpesaCode,

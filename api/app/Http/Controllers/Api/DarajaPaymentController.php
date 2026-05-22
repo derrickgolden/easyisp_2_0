@@ -5,9 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\Organization;
-use App\Models\OrganizationLicenseSnapshot;
+use App\Services\IncomingPaymentService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -52,14 +51,13 @@ class DarajaPaymentController extends Controller
             ], 422);
         }
 
-        $settings = data_get($organization->settings, 'payment-gateway', []);
+        $settings = $this->extractPaymentGatewaySettings($organization->settings);
 
         $consumerKey = trim((string) (data_get($settings, 'consumer_key') ?? ''));
         $consumerSecret = trim((string) (data_get($settings, 'consumer_secret') ?? ''));
-        $shortCode = trim((string) (data_get($settings, 'paybill') ?? ''));
+        $shortCode = trim((string) ( data_get($settings, 'paybill')?? ''));
         $passkey = trim((string) (data_get($settings, 'passkey') ?? ''));
         $environment = strtolower(trim((string) (data_get($settings, 'environment') ?? 'production')));
-
 
         if (!$consumerKey || !$consumerSecret || !$shortCode || !$passkey) {
             Log::error('Daraja STK: Missing Daraja settings', [
@@ -94,30 +92,55 @@ class DarajaPaymentController extends Controller
             ? 'https://sandbox.safaricom.co.ke'
             : 'https://api.safaricom.co.ke';
 
-        // Use callback URL from org settings if present, else fallback
-        $callbackUrl = null;
-        if (!empty($settings['daraja_stk_callback_url'])) {
-            $callbackUrl = trim($settings['daraja_stk_callback_url']);
-        }
-        if (!$callbackUrl) {
-            $callbackBaseUrl = rtrim((string) env('DARAJA_STK_CALLBACK_BASE_URL', config('app.url')), '/');
-            $callbackUrl = $callbackBaseUrl . '/api/payments/daraja/' . $organization->mpesa_callback_token . '/stk/callback';
-        }
-        if (!$callbackUrl) {
-            Log::error('Daraja STK: Callback URL could not be determined', [
+        // Strict mode: only one DB key is accepted for STK callback URL.
+        $callbackUrl = trim((string) ($settings['stk_callback_url'] ?? ''));
+        $callbackSource = 'stk_callback_url';
+
+        if ($callbackUrl === '') {
+            Log::error('Daraja STK: Missing required stk_callback_url', [
                 'organization_id' => $organization->id,
-                'settings_callback_url' => $settings['daraja_stk_callback_url'] ?? null,
+                'required_setting_key' => 'payment-gateway.stk_callback_url',
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Callback URL could not be determined.',
-            ], 500);
+                'message' => 'Daraja STK callback URL is missing. Set payment-gateway.stk_callback_url in Organization Settings.',
+            ], 422);
+        }
+
+        if (!filter_var($callbackUrl, FILTER_VALIDATE_URL)) {
+            Log::error('Daraja STK: Invalid stk_callback_url format', [
+                'organization_id' => $organization->id,
+                'stk_callback_url' => $callbackUrl,
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Daraja STK callback URL is invalid. Set payment-gateway.stk_callback_url to a valid absolute URL (https://...).',
+            ], 422);
+        }
+
+        $callbackPath = (string) parse_url($callbackUrl, PHP_URL_PATH);
+        if (!preg_match('#/api/payments/daraja/([^/]+)/stk/callback$#', $callbackPath, $matches)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Daraja STK callback URL path is invalid. Expected /api/payments/daraja/{mpesa_callback_token}/stk/callback.',
+            ], 422);
+        }
+
+        $callbackTokenFromUrl = (string) ($matches[1] ?? '');
+        $expectedToken = (string) $organization->mpesa_callback_token;
+        if (!hash_equals($expectedToken, $callbackTokenFromUrl)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Daraja STK callback URL token does not match the organization token. Update payment-gateway.stk_callback_url.',
+            ], 422);
         }
 
         $timestamp = now()->format('YmdHis');
         $password = base64_encode($shortCode . $passkey . $timestamp);
 
         $amount = (int) round((float) $request->input('amount'));
+        $amountString = (string) $amount;
+        $partyB = (string) $shortCode;
         $accountReference = (string) ($request->input('account_reference') ?: ('ORG-' . $organization->id . '-INV-' . now()->timestamp));
         $transactionDesc = (string) ($request->input('transaction_desc') ?: 'STK payment');
         $transactionType = (string) ($request->input('transaction_type') ?: 'CustomerPayBillOnline');
@@ -154,32 +177,44 @@ class DarajaPaymentController extends Controller
                 ->timeout(30)
                 ->withToken($accessToken)
                 ->post($baseUrl . '/mpesa/stkpush/v1/processrequest', [
-                    'BusinessShortCode' => $shortCode,
+                    'BusinessShortCode' => $partyB,
                     'Password' => $password,
                     'Timestamp' => $timestamp,
                     'TransactionType' => $transactionType,
-                    'Amount' => $amount,
+                    'Amount' => $amountString,
                     'PartyA' => $normalizedPhone,
-                    'PartyB' => $shortCode,
+                    'PartyB' => $partyB,
                     'PhoneNumber' => $normalizedPhone,
                     'CallBackURL' => $callbackUrl,
-                    'AccountReference' => $accountReference,
+                    'AccountReference' => $normalizedPhone,
                     'TransactionDesc' => $transactionDesc,
                 ]);
 
             $stkPayload = $stkResponse->json() ?? [];
+            $stkResponseBody = $stkResponse->body();
             $responseCode = (string) ($stkPayload['ResponseCode'] ?? '');
             $isAccepted = $stkResponse->ok() && $responseCode === '0';
+            $responseMessage = (string) (
+                $stkPayload['errorMessage']
+                ?? $stkPayload['ResponseDescription']
+                ?? $stkPayload['error_description']
+                ?? $stkPayload['message']
+                ?? ''
+            );
 
             Log::info('Daraja STK push response', [
                 'organization_id' => $organization->id,
                 'status' => $stkResponse->status(),
                 'accepted' => $isAccepted,
                 'response_code' => $responseCode,
+                'response_message' => $responseMessage,
                 'merchant_request_id' => $stkPayload['MerchantRequestID'] ?? null,
                 'checkout_request_id' => $stkPayload['CheckoutRequestID'] ?? null,
                 'phone' => $normalizedPhone,
                 'amount' => $amount,
+                'callback_url' => $callbackUrl,
+                'callback_url_source' => $callbackSource,
+                'response_body_preview' => mb_substr($stkResponseBody, 0, 600),
             ]);
 
             if (!$isAccepted) {
@@ -291,69 +326,90 @@ class DarajaPaymentController extends Controller
             ], 404);
         }
 
-        $amountAsDecimal = number_format($amount, 2, '.', '');
+        if ($mpesaReceiptNumber === '') {
+            Log::warning('Daraja STK callback missing receipt number', [
+                'organization_id' => $resolvedOrganization->id,
+                'account_reference' => $accountReference,
+                'phone' => $phone,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid callback payload',
+            ], 400);
+        }
+
+        $customer = $this->resolveCustomerFromCallback($resolvedOrganization->id, $accountReference, $phone);
+
+        Log::info('Daraja STK callback customer resolution', [
+            'organization_id' => $resolvedOrganization->id,
+            'customer_id' => $customer?->id,
+            'customer_found' => $customer !== null,
+            'account_reference' => $accountReference,
+            'phone' => $phone,
+        ]);
 
         try {
-            $settledSnapshot = DB::transaction(function () use ($resolvedOrganization, $amountAsDecimal, $amount, $phone, $accountReference, $mpesaReceiptNumber) {
-                $lockedOrganization = Organization::where('id', $resolvedOrganization->id)
-                    ->lockForUpdate()
-                    ->first();
+            $result = app(IncomingPaymentService::class)->processC2BPayment(
+                $resolvedOrganization,
+                $customer,
+                $mpesaReceiptNumber,
+                $amount,
+                $accountReference,
+                $phone,
+                null,
+            );
 
-                $snapshot = OrganizationLicenseSnapshot::where('organization_id', $resolvedOrganization->id)
-                    ->where('status', 'billed')
-                    ->where('total_amount', $amountAsDecimal)
-                    ->orderByDesc('snapshot_month')
-                    ->lockForUpdate()
-                    ->first();
+            if ($result['duplicate']) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Duplicate callback ignored',
+                ], 200);
+            }
 
-                if ($snapshot) {
-                    $snapshot->update([
-                        'status' => 'paid',
-                        'paid_at' => now(),
-                        'meta' => array_merge($snapshot->meta ?? [], [
-                            'paid_via' => 'daraja_stk',
-                            'daraja_account_reference' => $accountReference,
-                            'daraja_phone' => $phone,
-                            'daraja_amount' => $amount,
-                            'daraja_mpesa_receipt' => $mpesaReceiptNumber,
-                        ]),
-                    ]);
+            $payment = $result['payment'];
 
-                    if ($lockedOrganization && $lockedOrganization->status !== 'active') {
-                        $lockedOrganization->update(['status' => 'active']);
-                    }
-
-                    return $snapshot;
-                }
-
-                if ($lockedOrganization) {
-                    $lockedOrganization->increment('balance', $amount);
-                }
-
-                return null;
-            });
-
-            Log::info('Daraja STK callback organization balance updated', [
+            Log::info('Daraja STK callback payment processed successfully', [
                 'organization_id' => $resolvedOrganization->id,
+                'payment_id' => $payment?->id,
+                'customer_id' => $customer?->id,
                 'amount' => $amount,
-                'phone' => $phone,
-                'account_reference' => $accountReference,
                 'mpesa_receipt_number' => $mpesaReceiptNumber,
-                'license_snapshot_paid' => $settledSnapshot?->id,
-                'credited_to_org_balance' => $settledSnapshot === null,
+                'account_reference' => $accountReference,
+                'status' => $payment?->status,
             ]);
 
             return response()->json(['success' => true], 200);
         } catch (\Throwable $e) {
-            Log::error('Failed to update organization balance from Daraja callback', [
+            Log::error('Failed to process Daraja STK callback payment', [
                 'error' => $e->getMessage(),
                 'organization_id' => $resolvedOrganization->id,
                 'amount' => $amount,
                 'phone' => $phone,
+                'mpesa_receipt_number' => $mpesaReceiptNumber,
             ]);
 
             return response()->json(['success' => false, 'message' => 'Server error'], 500);
         }
+    }
+
+    private function resolveCustomerFromCallback(int $organizationId, ?string $accountReference, string $phone): ?Customer
+    {
+        $query = Customer::where('organization_id', $organizationId);
+
+        if (!empty($accountReference)) {
+            $customer = (clone $query)
+                ->whereRaw('LOWER(TRIM(radius_username)) = ?', [strtolower(trim($accountReference))])
+                ->first();
+            if ($customer) {
+                return $customer;
+            }
+        }
+
+        return (clone $query)
+            ->where('phone', $phone)
+            ->latest('id')
+            ->first();
     }
 
     private function normalizeKenyanPhone(string $phone): ?string
@@ -399,4 +455,26 @@ class DarajaPaymentController extends Controller
 
         return $organizationFromUserPhone ?: $fallbackOrganization;
     }
+
+    private function extractPaymentGatewaySettings(mixed $rawSettings): array
+    {
+        if (!is_array($rawSettings)) {
+            return [];
+        }
+
+        $paymentGateway = data_get($rawSettings, 'payment-gateway');
+        if (is_array($paymentGateway)) {
+            return $paymentGateway;
+        }
+
+        if (is_string($paymentGateway)) {
+            $decoded = json_decode($paymentGateway, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return $rawSettings;
+    }
+
 }

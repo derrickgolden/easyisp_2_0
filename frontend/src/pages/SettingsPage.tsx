@@ -38,7 +38,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
     passkey: '',
     environment: 'Production',
     confirmation_url: '',
-    validation_url: ''
+    validation_url: '',
+    stk_callback_url: ''
   });
 
   // --- SMS GATEWAY ---
@@ -402,6 +403,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
                     className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono text-sm" 
                   />
                   <p className="text-[9px] text-gray-400 italic">Leave empty to use default server URL. Use ngrok/localtunnel for local testing.</p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">STK Callback URL</label>
+                  <input
+                    type="url"
+                    value={paymentForm.stk_callback_url}
+                    onChange={e => setPaymentForm({ ...paymentForm, stk_callback_url: e.target.value })}
+                    placeholder="https://your-domain.com/api/payments/daraja/{token}/stk/callback"
+                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono text-sm"
+                  />
+                  <p className="text-[9px] text-gray-400 italic">Required for Daraja STK push in this system. Stored in organization settings under payment-gateway.stk_callback_url.</p>
                 </div>
               </div>
             </Card>

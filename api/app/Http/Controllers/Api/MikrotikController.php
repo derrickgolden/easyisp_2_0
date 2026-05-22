@@ -33,9 +33,7 @@ class MikrotikController extends Controller
 
             return response()->json($traffic);
         } catch (\Throwable $e) {
-            Log::error("Failed to fetch MikroTik traffic for {$username}: {$e->getMessage()}", [
-                'exception' => $e,
-            ]);
+            // Log::error("Failed to fetch MikroTik traffic for {$username}: {$e->getMessage()}");
 
             return response()->json([
                 'message' => 'Failed to fetch user traffic',
