@@ -1,0 +1,134 @@
+[90m= [39m[
+    "[34mtheme[39m" => "[32mdark[39m",
+    "[34mgeneral[39m" => [
+      "[34macronym[39m" => "[32mENS[39m",
+      "[34mtrial_unit[39m" => "[32mminutes[39m",
+      "[34mbusiness_logo[39m" => [36mnull[39m,
+      "[34misp_legal_name[39m" => "[32mEasyTech Network Solutions[39m",
+      "[34mtrial_duration[39m" => [35m30[39m,
+      "[34msupport_hotline[39m" => "[32m+254 700 000 000[39m",
+      "[34mbusiness_address[39m" => "[32mEasyTech Plaza, 4th Floor, Wing B, Nairobi, Kenya[39m",
+    ],
+    "[34mlanguage[39m" => "[32men[39m",
+    "[34msms-gateway[39m" => [
+      "[34mapi_key[39m" => "[32m426e9abef19709e4bfa2fea62381f54c1636b0379a8eb22c958a407d8c2400ba[39m",
+      "[34mprovider[39m" => "[32mAfrica's Talking[39m",
+      "[34msender_id[39m" => "[32mJAP_TECH[39m",
+      "[34mapi_username[39m" => "[32mJaptech[39m",
+    ],
+    "[34mnotes-template[39m" => [
+      "[34mtemplates[39m" => [
+        [
+          "[34mid[39m" => "[32msystem-expiry-one-hour-warning[39m",
+          "[34mname[39m" => "[32m1 Hour To Expiry Reminder[39m",
+          "[34mcontent[39m" => "[32mDear {FirstName}, your internet subscription will expire in {HoursUntilExpiry} hour at {Expiry}. Please renew now to avoid interruption. Send payment to 4016885. Acc No: {PhoneNumber} or {RadiusUsername}[39m",
+          "[34mcategory[39m" => "[32mSystem[39m",
+          "[34misDefault[39m" => [36mtrue[39m,
+        ],
+        [
+          "[34mid[39m" => "[32msystem-expiry-warning[39m",
+          "[34mname[39m" => "[32m2 Days To Expiry Reminder[39m",
+          "[34mcontent[39m" => "[32mDear {FirstName}, your internet subscription expires in {HoursUntilExpiry} hour(s) on {Expiry}. Please renew to avoid service interruption. Paybill No: 4016885, Acc no:  {RadiusUsername} or  {PhoneNumber}[39m",
+          "[34mcategory[39m" => "[32mSystem[39m",
+          "[34misDefault[39m" => [36mtrue[39m,
+        ],
+        [
+          "[34mid[39m" => "[32msystem-expiry-notification[39m",
+          "[34mname[39m" => "[32mExpiry Notification[39m",
+          "[34mcontent[39m" => "[32mDear {FirstName}, your internet subscription has expired as of {Expiry}. Send payment to 4016885. Acc No:  {PhoneNumber} or  {RadiusUsername}[39m",
+          "[34mcategory[39m" => "[32mSystem[39m",
+          "[34misDefault[39m" => [36mtrue[39m,
+        ],
+        [
+          "[34mid[39m" => "[32m1772184408981[39m",
+          "[34mname[39m" => "[32mhello[39m",
+          "[34mcontent[39m" => "[32mDear {FirstName}, your internet subscription expires in {DaysUntilExpiry} day(s) on {Expiry}. Please renew to avoid service interruption. Paybill No: 4016885, Acc no:  {RadiusUsername} or  {PhoneNumber}[39m",
+          "[34mcategory[39m" => "[32mSMS[39m",
+        ],
+        [
+          "[34mid[39m" => "[32m1772184589043[39m",
+          "[34mname[39m" => "[32mpay[39m",
+          "[34mcontent[39m" => "[32m{FirstName}[39m",
+          "[34mcategory[39m" => "[32mSMS[39m",
+        ],
+      ],
+    ],
+    "[34mpayment-gateway[39m" => [
+      "[34mpasskey[39m" => "[32mbfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919[39m",
+      "[34mpaybill[39m" => "[32m174379[39m",
+      "[34menvironment[39m" => "[32mSandbox (Testing)[39m",
+      "[34mconsumer_key[39m" => "[32mr1SVJWwaJiwEGFSil5APl4dzQdk0BZT4GUoNDCT3fej6sco2[39m",
+      "[34mvalidation_url[39m" => "[32mhttps://isp.easytech.africa/api/payments/c2b/gDfe1cLVv91bPeSys9J6/validation[39m",
+      "[34mconsumer_secret[39m" => "[32mQXHUFvu8s1Lf90sBIVBrKE2dkancmB5fG95PKEiqIRHij7pvPebDWCqy9wN87CDv[39m",
+      "[34mconfirmation_url[39m" => "[32mhttps://isp.easytech.africa/api/payments/c2b/gDfe1cLVv91bPeSys9J6/confirmation[39m",
+      "[34mstk_callback_url[39m" => "[32mhttps://0ab5-102-210-173-182.ngrok-free.app/api/payments/daraja/IBfhRBLFidy1QYy6b4Dq/stk/callback[39m",
+    ],
+  ]
+
+[90m= [39m[
+    "[34mtheme[39m" => "[32mdark[39m",
+    "[34mgeneral[39m" => [
+      "[34macronym[39m" => "[32mENS[39m",
+      "[34mtrial_unit[39m" => "[32mminutes[39m",
+      "[34mbusiness_logo[39m" => [36mnull[39m,
+      "[34misp_legal_name[39m" => "[32mEasyTech Network Solutions[39m",
+      "[34mtrial_duration[39m" => [35m30[39m,
+      "[34msupport_hotline[39m" => "[32m+254 700 000 000[39m",
+      "[34mbusiness_address[39m" => "[32mEasyTech Plaza, 4th Floor, Wing B, Nairobi, Kenya[39m",
+    ],
+    "[34mlanguage[39m" => "[32men[39m",
+    "[34msms-gateway[39m" => [
+      "[34mapi_key[39m" => "[32m426e9abef19709e4bfa2fea62381f54c1636b0379a8eb22c958a407d8c2400ba[39m",
+      "[34mprovider[39m" => "[32mAfrica's Talking[39m",
+      "[34msender_id[39m" => "[32mJAP_TECH[39m",
+      "[34mapi_username[39m" => "[32mJaptech[39m",
+    ],
+    "[34mnotes-template[39m" => [
+      "[34mtemplates[39m" => [
+        [
+          "[34mid[39m" => "[32msystem-expiry-one-hour-warning[39m",
+          "[34mname[39m" => "[32m1 Hour To Expiry Reminder[39m",
+          "[34mcontent[39m" => "[32mDear {FirstName}, your internet subscription will expire in {HoursUntilExpiry} hour at {Expiry}. Please renew now to avoid interruption. Send payment to 4016885. Acc No: {PhoneNumber} or {RadiusUsername}[39m",
+          "[34mcategory[39m" => "[32mSystem[39m",
+          "[34misDefault[39m" => [36mtrue[39m,
+        ],
+        [
+          "[34mid[39m" => "[32msystem-expiry-warning[39m",
+          "[34mname[39m" => "[32m2 Days To Expiry Reminder[39m",
+          "[34mcontent[39m" => "[32mDear {FirstName}, your internet subscription expires in {HoursUntilExpiry} hour(s) on {Expiry}. Please renew to avoid service interruption. Paybill No: 4016885, Acc no:  {RadiusUsername} or  {PhoneNumber}[39m",
+          "[34mcategory[39m" => "[32mSystem[39m",
+          "[34misDefault[39m" => [36mtrue[39m,
+        ],
+        [
+          "[34mid[39m" => "[32msystem-expiry-notification[39m",
+          "[34mname[39m" => "[32mExpiry Notification[39m",
+          "[34mcontent[39m" => "[32mDear {FirstName}, your internet subscription has expired as of {Expiry}. Send payment to 4016885. Acc No:  {PhoneNumber} or  {RadiusUsername}[39m",
+          "[34mcategory[39m" => "[32mSystem[39m",
+          "[34misDefault[39m" => [36mtrue[39m,
+        ],
+        [
+          "[34mid[39m" => "[32m1772184408981[39m",
+          "[34mname[39m" => "[32mhello[39m",
+          "[34mcontent[39m" => "[32mDear {FirstName}, your internet subscription expires in {DaysUntilExpiry} day(s) on {Expiry}. Please renew to avoid service interruption. Paybill No: 4016885, Acc no:  {RadiusUsername} or  {PhoneNumber}[39m",
+          "[34mcategory[39m" => "[32mSMS[39m",
+        ],
+        [
+          "[34mid[39m" => "[32m1772184589043[39m",
+          "[34mname[39m" => "[32mpay[39m",
+          "[34mcontent[39m" => "[32m{FirstName}[39m",
+          "[34mcategory[39m" => "[32mSMS[39m",
+        ],
+      ],
+    ],
+    "[34mpayment-gateway[39m" => [
+      "[34mpasskey[39m" => "[32mbfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919[39m",
+      "[34mpaybill[39m" => "[32m174379[39m",
+      "[34menvironment[39m" => "[32mSandbox (Testing)[39m",
+      "[34mconsumer_key[39m" => "[32mr1SVJWwaJiwEGFSil5APl4dzQdk0BZT4GUoNDCT3fej6sco2[39m",
+      "[34mvalidation_url[39m" => "[32mhttps://isp.easytech.africa/api/payments/c2b/gDfe1cLVv91bPeSys9J6/validation[39m",
+      "[34mconsumer_secret[39m" => "[32mQXHUFvu8s1Lf90sBIVBrKE2dkancmB5fG95PKEiqIRHij7pvPebDWCqy9wN87CDv[39m",
+      "[34mconfirmation_url[39m" => "[32mhttps://isp.easytech.africa/api/payments/c2b/gDfe1cLVv91bPeSys9J6/confirmation[39m",
+      "[34mstk_callback_url[39m" => "[32mhttps://0ab5-102-210-173-182.ngrok-free.app/api/payments/daraja/IBfhRBLFidy1QYy6b4Dq/stk/callback[39m",
+    ],
+  ]
+
