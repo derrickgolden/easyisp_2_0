@@ -10,6 +10,7 @@ use Carbon\Carbon;
 class LicenseBillingService
 {
     public const DEFAULT_PRICE_PER_ACTIVE_USER = 15.00;
+    public const MINIMUM_PAYABLE_AMOUNT = 500.00;
 
     public function generateMonthlySnapshots(?Carbon $snapshotMonth = null): array
     {
@@ -27,15 +28,12 @@ class LicenseBillingService
                     ->count();
 
                 $pricePerUser = self::DEFAULT_PRICE_PER_ACTIVE_USER;
-                if($organization->id === 1) {
-                    $totalAmount = 0.00;
-                } elseif($organization->id === 2) {
-                    $totalAmount = 500.00;
-                } elseif($organization->id === 3) {
+                if($organization->id <= 3) {
                     $pricePerUser = 6.00;
-                } else {
-                    $totalAmount = round($activeUsersCount * $pricePerUser, 2);
-                }
+                } 
+
+                $calculatedAmount = round($activeUsersCount * $pricePerUser, 2);
+                $totalAmount = max($calculatedAmount, self::MINIMUM_PAYABLE_AMOUNT);
 
                 $snapshot = OrganizationLicenseSnapshot::firstOrCreate(
                     [
