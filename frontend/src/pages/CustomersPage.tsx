@@ -209,23 +209,66 @@ export const CustomersPage: React.FC = () => {
         return;
       }
 
-      const headers = lines[0].split(',').map(h => h.trim());
-      const expectedHeaders = ['Email', 'House No', 'Apartment', 'Location', 'Ip', 'Mac', 'Expiry Date', 'Name', 'Account', 'Radius Username', 'Radius Password', 'Phone'];
+      const parseCsvLine = (line: string) => {
+        const values: string[] = [];
+        let currentValue = '';
+        let insideQuotes = false;
 
-      // Check if headers match (case insensitive)
-      const normalizedHeaders = headers.map(h => h.toLowerCase());
-      const normalizedExpected = expectedHeaders.map(h => h.toLowerCase());
+        for (let index = 0; index < line.length; index++) {
+          const character = line[index];
+          const nextCharacter = line[index + 1];
 
-      const headersMatch = normalizedExpected.every(expected =>
-        normalizedHeaders.includes(expected)
-      );
+          if (character === '"' && insideQuotes && nextCharacter === '"') {
+            currentValue += '"';
+            index++;
+            continue;
+          }
 
-      if (!headersMatch) {
-        toast.error('CSV headers do not match expected format. Expected: ' + expectedHeaders.join(', '));
+          if (character === '"') {
+            insideQuotes = !insideQuotes;
+            continue;
+          }
+
+          if (character === ',' && !insideQuotes) {
+            values.push(currentValue.trim());
+            currentValue = '';
+            continue;
+          }
+
+          currentValue += character;
+        }
+
+        values.push(currentValue.trim());
+        return values;
+      };
+
+      const normalizeHeader = (value: string) => value.trim().toLowerCase();
+
+      const headers = parseCsvLine(lines[0]);
+      const headerMap = new Map(headers.map((header, index) => [normalizeHeader(header), index] as const));
+
+      const getColumnValue = (row: string[], aliases: string[]) => {
+        for (const alias of aliases) {
+          const index = headerMap.get(normalizeHeader(alias));
+          if (index !== undefined) {
+            return row[index]?.trim() || '';
+          }
+        }
+        return '';
+      };
+
+      const requiredHeaders = ['Full Names', 'Tel', 'Username'];
+      const missingRequiredHeaders = requiredHeaders.filter(header => !headerMap.has(normalizeHeader(header)));
+
+      if (missingRequiredHeaders.length > 0) {
+        toast.error(
+          'CSV headers do not match the expected format. Missing: ' + missingRequiredHeaders.join(', ')
+        );
         return;
       }
 
       const selectedPackage = packages.find(pkg => pkg.id === uploadPackageId);
+      console.log('Selected package for upload:', selectedPackage);
       if (!selectedPackage) {
         toast.error('Please select a valid package before uploading.');
         return;
@@ -240,17 +283,47 @@ export const CustomersPage: React.FC = () => {
       const normalizedFallbackLocation = uploadFallbackLocation.trim();
       const dataRows = lines.slice(1);
       const customersToCreate = [];
+      let packageFallbackCount = 0;
+
+      const normalizeSpeedToken = (value: string) => value.replace(/\s+/g, '').toUpperCase();
+
+      const findPackageBySpeedPair = (rawValue: string) => {
+        const normalizedValue = normalizeSpeedToken(rawValue);
+        if (!normalizedValue.includes('/')) return null;
+
+        const [csvDown, csvUp] = normalizedValue.split('/');
+        if (!csvDown || !csvUp) return null;
+
+        return packages.find(pkg => {
+          const pkgDown = normalizeSpeedToken(pkg.speed_down || '');
+          const pkgUp = normalizeSpeedToken(pkg.speed_up || '');
+          return pkgDown === csvDown && pkgUp === csvUp;
+        }) || null;
+      };
+
       const parseExpiryDate = (rawValue: string): Date | null => {
         const value = rawValue.trim();
         if (!value) return null;
 
         // Support YYYY-MM-DD and DD/MM/YYYY style values from CSV exports.
-        const slashMatch = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        const slashMatch = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM))?$/i);
         if (slashMatch) {
           const day = Number(slashMatch[1]);
           const month = Number(slashMatch[2]);
           const year = Number(slashMatch[3]);
-          const parsed = new Date(year, month - 1, day);
+          const hoursPart = slashMatch[4] ? Number(slashMatch[4]) : 0;
+          const minutesPart = slashMatch[5] ? Number(slashMatch[5]) : 0;
+          const secondsPart = slashMatch[6] ? Number(slashMatch[6]) : 0;
+          const meridiem = slashMatch[7]?.toUpperCase();
+
+          let hours = hoursPart;
+          if (meridiem === 'PM' && hours < 12) {
+            hours += 12;
+          } else if (meridiem === 'AM' && hours === 12) {
+            hours = 0;
+          }
+
+          const parsed = new Date(year, month - 1, day, hours, minutesPart, secondsPart);
           if (
             parsed.getFullYear() === year &&
             parsed.getMonth() === month - 1 &&
@@ -267,31 +340,46 @@ export const CustomersPage: React.FC = () => {
       };
 
       for (let i = 0; i < dataRows.length; i++) {
-        const row = dataRows[i].split(',').map(cell => cell.trim());
-        // Parse name into first and last name
-        const nameParts = row[7].split(' '); // Name is at index 7
-        const firstName = nameParts[0] || '';
-        const lastName = nameParts.slice(1).join(' ') || '';
-        const csvLocation = row[3] || '';
+        const row = parseCsvLine(dataRows[i]);
+        if (!row.length || row.every(cell => !cell)) {
+          continue;
+        }
+
+        const fullName = getColumnValue(row, ['Full Names', 'Name']);
+        const nameParts = fullName.split(/\s+/).filter(Boolean);
+        const firstName = nameParts[0] || fullName;
+        const lastName = nameParts.slice(1).join(' ') || firstName;
+        const csvLocation = getColumnValue(row, ['Location']);
+        const dueDateValue = getColumnValue(row, ['Due Date', 'Expiry Date']);
+        const parsedExpiryDate = parseExpiryDate(dueDateValue);
+        const statusValue = getColumnValue(row, ['Status']).toLowerCase();
+        const phoneValue = getColumnValue(row, ['Tel', 'Phone']);
+        const usernameValue = getColumnValue(row, ['Username', 'Radius Username']);
+        const packageMbpsValue = getColumnValue(row, ['Package MBPS', 'Package Mbps', 'Package']);
+        const matchedPackage = findPackageBySpeedPair(packageMbpsValue);
+
+        if (packageMbpsValue && !matchedPackage) {
+          packageFallbackCount++;
+        }
 
         const customer = {
           first_name: firstName,
-          last_name: lastName || firstName, 
-          email: row[0] || undefined, // Email
-          phone: row[11], // Phone
-          house_no: row[1] || undefined, // House No
-          apartment: row[2] || undefined, // Apartment
-          location: csvLocation || normalizedFallbackLocation || undefined, // Location
-          ip_address: row[4] || undefined, // Ip
-          mac_address: row[5] || undefined, // Mac
-          expiry_date: row[6], // Expiry Date
-          radius_username: row[9], // Radius Username
-          radius_password: row[10], // Radius Password
+          last_name: lastName,
+          email: undefined,
+          phone: phoneValue,
+          house_no: undefined,
+          apartment: undefined,
+          location: csvLocation || normalizedFallbackLocation || undefined,
+          ip_address: getColumnValue(row, ['IP Address', 'Ip']) || undefined,
+          mac_address: getColumnValue(row, ['Mac']) || undefined,
+          expiry_date: parsedExpiryDate ? parsedExpiryDate.toISOString().split('T')[0] : undefined,
+          radius_username: usernameValue,
+          radius_password: usernameValue,
           connection_type: 'PPPoE',
-          package_id: selectedPackage.id,
+          package_id: matchedPackage?.id || selectedPackage.id,
           site_id: defaultSite.id,
           installation_fee: 0,
-          status: 'active',
+          status: statusValue === 'expired' || statusValue === 'suspended' ? statusValue : 'active',
           balance: 0,
           created_at: new Date().toISOString(),
         };
@@ -302,6 +390,12 @@ export const CustomersPage: React.FC = () => {
       if (!customersToCreate.length) {
         toast.error('No customers found in the CSV file.');
         return;
+      }
+
+      if (packageFallbackCount > 0) {
+        toast.warning(
+          `${packageFallbackCount} row${packageFallbackCount > 1 ? 's' : ''} had no matching package speed and used the selected fallback package.`
+        );
       }
 
       // Helper function to create customer with retry and delay
