@@ -29,7 +29,7 @@ class LicenseBillingService
 
                 $pricePerUser = self::DEFAULT_PRICE_PER_ACTIVE_USER;
                 if($organization->id <= 3) {
-                    $pricePerUser = 6.00;
+                    $pricePerUser = 5.00;
                 } 
 
                 $calculatedAmount = round($activeUsersCount * $pricePerUser, 2);
