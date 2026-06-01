@@ -78,6 +78,20 @@ return [
             'engine' => null,
         ],
 
+        'laravel_pos' => [
+            'driver' => 'mysql',
+            'host' => env('POS_DB_HOST', '127.0.0.1'),
+            'port' => env('POS_DB_PORT', '3306'),
+            'database' => env('POS_DB_DATABASE', 'laravel_pos'),
+            'username' => env('POS_DB_USERNAME', 'root'),
+            'password' => env('POS_DB_PASSWORD', 'Zippy@123456'),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_0900_ai_ci',
+            'prefix' => '',
+            'strict' => true,
+            'engine' => null,
+        ],
+
         'pgsql' => [
             'driver' => 'pgsql',
             'url' => env('DATABASE_URL'),

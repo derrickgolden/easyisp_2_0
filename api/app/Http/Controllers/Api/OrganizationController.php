@@ -19,7 +19,13 @@ class OrganizationController extends Controller
 
     public function listAll()
     {
-        $organizations = Organization::withCount(['sites', 'customers'])
+        $organizations = Organization::withCount([
+                'sites',
+                'customers',
+                'customers as active_customer_count' => function ($query) {
+                    $query->where('status', 'Active');
+                },
+            ])
             ->with(['latestLicenseSnapshot'])
             ->orderBy('created_at', 'desc')
             ->get();
@@ -161,7 +167,15 @@ class OrganizationController extends Controller
 
     public function show($id)
     {
-        $organization = Organization::find($id);
+        $organization = Organization::withCount([
+                'sites',
+                'customers',
+                'customers as active_customer_count' => function ($query) {
+                    $query->where('status', 'Active');
+                },
+            ])
+            ->with(['latestLicenseSnapshot'])
+            ->find($id);
         if (!$organization) {
             return response()->json(['message' => 'Organization not found'], 404);
         }

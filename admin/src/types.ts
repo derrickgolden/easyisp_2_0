@@ -19,6 +19,7 @@ export interface Organization {
   created_at?: string;
   sites_count?: number;
   customers_count?: number;
+  active_customer_count?: number;
   latest_license_snapshot?: {
     snapshot_month: string;
     total_amount: string | number;
@@ -67,6 +68,16 @@ export interface AdminUser {
   last_login?: string | null;
   created_at?: string;
   role?: Role | null;
+}
+
+export interface PosUser {
+  id: number;
+  first_name: string;
+  last_name?: string | null;
+  email: string;
+  phone?: string | null;
+  status: boolean;
+  created_at?: string | null;
 }
 
 export interface DashboardStats {

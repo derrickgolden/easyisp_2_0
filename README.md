@@ -60,6 +60,10 @@ php artisan horizon:terminate
 Bring app back up.
 php artisan up
 
+# restarting wireguard
+systemctl restart wg-quick@wg0
+systemctl status wg-quick@wg0
+
 # giving wireguard client permission to the server
 /etc/freeradius/3.0/clients.conf
 # after changes

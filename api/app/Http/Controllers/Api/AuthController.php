@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Organization;
+use App\Models\OrganizationLicenseSnapshot;
 use App\Models\SystemAdmin;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -103,6 +104,22 @@ class AuthController extends Controller
         $user->load(['role', 'organization']);
         $token = $user->createToken('admin-token', ['access-admin'])->plainTextToken;
 
+        $licenseBilling = null;
+        if ((bool) $user->is_super_admin && $user->organization_id) {
+            $latestSnapshot = OrganizationLicenseSnapshot::where('organization_id', $user->organization_id)
+                ->orderByDesc('snapshot_month')
+                ->first();
+
+            if ($latestSnapshot) {
+                $licenseBilling = [
+                    'status' => $latestSnapshot->status,
+                    'total_amount' => (float) $latestSnapshot->total_amount,
+                    'snapshot_month' => optional($latestSnapshot->snapshot_month)->toDateString(),
+                    'has_pending_payment' => $latestSnapshot->status !== 'paid',
+                ];
+            }
+        }
+
         return response()->json([
             'message' => 'Login successful',
             'user' => $user,
@@ -116,6 +133,7 @@ class AuthController extends Controller
                 'name' => $user->organization->name,
                 'acronym' => $user->organization->acronym,
             ] : null,
+            'license_billing' => $licenseBilling,
             'token' => $token,
         ], 200);
     }

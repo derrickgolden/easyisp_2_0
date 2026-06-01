@@ -256,3 +256,15 @@ export const rolesApi = {
 		return response.data;
 	},
 };
+
+export const posUsersApi = {
+	getAll: async () => {
+		const response = await axiosInstance.get('/pos-users');
+		return response.data;
+	},
+
+	toggleStatus: async (id: number | string) => {
+		const response = await axiosInstance.patch(`/pos-users/${id}/toggle-status`);
+		return response.data;
+	},
+};

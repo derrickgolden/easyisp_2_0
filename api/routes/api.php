@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\SmsController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\MikrotikController;
+use App\Http\Controllers\Api\PosUserStatusController;
 use App\Events\RandomNumberBroadcasted;
 use App\Services\CustomerRadiusService;
 
@@ -214,6 +215,10 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     Route::post('/sms/send', [SmsController::class, 'send']);
     Route::post('/sms/send-bulk', [SmsController::class, 'sendBulk']);
     Route::get('/sms/logs', [SmsController::class, 'getLogs']);
+
+    // POS users status management routes (separate laravel_pos database)
+    Route::get('/pos-users', [PosUserStatusController::class, 'index']);
+    Route::patch('/pos-users/{id}/toggle-status', [PosUserStatusController::class, 'toggleStatus']);
 
 });
 

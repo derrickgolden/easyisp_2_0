@@ -78,7 +78,8 @@ async function startServer() {
       SELECT 
         o.*,
         (SELECT COUNT(*) FROM sites s WHERE s.organization_id = o.id) as sites_count,
-        (SELECT COUNT(*) FROM customers c WHERE c.organization_id = o.id) as customers_count
+        (SELECT COUNT(*) FROM customers c WHERE c.organization_id = o.id) as customers_count,
+        (SELECT COUNT(*) FROM customers c WHERE c.organization_id = o.id AND c.status = 'Active') as active_customer_count
       FROM organizations o
       ORDER BY o.created_at DESC
     `).all();
@@ -91,8 +92,11 @@ async function startServer() {
     
     const sites = db.prepare("SELECT * FROM sites WHERE organization_id = ?").all(req.params.id);
     const customers = db.prepare("SELECT * FROM customers WHERE organization_id = ?").all(req.params.id);
+    const active_customer_count = db.prepare(
+      "SELECT COUNT(*) as count FROM customers WHERE organization_id = ? AND status = 'Active'"
+    ).get(req.params.id) as { count: number };
     
-    res.json({ ...org, sites, customers });
+    res.json({ ...org, sites, customers, active_customer_count: active_customer_count.count });
   });
 
   app.post("/api/organizations", (req, res) => {

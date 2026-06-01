@@ -164,6 +164,12 @@ export const authApi = {
       user: any;
       role?: any;
       organization?: { id: string; name: string; acronym: string };
+      license_billing?: {
+        status: 'billed' | 'paid';
+        total_amount: number;
+        snapshot_month: string | null;
+        has_pending_payment: boolean;
+      } | null;
       token: string;
     };
     if (data.token) {

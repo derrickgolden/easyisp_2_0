@@ -18,7 +18,7 @@ interface OrganizationTableProps {
 export const OrganizationTable: React.FC<OrganizationTableProps> = ({ organizations, onEdit, onDelete }) => {
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [selectedOrgForAdmins, setSelectedOrgForAdmins] = useState<Organization | null>(null);
-
+console.log(organizations);   
   const formatSnapshotMonth = (value?: string) => {
     if (!value) return 'N/A';
 
@@ -67,6 +67,7 @@ export const OrganizationTable: React.FC<OrganizationTableProps> = ({ organizati
             <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Billed Generated</th>
             <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Sites</th>
             <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Customers</th>
+            <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Active Customers</th>
             <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Details</th>
             <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
           </tr>
@@ -128,6 +129,12 @@ export const OrganizationTable: React.FC<OrganizationTableProps> = ({ organizati
                 <div className="inline-flex items-center gap-1 text-slate-600">
                   <Users className="w-4 h-4 opacity-40" />
                   <span className="font-medium">{org.customers_count ?? 0}</span>
+                </div>
+              </td>
+              <td className="px-6 py-4 text-center">
+                <div className="inline-flex items-center gap-1 text-emerald-700">
+                  <Users className="w-4 h-4 opacity-40" />
+                  <span className="font-medium">{org.active_customer_count ?? 0}</span>
                 </div>
               </td>
               <td className="px-6 py-4">

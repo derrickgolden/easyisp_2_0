@@ -4,6 +4,7 @@ import { organizationApi, paymentsApi } from "../../../services/apiService";
 import { toast } from "sonner";
 
 const LicenceCard: React.FC<{ orgSettings: any }> = ({orgSettings}) => {
+  const paymentPhoneNumber = '0714475702';
     const [licenceStatus, setLicenceStatus] = useState<'Active' | 'Trial' | 'Expired'>('Trial');
     const [activeTier, setActiveTier] = useState<string | null>(null);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -47,6 +48,16 @@ const LicenceCard: React.FC<{ orgSettings: any }> = ({orgSettings}) => {
     const initiatePayment = () => {
         setPaymentStep('idle');
         setIsPaymentModalOpen(true);
+    };
+
+    const copyPaymentPhoneNumber = async () => {
+      try {
+        await navigator.clipboard.writeText(paymentPhoneNumber);
+        toast.success('Payment number copied to clipboard');
+      } catch (error) {
+        console.error('Failed to copy payment phone number:', error);
+        toast.error('Could not copy number. Please copy it manually.');
+      }
     };
 
     const applyOrganizationState = (organization: any) => {
@@ -154,7 +165,7 @@ const LicenceCard: React.FC<{ orgSettings: any }> = ({orgSettings}) => {
                       <p className={`text-[10px] font-black uppercase tracking-widest mt-2 ${currentBillStatus === 'paid' ? 'text-emerald-300' : 'text-amber-300'}`}>
                         {currentBillStatus === 'paid' ? 'Paid' : 'Unpaid'}
                       </p>
-                      {currentBillStatus !== 'paid' && (
+                      {/* {currentBillStatus !== 'paid' && (
                         <button
                           type="button"
                           onClick={initiatePayment}
@@ -162,9 +173,26 @@ const LicenceCard: React.FC<{ orgSettings: any }> = ({orgSettings}) => {
                         >
                           Pay
                         </button>
-                      )}
+                      )} */}
                     </div>
                   </div>
+                    <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-2xl p-4 max-w-sm">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Payment Details</p>
+                  </div>
+                  <p className="text-xs text-emerald-900 dark:text-emerald-100 font-semibold">MPESA</p>
+                  <p className="text-xs text-emerald-800 dark:text-emerald-200 mt-1">Send Money</p>
+                  <button
+                    type="button"
+                    onClick={copyPaymentPhoneNumber}
+                    className="mt-2 inline-flex items-center gap-2 rounded-lg bg-emerald-100 px-3 py-2 text-lg font-black tracking-wide text-emerald-700 transition hover:bg-emerald-200 dark:bg-emerald-800/40 dark:text-emerald-300 dark:hover:bg-emerald-800/60"
+                    title="Copy payment number"
+                  >
+                    {paymentPhoneNumber}
+                    <span className="text-[10px] font-bold uppercase tracking-wider">Copy</span>
+                  </button>
+                </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-gray-100 dark:border-slate-800">

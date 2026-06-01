@@ -108,6 +108,16 @@ const App: React.FC = () => {
   };
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    if (type === 'error') {
+      toast.error(message);
+      return;
+    }
+
+    if (type === 'info') {
+      toast(message);
+      return;
+    }
+
     toast.success(message);
   };
 
@@ -133,6 +143,12 @@ const App: React.FC = () => {
 
       setCurrentUser(user);
       localStorage.setItem(AUTH_KEY, JSON.stringify(user));
+
+      if (user.isSuperAdmin && result.license_billing?.has_pending_payment) {
+        const amount = Number(result.license_billing.total_amount || 0).toLocaleString();
+        const status = result.license_billing.status;
+        showToast(`Pending license payment: KSH ${amount}`, 'error');
+      }
       // showToast(`Authorized as ${user.name}`);
       
       // Load initial data after login

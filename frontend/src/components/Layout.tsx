@@ -182,7 +182,7 @@ export const Layout: React.FC<LayoutProps> = ({
                 {statusLabel}
               </span>
               {remainingTimeLabel && (
-                <span className="block text-[11px] text-slate-400">
+                <span className="block text-[11px] text-orange-600 tracking-wide mt-0.5">
                   Unpaid Bill: {remainingTimeLabel}
                 </span>
               )}

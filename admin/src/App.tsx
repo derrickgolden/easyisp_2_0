@@ -16,9 +16,10 @@ import { SitesView } from './components/SitesView';
 import { CustomersView } from './components/CustomersView';
 import Dashboard from './pages/Dashboard';
 import Organizations from './pages/Organizations';
+import PosUsers from './pages/PosUsers';
 import { getAuthToken, isTokenExpired, setOnUnauthorizedCallback, setIsLoggingOut } from './services/apiService';
 
-type View = 'dashboard' | 'organizations' | 'sites' | 'customers';
+type View = 'dashboard' | 'organizations' | 'sites' | 'customers' | 'pos-users';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -81,6 +82,8 @@ export default function App() {
         return <SitesView />;
       case 'customers':
         return <CustomersView />;
+      case 'pos-users':
+        return <PosUsers />;
     }
   };
 
@@ -150,6 +153,15 @@ export default function App() {
           >
             <Users className="w-5 h-5" />
             Customers
+          </button>
+          <button 
+            onClick={() => { setCurrentView('pos-users'); setIsSidebarOpen(false); }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-colors ${
+              currentView === 'pos-users' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+          >
+            <Users className="w-5 h-5" />
+            POS Users
           </button>
         </nav>
 
