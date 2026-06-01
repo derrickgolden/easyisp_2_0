@@ -685,8 +685,28 @@ export const dashboardApi = {
     return response.data;
   },
 
-  getRevenueChart: async () => {
-    const response = await axiosInstance.get('/dashboard/revenue-chart');
+  getRevenueChart: async (params?: {
+    period?: 'monthly' | 'daily';
+    days?: number;
+    method?: 'mpesa' | 'cash';
+  }) => {
+    const query = new URLSearchParams();
+
+    if (params?.period) {
+      query.append('period', params.period);
+    }
+
+    if (params?.days) {
+      query.append('days', String(params.days));
+    }
+
+    if (params?.method) {
+      query.append('method', params.method);
+    }
+
+    const queryString = query.toString();
+    const url = queryString ? `/dashboard/revenue-chart?${queryString}` : '/dashboard/revenue-chart';
+    const response = await axiosInstance.get(url);
     return response.data;
   },
 };

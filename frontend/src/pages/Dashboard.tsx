@@ -11,6 +11,8 @@ interface DashboardStats {
   active_users: number;
   online_users: number;
   daily_revenue: number;
+  daily_revenue_mpesa?: number;
+  daily_revenue_cash?: number;
   offline_routers: number;
   clients_gained: number;
   clients_lost: number;
@@ -22,17 +24,28 @@ interface RevenueChartData {
   data: { label: string; value: number }[];
   total: number;
   growth: number;
+  period?: 'monthly' | 'daily';
+  days?: number;
+  months?: number;
+  method?: 'mpesa' | 'cash';
 }
 
 export const Dashboard: React.FC = () => {
   const [sites, setSites] = useState<Site[]>([]);
   const [statsWindowDays, setStatsWindowDays] = useState(30);
   const [lostMode, setLostMode] = useState<'expired' | 'offline' | 'either' | 'both'>('both');
+  const [revenueTrendPeriod, setRevenueTrendPeriod] = useState<'monthly' | 'daily'>('daily');
+  const [revenueTrendDays, setRevenueTrendDays] = useState(7);
+  const [revenueTrendMethod, setRevenueTrendMethod] = useState<'mpesa' | 'cash'>('mpesa');
+  const [isRevenueChartLoading, setIsRevenueChartLoading] = useState(false);
+  const refreshRequestIdRef = React.useRef(0);
   const [stats, setStats] = useState<DashboardStats>({
     total_users: 0,
     active_users: 0,
     online_users: 0,
     daily_revenue: 0,
+    daily_revenue_mpesa: 0,
+    daily_revenue_cash: 0,
     offline_routers: 0,
     clients_gained: 0,
     clients_lost: 0,
@@ -48,7 +61,9 @@ export const Dashboard: React.FC = () => {
   
   
     useEffect(() => {
+    const requestId = ++refreshRequestIdRef.current;
     const refreshDashboard = async () => {
+      setIsRevenueChartLoading(true);
       try {
         // 🚀 FIRE ALL AT ONCE
         const [sitesRes, statsRes, chartRes] = await Promise.all([
@@ -57,23 +72,36 @@ export const Dashboard: React.FC = () => {
             days: statsWindowDays,
             lostMode,
           }),
-          dashboardApi.getRevenueChart()
+          dashboardApi.getRevenueChart({
+            period: revenueTrendPeriod,
+            method: revenueTrendMethod,
+            ...(revenueTrendPeriod === 'daily' ? { days: revenueTrendDays } : {}),
+          })
         ]);
 
         // Batch updates together
+        if (requestId !== refreshRequestIdRef.current) {
+          return;
+        }
+
         if (sitesRes.data) {
           setSites(sitesRes.data);
         }
         console.log('Stats response:', statsRes);
         setStats(statsRes);
         setRevenueChartData(chartRes);
+        setIsRevenueChartLoading(false);
       } catch (error) {
+        if (requestId !== refreshRequestIdRef.current) {
+          return;
+        }
+        setIsRevenueChartLoading(false);
         console.error('Dashboard sync error:', error);
       }
     };
 
     refreshDashboard();
-  }, [statsWindowDays, lostMode]);
+  }, [statsWindowDays, lostMode, revenueTrendPeriod, revenueTrendDays, revenueTrendMethod]);
   
     // Format currency
     const formatCurrency = useMemo(() => (amount: number) => {
@@ -85,9 +113,26 @@ export const Dashboard: React.FC = () => {
       });
     }, []);
 
+    const formatNumber = useMemo(() => (amount: number) => {
+      return amount.toLocaleString('en-KE', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      });
+    }, []);
+console.log('Rendering Dashboard with stats:', stats);
     const formattedTotal = formatCurrency(revenueChartData.total);
-    const formattedDailyRevenue = formatCurrency(stats.daily_revenue);
+    const formattedDailyRevenueMpesa = formatNumber(stats.daily_revenue_mpesa ?? stats.daily_revenue ?? 0);
+    console.log('Formatted Daily M-Pesa Revenue:', formattedDailyRevenueMpesa);
+    const formattedDailyRevenueCash = formatNumber(stats.daily_revenue_cash ?? 0);
     const netMomentum = stats.clients_gained - stats.clients_lost;
+    const trendMethodLabel = revenueTrendMethod === 'mpesa' ? 'M-Pesa' : 'Cash';
+    const trendTitle = revenueTrendPeriod === 'monthly'
+      ? `Revenue Trend (12M, ${trendMethodLabel})`
+      : `Revenue Trend (${revenueTrendDays}D, ${trendMethodLabel})`;
+    const trendComparisonText =
+      revenueTrendPeriod === 'monthly'
+        ? 'last 6 months vs previous'
+        : `last ${Math.max(Math.floor(revenueTrendDays / 2), 1)} days vs previous`;
     const lostModeLabelMap = {
       expired: 'Expired only',
       offline: 'Offline only',
@@ -97,10 +142,9 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-        <div className="col-span-2 sm:col-span-1">
-          <StatCard label="Daily Revenue" value={formattedDailyRevenue} icon={<ICONS.Revenue />} color={COLORS.warning} />
-        </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <StatCard label="Daily M-Pesa (KSH)" value={formattedDailyRevenueMpesa} icon="" color={COLORS.warning} />
+        <StatCard label="Daily Cash (KSH)" value={formattedDailyRevenueCash} icon="" color={COLORS.success} />
         <StatCard label="Total Users" value={stats.total_users} icon={<ICONS.CRM />} color={COLORS.primary} />
         <StatCard label="Active Users" value={stats.active_users} icon={<ICONS.CRM />} color={COLORS.primary} />
         <StatCard label="Online Now" value={stats.online_users} icon={<ICONS.Management />} color={COLORS.success} />
@@ -166,7 +210,7 @@ export const Dashboard: React.FC = () => {
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-         <Card title="Revenue Trend (12M)" className="lg:col-span-2 overflow-hidden">
+         <Card title={trendTitle} className="lg:col-span-2 overflow-hidden">
           <div className="flex justify-between items-start mb-6">
             <div>
               <p className="text-3xl font-black text-gray-900 dark:text-white">{formattedTotal}</p>
@@ -174,11 +218,77 @@ export const Dashboard: React.FC = () => {
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
                   <path strokeLinecap="round" strokeLinejoin="round" d={revenueChartData.growth >= 0 ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
                 </svg>
-                {Math.abs(revenueChartData.growth)}% {revenueChartData.growth >= 0 ? 'growth' : 'decline'} (last 6 months vs previous)
+                {Math.abs(revenueChartData.growth)}% {revenueChartData.growth >= 0 ? 'growth' : 'decline'} ({trendComparisonText})
               </p>
+              {isRevenueChartLoading && (
+                <div className="mt-2 inline-flex items-center gap-2 rounded-lg bg-slate-100 dark:bg-slate-800 px-2 py-1">
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-300">Updating...</span>
+                </div>
+              )}
             </div>
-            <div className="flex gap-2">
-              <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-lg text-[10px] font-black uppercase">Last 12 Months</span>
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex gap-2 flex-wrap justify-end">
+                <button
+                  onClick={() => setRevenueTrendMethod('mpesa')}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-all ${
+                    revenueTrendMethod === 'mpesa'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600'
+                  }`}
+                >
+                  M-Pesa
+                </button>
+                <button
+                  onClick={() => setRevenueTrendMethod('cash')}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-all ${
+                    revenueTrendMethod === 'cash'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600'
+                  }`}
+                >
+                  Cash
+                </button>
+                <button
+                  onClick={() => setRevenueTrendPeriod('monthly')}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-all ${
+                    revenueTrendPeriod === 'monthly'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600'
+                  }`}
+                >
+                  Monthly
+                </button>
+                <button
+                  onClick={() => setRevenueTrendPeriod('daily')}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase transition-all ${
+                    revenueTrendPeriod === 'daily'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600'
+                  }`}
+                >
+                  Daily
+                </button>
+              </div>
+              {revenueTrendPeriod === 'monthly' ? (
+                <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-lg text-[10px] font-black uppercase">Last 12 Months</span>
+              ) : (
+                <div className="flex gap-1">
+                  {[7, 14, 30].map((value) => (
+                    <button
+                      key={value}
+                      onClick={() => setRevenueTrendDays(value)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition-all ${
+                        revenueTrendDays === value
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600'
+                      }`}
+                    >
+                      {value}D
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <RevenueChart data={revenueChartData.data} />

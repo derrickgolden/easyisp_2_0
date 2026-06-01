@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\Payment;
 use App\Models\Site;
+use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -38,8 +39,14 @@ class DashboardController extends Controller
             )')
             ->count();
 
-        // Daily revenue (today)
-        $dailyRevenue = Payment::where('organization_id', $organizationId)
+        // Daily revenue split by channel (today)
+        $dailyRevenueMpesa = Payment::where('organization_id', $organizationId)
+            ->whereDate('created_at', $now->toDateString())
+            ->sum('amount');
+
+        $dailyRevenueCash = Transaction::where('organization_id', $organizationId)
+            ->where('type', 'credit')
+            ->whereRaw('LOWER(method) = ?', ['cash'])
             ->whereDate('created_at', $now->toDateString())
             ->sum('amount');
 
@@ -95,7 +102,9 @@ class DashboardController extends Controller
             'total_users' => $totalUsers,
             'active_users' => $activeUsers,
             'online_users' => $onlineUsers,
-            'daily_revenue' => $dailyRevenue,
+            'daily_revenue' => $dailyRevenueMpesa,
+            'daily_revenue_mpesa' => $dailyRevenueMpesa,
+            'daily_revenue_cash' => $dailyRevenueCash,
             'offline_routers' => $offlineRouters,
             'clients_gained' => $clientsGained,
             'clients_lost' => $clientsLost,
@@ -111,11 +120,70 @@ class DashboardController extends Controller
     {
         $organizationId = $request->user()->organization_id;
         $now = Carbon::now();
+        $period = $request->query('period', 'monthly');
+        $method = strtolower((string) $request->query('method', 'mpesa'));
+
+        if (! in_array($method, ['mpesa', 'cash'], true)) {
+            $method = 'mpesa';
+        }
+
+        $baseQuery = $method === 'cash'
+            ? Transaction::where('organization_id', $organizationId)
+                ->where('type', 'credit')
+                ->whereRaw('LOWER(method) = ?', ['cash'])
+            : Payment::where('organization_id', $organizationId);
+
+        if ($period === 'daily') {
+            $days = max((int) $request->query('days', 30), 1);
+            $startDate = $now->copy()->subDays($days - 1)->startOfDay();
+
+            $dailyRevenue = (clone $baseQuery)
+                ->where('created_at', '>=', $startDate)
+                ->select([
+                    DB::raw('SUM(amount) as total'),
+                    DB::raw('DATE(created_at) as payment_date')
+                ])
+                ->groupBy('payment_date')
+                ->get()
+                ->keyBy('payment_date');
+
+            $lastDays = [];
+            for ($i = $days - 1; $i >= 0; $i--) {
+                $date = $now->copy()->subDays($i);
+                $key = $date->toDateString();
+                $revenue = isset($dailyRevenue[$key]) ? (float) $dailyRevenue[$key]->total : 0;
+
+                $lastDays[] = [
+                    'label' => $date->format('d M'),
+                    'value' => $revenue,
+                ];
+            }
+
+            $values = array_column($lastDays, 'value');
+            $total = array_sum($values);
+            $split = (int) floor(count($values) / 2);
+            $previousWindow = array_sum(array_slice($values, 0, $split));
+            $currentWindow = array_sum(array_slice($values, $split));
+
+            $growth = $previousWindow > 0
+                ? (($currentWindow - $previousWindow) / $previousWindow * 100)
+                : 0;
+
+            return response()->json([
+                'data' => $lastDays,
+                'total' => $total,
+                'growth' => round($growth, 1),
+                'period' => 'daily',
+                'days' => $days,
+                'method' => $method,
+            ]);
+        }
+
         $monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         
         // Get revenue data from database
         $oneYearAgo = $now->copy()->subMonths(11)->startOfMonth();
-        $monthlyRevenue = Payment::where('organization_id', $organizationId)
+        $monthlyRevenue = (clone $baseQuery)
             ->where('created_at', '>=', $oneYearAgo)
             ->select([
                 DB::raw('SUM(amount) as total'),
@@ -157,6 +225,9 @@ class DashboardController extends Controller
             'data' => $last12Months,
             'total' => $total,
             'growth' => round($growth, 1),
+            'period' => 'monthly',
+            'months' => 12,
+            'method' => $method,
         ]);
     }
 }

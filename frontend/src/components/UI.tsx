@@ -12,9 +12,13 @@ export const StatCard: React.FC<{ label: string; value: string | number; subValu
   <div className="relative bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 p-6 transition-all duration-300">
     <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{label}</p>
     <div className='flex items-center mt-2 space-x-4'>
-      <div className={`p-3 rounded-lg bg-opacity-10`} style={{ backgroundColor: `${color}20`, color }}>
-        <div className="w-6 h-6">{icon}</div>
-      </div>
+      {
+          icon && (
+            <div className={`p-3 rounded-lg bg-opacity-10`} style={{ backgroundColor: `${color}20`, color }}>
+              <div className="w-6 h-6">{icon}</div>
+            </div>
+          )
+      }
       <div>
         <div className="flex items-baseline space-x-2">
           <p className="text-2xl font-bold text-gray-900 dark:text-white transition-colors">{value}</p>
