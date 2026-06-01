@@ -178,27 +178,16 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
     <div className="space-y-6 animate-in slide-in-from-right-4 duration-500 pb-20">
       {/* Top Header Actions */}
       <div className="flex md:items-center justify-between gap-4">
-        <div className="w-full grid grid-cols-3 md:grid-cols-6 gap-2 items-center">
+        <div className="w-full grid grid-cols-4 gap-2 items-center">
           <button 
             onClick={() =>navigate('/crm/customers')}
             className=" text-sm font-bold text-gray-500 hover:text-blue-600 transition-colors w-fit group"
           >
             <div className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-gray-100 dark:border-slate-800 flex items-center justify-center gap-2 group-hover:border-blue-500 transition-all">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-              Back
+              <span className='hidden sm:block'>Back to customers</span>
             </div>
-            {/* <span className='hidden sm:block'>Back to customers</span> */}
           </button>
-          
-          {can('stk-push') && (
-          <button 
-            onClick={() => actions.handleStkPush(customer)}
-            className="px-4 py-2 bg-gray-600 text-white rounded-xl text-sm font-bold hover:bg-gray-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
-            STK
-          </button>
-          )}
           {
             can('send-message') && (
             <button 
@@ -210,20 +199,10 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
             </button>
             )
           }
-
-            <button 
-              onClick={handleCallClick}
-              className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 w-full"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-              </svg>
-              Call
-            </button>
           
           <button 
             onClick={() => actions.handleEdit(customer)}
-            className="px-4 py-2 bg-yellow-600 dark:bg-yellow-900 text-white dark:text-slate-300 border border-gray-100 dark:border-slate-800 rounded-xl text-sm font-bold hover:bg-yellow-700 dark:hover:bg-yellow-800 transition-all flex items-center justify-center gap-2 w-full"
+            className="px-4 py-2 bg-blue-600 dark:bg-blue-900 text-white dark:text-slate-300 border border-gray-100 dark:border-slate-800 rounded-xl text-sm font-bold hover:bg-blue-700 dark:hover:bg-blue-800 transition-all flex items-center justify-center gap-2 w-full"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
             Edit
@@ -232,11 +211,11 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
           <button 
             onClick={() => { actions.deleteCustomer(customer) }}
             disabled={!can('delete-customers')}
-            className="p-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all flex items-center justify-center gap-2 w-full"
+            className="py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all flex items-center justify-center gap-2 w-full"
             title="Delete Account"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-            Del
+            <span className='hidden sm:block'>Delete</span>
           </button>
         </div>
       </div>
@@ -251,6 +230,12 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
                <Badge variant={effectivelyActive ? 'active' : (customer.status === 'suspended' ? 'suspended' : 'expired')}>
                  {effectivelyActive ? 'ACTIVE' : (customer.status === 'suspended' ? 'PAUSED' : 'EXPIRED')}
                </Badge>
+                <button 
+                  onClick={() => actions.handleShare(customer)}
+                  className="p-1 bg-yellow-600 dark:bg-yellow-900 text-white dark:text-slate-300 border border-gray-100 dark:border-slate-800 rounded-xl text-sm font-bold hover:bg-yellow-700 dark:hover:bg-yellow-800 transition-all flex items-center justify-center gap-2 w-full"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342a3 3 0 010-2.684m6.632 3.342a3 3 0 000-2.684m-6.632 2.684l6.632 3.316m-6.632-6l6.632-3.316M6 21a3 3 0 100-6 3 3 0 000 6zm12-9a3 3 0 100-6 3 3 0 000 6zm0 12a3 3 0 100-6 3 3 0 000 6z" /></svg>
+                </button>
             </div>
             
             <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
@@ -275,7 +260,9 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-2 gap-x-8 gap-y-4 text-left">
                   <div className="space-y-3">
                     <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
-                      <div className="p-2 bg-gray-50 dark:bg-slate-800 rounded-xl text-blue-500 shadow-sm"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg></div>
+                      <div onClick={handleCallClick}
+                        className="p-2 bg-lime-600 text-white rounded-xl shadow-sm cursor-pointer">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg></div>
                       <span className="font-bold text-sm">{customer.phone}</span>
                     </div>
                     <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
@@ -442,14 +429,25 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
 
             {(!customer.parentId || customer.isIndependent) && <Card title="Financial Insight" className="border-none shadow-sm rounded-[2.5rem]">
                <div className="space-y-6">
-                 <div className="flex items-center justify-between p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-800">
+                <div className='py-2 px-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-800'>
+                  <div className="flex items-center justify-between ">
                     <div>
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Account Balance</p>
-                      <p className={`text-3xl font-black ${customer.balance < 0 ? 'text-red-500' : 'text-emerald-500'}`}>KSH {customer.balance.toLocaleString()}</p>
+                      <p className={`text-xl font-black ${customer.balance < 0 ? 'text-red-500' : 'text-emerald-500'}`}>KSH {customer.balance.toLocaleString()}</p>
                     </div>
                     <div className="p-3 bg-white dark:bg-slate-900 rounded-2xl shadow-sm">
                       <svg className={`w-8 h-8 ${customer.balance < 0 ? 'text-red-500' : 'text-green-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     </div>
+                  </div>
+                    {can('stk-push') && (
+                      <button 
+                        onClick={() => actions.handleStkPush(customer)}
+                        className="w-full px-4 py-2 mt-2 bg-lime-700 text-white rounded-xl text-sm font-bold hover:bg-lime-800 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                        STK PUSH
+                      </button>
+                    )}
                  </div>
 
                  <div className="p-5 bg-emerald-50/50 dark:bg-emerald-900/5 rounded-2xl border border-emerald-100 dark:border-emerald-900/20">

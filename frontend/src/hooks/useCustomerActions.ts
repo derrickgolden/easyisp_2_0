@@ -260,6 +260,51 @@ export function useCustomerActions() {
       });
     };
 
+    const handleShare = async (customer: Customer) => {
+      const customerName = `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Customer';
+      const customerLink = new URL(`/crm/customers/${customer.id}`, window.location.origin).toString();
+      const shareMessage = [
+        `Customer: ${customerName}`,
+        customer.phone ? `Phone: ${customer.phone}` : null,
+        customer.status ? `Status: ${customer.status}` : null,
+        customer.isOnline !== undefined ? `Online: ${customer.isOnline ? 'Yes' : 'No'}` : null,
+        `Link: ${customerLink}`,
+      ].filter(Boolean).join('\n\n');
+
+      try {
+        if (navigator.share) {
+          await navigator.share({
+            text: shareMessage,
+          });
+
+          return;
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return;
+        }
+      }
+
+      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
+      const whatsappWindow = window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+
+      try {
+        await navigator.clipboard.writeText(shareMessage);
+        toast.success(whatsappWindow ? 'Opening WhatsApp. Customer details copied to clipboard.' : 'Customer details copied to clipboard.');
+      } catch {
+        if (whatsappWindow) {
+          toast.success('Opening WhatsApp.');
+        } else {
+          Swal.fire({
+            title: 'Share Customer Details',
+            text: shareMessage,
+            icon: 'info',
+            confirmButtonText: 'Close',
+          });
+        }
+      }
+    };
+
     
 // Usage: 
 // startLiveUptime('2026-01-31T17:26:00Z', 'uptime-display');
@@ -268,7 +313,7 @@ export function useCustomerActions() {
     state: { smsText, isSmsModalOpen, isCustomerModalOpen, editingCustomer, isDepositModalOpen, 
       isPackageModalOpen, isReconcileModalOpen, payments },
     actions: { setSmsText, setIsSmsModalOpen, deleteCustomer, handleEdit, 
-      handlePauseService, handleAddChild, handleStkPush, setIsCustomerModalOpen, setEditingCustomer, 
+      handlePauseService, handleAddChild, handleStkPush, handleShare, setIsCustomerModalOpen, setEditingCustomer, 
       setIsDepositModalOpen, setIsPackageModalOpen, setIsReconcileModalOpen, setPayments },
   };
 }

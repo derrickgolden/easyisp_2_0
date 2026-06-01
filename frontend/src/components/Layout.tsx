@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { AdminUser } from '../types';
 import Footer from './modals/FooterModal';
 import { organizationApi } from '../services/apiService';
+import { NavItem } from '../utils/navItems';
 
 interface LayoutProps {
   navItems: NavItem[];
@@ -11,20 +12,6 @@ interface LayoutProps {
   children: React.ReactNode;
   currentUser: AdminUser | null;
   onLogout: () => void;
-}
-
-interface NavSubItem {
-  id: string;
-  label: string;
-  perm?: string | string[];
-}
-
-interface NavItem {
-  id: string;
-  label: string;
-  icon: React.ReactNode;
-  perm?: string | string[];
-  subItems?: NavSubItem[];
 }
 
 export const Layout: React.FC<LayoutProps> = ({ 
@@ -214,13 +201,13 @@ export const Layout: React.FC<LayoutProps> = ({
                   }
                   if (!item.subItems && window.innerWidth < 1024) setIsSidebarOpen(false);
                 }}
-                className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-all duration-200 ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/10' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-all duration-200 ${activeTab === item.id ? item.cssActive : item.css}`}
               >
                 <div className="w-5 h-5 flex-shrink-0">{item.icon}</div>
                 {(isSidebarOpen || window.innerWidth < 1024) && <span className="text-sm font-medium">{item.label}</span>}
               </button>
               {(isSidebarOpen || window.innerWidth < 1024) && item.subItems && shouldSubItemsBeOpen(item.id) && (
-                <div className="mt-1 ml-6 space-y-1 border-l border-slate-700/50 pl-4 animate-in slide-in-from-top-2">
+                <div className={`mt-1 ml-6 space-y-1 border-l ${item.cssBorder} pl-4 animate-in slide-in-from-top-2`}>
                   {item.subItems.map(sub => (
                     <button
                       key={sub.id}
@@ -229,7 +216,7 @@ export const Layout: React.FC<LayoutProps> = ({
                         navigate(`/${item.id}/${sub.id}`);
                         if (window.innerWidth < 1024) setIsSidebarOpen(false);
                       }}
-                      className={`w-full text-left py-2 text-xs transition-colors rounded-r-lg pl-2 ${activeTab === item.id && activeSubTab === sub.id ? 'text-blue-400 font-bold bg-blue-500/5' : 'text-slate-500 hover:text-white hover:bg-slate-800/50'}`}
+                      className={`w-full text-left py-2 text-xs transition-colors rounded-r-lg pl-2 tracking-wide ${activeTab === item.id && activeSubTab === sub.id ? item.cssSubItemActive : item.cssSubItem}`}
                     >
                       {sub.label}
                     </button>
