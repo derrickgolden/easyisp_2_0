@@ -3,13 +3,19 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Card, Badge, Modal } from '../components/UI';
 import { Payment, Expense, Customer, Package } from '../types';
 import { STORAGE_KEYS } from '../constants/storage';
-import { customersApi, packagesApi, paymentsApi } from '../services/apiService';
+import { customersApi, expensesApi, packagesApi, paymentsApi } from '../services/apiService';
 import { useNavigate } from 'react-router-dom';
 
 export const ReportsPage: React.FC = () => {
   const navigate = useNavigate();
-  const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const formatDateForInput = (date: Date) => {
+    const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return localDate.toISOString().split('T')[0];
+  };
+  const [startDate, setStartDate] = useState(
+    formatDateForInput(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
+  );
+  const [endDate, setEndDate] = useState(formatDateForInput(new Date()));
   const [customers, setCustomers] = useState<Customer[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMERS) || '[]'));
   const [expenses, setExpenses] = useState<Expense[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.EXPENSES) || '[]'));
   const [payments, setPayments] = useState<Payment[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.PAYMENTS) || '[]'));
@@ -23,14 +29,43 @@ export const ReportsPage: React.FC = () => {
   useEffect(() => {
     fetchPayments();
     fetchCustomers();
+    fetchExpenses();
     fetchPackages();
-  }, [ ]);
+  }, [startDate, endDate]);
+
+  const extractList = (payload: any): any[] => {
+    if (Array.isArray(payload?.data)) return payload.data;
+    if (Array.isArray(payload?.data?.data)) return payload.data.data;
+    if (Array.isArray(payload)) return payload;
+    return [];
+  };
+
+  const extractLastPage = (payload: any): number => {
+    const candidate = payload?.meta?.last_page ?? payload?.last_page ?? payload?.data?.last_page ?? 1;
+    const page = Number(candidate);
+    return Number.isFinite(page) && page > 0 ? page : 1;
+  };
 
   const fetchPayments = async () => {
     try {
-      const res = await paymentsApi.getAll();
-      const paymentsList = Array.isArray(res?.data) ? res.data : res?.data?.data || [];
+      const firstPage = await paymentsApi.getAll(1);
+      const paymentsList = [...extractList(firstPage)];
+      const lastPage = extractLastPage(firstPage);
+
+      if (lastPage > 1) {
+        const remainingRequests: Array<Promise<any>> = [];
+        for (let page = 2; page <= lastPage; page++) {
+          remainingRequests.push(paymentsApi.getAll(page));
+        }
+
+        const remainingResults = await Promise.all(remainingRequests);
+        for (const result of remainingResults) {
+          paymentsList.push(...extractList(result));
+        }
+      }
+
       setPayments(paymentsList as Payment[]);
+      localStorage.setItem(STORAGE_KEYS.PAYMENTS, JSON.stringify(paymentsList));
     } catch (error) {
       console.error('Error fetching payments:', error);
     }
@@ -38,15 +73,53 @@ export const ReportsPage: React.FC = () => {
 
   const fetchCustomers = async () => {
       try {
-        const customersRes = await customersApi.getAll();
-        
-        const customersList = customersRes.data || [];
+        const firstPage = await customersApi.getAll(1);
+        const customersList = [...extractList(firstPage)];
+        const lastPage = extractLastPage(firstPage);
+
+        if (lastPage > 1) {
+          const remainingRequests: Array<Promise<any>> = [];
+          for (let page = 2; page <= lastPage; page++) {
+            remainingRequests.push(customersApi.getAll(page));
+          }
+
+          const remainingResults = await Promise.all(remainingRequests);
+          for (const result of remainingResults) {
+            customersList.push(...extractList(result));
+          }
+        }
+
         setCustomers(customersList);
   
         localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customersList));
       } catch (error) {
         console.error('Error loading initial data:', error);
       }
+  };
+
+  const fetchExpenses = async () => {
+    try {
+      const firstPage = await expensesApi.getAll(1, 100, undefined, undefined, startDate, endDate);
+      const expensesList = [...extractList(firstPage)];
+      const lastPage = extractLastPage(firstPage);
+
+      if (lastPage > 1) {
+        const remainingRequests: Array<Promise<any>> = [];
+        for (let page = 2; page <= lastPage; page++) {
+          remainingRequests.push(expensesApi.getAll(page, 100, undefined, undefined, startDate, endDate));
+        }
+
+        const remainingResults = await Promise.all(remainingRequests);
+        for (const result of remainingResults) {
+          expensesList.push(...extractList(result));
+        }
+      }
+
+      setExpenses(expensesList as Expense[]);
+      localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(expensesList));
+    } catch (error) {
+      console.error('Error fetching expenses:', error);
+    }
   };
 
   const fetchPackages = async () => {
@@ -62,29 +135,37 @@ export const ReportsPage: React.FC = () => {
   
 
   const filteredData = useMemo(() => {
+    const parseDateTime = (value: string) => {
+      const normalized = value.includes(' ') && !value.includes('T') ? value.replace(' ', 'T') : value;
+      return new Date(normalized);
+    };
+
     const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+
     const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
     
     const filteredPayments = payments.filter(p => {
-      const pDate = new Date(p.timestamp);
-      return pDate >= start && pDate <= end;
+      const pDate = parseDateTime(p.timestamp);
+      return !Number.isNaN(pDate.getTime()) && pDate >= start && pDate <= end;
     });
 
     const filteredExpenses = expenses.filter(e => {
-      const eDate = new Date(e.date);
-      return eDate >= start && eDate <= end;
+      const eDate = parseDateTime(e.date);
+      return !Number.isNaN(eDate.getTime()) && eDate >= start && eDate <= end;
     });
 
     const filteredCustomers = customers.filter(c => {
-      const cDate = new Date(c.createdAt);
-      return cDate >= start && cDate <= end;
+      const cDate = parseDateTime(c.createdAt);
+      return !Number.isNaN(cDate.getTime()) && cDate >= start && cDate <= end;
     });
 
     return { filteredPayments, filteredExpenses, filteredCustomers };
   }, [payments, expenses, customers, startDate, endDate]);
 
-  const totalRevenue = filteredData.filteredPayments.reduce((acc, curr) => acc + curr.amount, 0);
-  const totalExpenses = filteredData.filteredExpenses.reduce((acc, curr) => acc + curr.amount, 0);
+  const totalRevenue = filteredData.filteredPayments.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  const totalExpenses = filteredData.filteredExpenses.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
   const netProfit = totalRevenue - totalExpenses;
 
   // Balance-based Metrics
@@ -206,7 +287,7 @@ export const ReportsPage: React.FC = () => {
            <div className="relative z-10">
              <p className="text-[10px] font-black uppercase text-indigo-200 tracking-widest mb-1">Expected Earning</p>
              <p className="text-2xl font-black">KSH {expectedEarningFromExpired.toLocaleString()}</p>
-             <p className="text-[10px] text-indigo-200 mt-2 font-bold uppercase">From recently expired Subs</p>
+             <p className="text-[10px] text-indigo-200 mt-2 font-bold uppercase">From 7 days ago expired Subs</p>
            </div>
            <div className="absolute left-[-10%] top-[-20%] w-24 h-24 bg-white/5 rounded-full blur-2xl"></div>
          </div>

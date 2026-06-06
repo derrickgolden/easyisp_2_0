@@ -400,10 +400,14 @@ class CustomerRadiusService
         $rateLimit = "{$rx}/{$tx}";
 
         $hasBurst = !empty($package->burst_limit_up) && !empty($package->burst_limit_down);
-        $hasPriority = !is_null($package->priority);
+        // Priority 8 is MikroTik default; do not treat it as explicit advanced QoS.
+        $hasPriority = !is_null($package->priority) && (int) $package->priority !== 8;
         $hasMinLimit = !empty($package->min_limit_up) && !empty($package->min_limit_down);
+        $hasBurstThreshold = !empty($package->burst_threshold_up) || !empty($package->burst_threshold_down);
+        $hasBurstTime = !empty($package->burst_time);
+        $hasAdvancedQos = $hasBurst || $hasPriority || $hasMinLimit || $hasBurstThreshold || $hasBurstTime;
 
-        if ($hasBurst || $hasPriority || $hasMinLimit) {
+        if ($hasAdvancedQos) {
             $burstRx = $package->burst_limit_up ?: $rx;
             $burstTx = $package->burst_limit_down ?: $tx;
             $thresholdRx = $package->burst_threshold_up ?: $rx;
@@ -440,6 +444,61 @@ class CustomerRadiusService
             return true;
         } catch (\Exception $e) {
             Log::error("Package Sync Failed: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function syncHotspotPackageToRadius($package)
+    {
+        $groupName = "hotspot_package_" . $package->id;
+
+        $rx = $package->speed_up;
+        $tx = $package->speed_down;
+        $rateLimit = "{$rx}/{$tx}";
+
+        $hasBurst = !empty($package->burst_limit_up) && !empty($package->burst_limit_down);
+        // Priority 8 is MikroTik default; do not treat it as explicit advanced QoS.
+        $hasPriority = !is_null($package->priority) && (int) $package->priority !== 8;
+        $hasMinLimit = !empty($package->min_limit_up) && !empty($package->min_limit_down);
+        $hasBurstThreshold = !empty($package->burst_threshold_up) || !empty($package->burst_threshold_down);
+        $hasBurstTime = !empty($package->burst_time);
+        $hasAdvancedQos = $hasBurst || $hasPriority || $hasMinLimit || $hasBurstThreshold || $hasBurstTime;
+
+        if ($hasAdvancedQos) {
+            $burstRx = $package->burst_limit_up ?: $rx;
+            $burstTx = $package->burst_limit_down ?: $tx;
+            $thresholdRx = $package->burst_threshold_up ?: $rx;
+            $thresholdTx = $package->burst_threshold_down ?: $tx;
+            $time = $package->burst_time ?: '30/30';
+
+            $rateLimit .= " {$burstRx}/{$burstTx} {$thresholdRx}/{$thresholdTx} {$time}";
+
+            if ($hasPriority || $hasMinLimit) {
+                $priority = $package->priority ?: 8;
+                $rateLimit .= " {$priority}";
+
+                if ($hasMinLimit) {
+                    $rateLimit .= " {$package->min_limit_up}/{$package->min_limit_down}";
+                }
+            }
+        }
+
+        try {
+            DB::connection('radius')->table('radgroupreply')
+                ->where('groupname', $groupName)
+                ->where('attribute', 'Mikrotik-Rate-Limit')
+                ->delete();
+
+            DB::connection('radius')->table('radgroupreply')->insert([
+                'groupname' => $groupName,
+                'attribute' => 'Mikrotik-Rate-Limit',
+                'op' => ':=',
+                'value' => $rateLimit,
+            ]);
+
+            return true;
+        } catch (\Exception $e) {
+            Log::error("Hotspot Package Sync Failed: " . $e->getMessage());
             return false;
         }
     }

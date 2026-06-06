@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\PackageController;
+use App\Http\Controllers\Api\HotspotPackageController;
 use App\Http\Controllers\Api\SiteController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PayheroPaymentController;
@@ -167,6 +168,7 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     
     // Package management
     Route::apiResource('/packages', PackageController::class);
+    Route::apiResource('/hotspot-packages', HotspotPackageController::class);
     
     // Site management
     Route::apiResource('/sites', SiteController::class);

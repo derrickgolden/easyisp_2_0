@@ -117,15 +117,17 @@ export const PackageModal: React.FC<PackageModalProps> = ({
                 value={editingPackage?.validity || ''} 
                 onChange={e => setEditingPackage({...editingPackage, validity: Number(e.target.value)})}
                 className="flex-1 min-w-0 bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3.5 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold" 
-                placeholder={editingPackage?.validity_type === 'months' ? '1' : '30'}
+                placeholder={editingPackage?.validity_type === 'months' ? '1' : editingPackage?.validity_type === 'hours' ? '24' : editingPackage?.validity_type === 'minutes' ? '60' : '30'}
               />
               <select
                 value={editingPackage?.validity_type || 'days'}
-                onChange={e => setEditingPackage({...editingPackage, validity_type: e.target.value as 'days' | 'months'})}
+                onChange={e => setEditingPackage({...editingPackage, validity_type: e.target.value as 'days' | 'months' | 'hours' | 'minutes'})}
                 className="shrink-0 w-28 bg-gray-50 dark:bg-slate-800 border-none rounded-xl px-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold text-sm"
               >
                 <option value="days">Days</option>
                 <option value="months">Months</option>
+                <option value="hours">Hours</option>
+                <option value="minutes">Minutes</option>
               </select>
             </div>
           </div>

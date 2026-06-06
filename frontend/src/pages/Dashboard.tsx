@@ -32,6 +32,7 @@ interface RevenueChartData {
 
 export const Dashboard: React.FC = () => {
   const [sites, setSites] = useState<Site[]>([]);
+  const [clientsGainedToday, setClientsGainedToday] = useState(0);
   const [statsWindowDays, setStatsWindowDays] = useState(30);
   const [lostMode, setLostMode] = useState<'expired' | 'offline' | 'either' | 'both'>('both');
   const [revenueTrendPeriod, setRevenueTrendPeriod] = useState<'monthly' | 'daily'>('daily');
@@ -66,7 +67,7 @@ export const Dashboard: React.FC = () => {
       setIsRevenueChartLoading(true);
       try {
         // 🚀 FIRE ALL AT ONCE
-        const [sitesRes, statsRes, chartRes] = await Promise.all([
+        const [sitesRes, statsRes, chartRes, todayStatsRes] = await Promise.all([
           sitesApi.getAll(),
           dashboardApi.getStats({
             days: statsWindowDays,
@@ -76,7 +77,11 @@ export const Dashboard: React.FC = () => {
             period: revenueTrendPeriod,
             method: revenueTrendMethod,
             ...(revenueTrendPeriod === 'daily' ? { days: revenueTrendDays } : {}),
-          })
+          }),
+          dashboardApi.getStats({
+            days: 1,
+            lostMode,
+          }),
         ]);
 
         // Batch updates together
@@ -89,6 +94,7 @@ export const Dashboard: React.FC = () => {
         }
         console.log('Stats response:', statsRes);
         setStats(statsRes);
+        setClientsGainedToday(todayStatsRes?.clients_gained ?? 0);
         setRevenueChartData(chartRes);
         setIsRevenueChartLoading(false);
       } catch (error) {
@@ -119,10 +125,9 @@ export const Dashboard: React.FC = () => {
         maximumFractionDigits: 0,
       });
     }, []);
-console.log('Rendering Dashboard with stats:', stats);
+
     const formattedTotal = formatCurrency(revenueChartData.total);
     const formattedDailyRevenueMpesa = formatNumber(stats.daily_revenue_mpesa ?? stats.daily_revenue ?? 0);
-    console.log('Formatted Daily M-Pesa Revenue:', formattedDailyRevenueMpesa);
     const formattedDailyRevenueCash = formatNumber(stats.daily_revenue_cash ?? 0);
     const netMomentum = stats.clients_gained - stats.clients_lost;
     const trendMethodLabel = revenueTrendMethod === 'mpesa' ? 'M-Pesa' : 'Cash';
@@ -142,13 +147,13 @@ console.log('Rendering Dashboard with stats:', stats);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-        <StatCard label="Daily M-Pesa (KSH)" value={formattedDailyRevenueMpesa} icon="" color={COLORS.warning} />
-        <StatCard label="Daily Cash (KSH)" value={formattedDailyRevenueCash} icon="" color={COLORS.success} />
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
+        <StatCard label="Daily M-Pesa" value={formattedDailyRevenueMpesa} icon="" color={COLORS.gold} />
+        <StatCard label="Daily Cash" value={formattedDailyRevenueCash} icon="" color={COLORS.warning} />
         <StatCard label="Total Users" value={stats.total_users} icon={<ICONS.CRM />} color={COLORS.primary} />
-        <StatCard label="Active Users" value={stats.active_users} icon={<ICONS.CRM />} color={COLORS.primary} />
+        <StatCard label="Active Users" value={stats.active_users} icon={<ICONS.CRM />} color={COLORS.info} />
         <StatCard label="Online Now" value={stats.online_users} icon={<ICONS.Management />} color={COLORS.success} />
-        {/* <StatCard label="System Alerts" value={stats.offline_routers} icon={<ICONS.Settings />} color={COLORS.danger} /> */}
+        <StatCard label="Today clients" value={clientsGainedToday} icon={<ICONS.CRM />} color={COLORS.secondary} />
       </div>
 
       <Card title="Customer Momentum" className="overflow-hidden">

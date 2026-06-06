@@ -356,6 +356,33 @@ export const packagesApi = {
   },
 };
 
+export const hotspotPackagesApi = {
+  getAll: async () => {
+    const response = await axiosInstance.get(`/hotspot-packages`);
+    return response.data;
+  },
+
+  getById: async (id: string) => {
+    const response = await axiosInstance.get(`/hotspot-packages/${id}`);
+    return response.data;
+  },
+
+  create: async (packageData: any) => {
+    const response = await axiosInstance.post('/hotspot-packages', packageData);
+    return response.data;
+  },
+
+  update: async (id: string, packageData: any) => {
+    const response = await axiosInstance.put(`/hotspot-packages/${id}`, packageData);
+    return response.data;
+  },
+
+  delete: async (id: string) => {
+    const response = await axiosInstance.delete(`/hotspot-packages/${id}`);
+    return response.data;
+  },
+};
+
 // Sites Endpoints
 export const sitesApi = {
   getAll: async (page = 1) => {

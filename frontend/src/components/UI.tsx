@@ -21,7 +21,8 @@ export const StatCard: React.FC<{ label: string; value: string | number; subValu
       }
       <div>
         <div className="flex items-baseline space-x-2">
-          <p className="text-2xl font-bold text-gray-900 dark:text-white transition-colors">{value}</p>
+          <p style={{ color }}
+          className="text-2xl font-bold text-gray-900 dark:text-white ">{value}</p>
           {subValue && (
             <span className="absolute top-4 right-4 text-xs text-green-500 font-medium">
               {subValue}
@@ -35,8 +36,8 @@ export const StatCard: React.FC<{ label: string; value: string | number; subValu
 
 export const Badge: React.FC<{ variant: string; children: React.ReactNode }> = ({ variant, children }) => {
   const styles: Record<string, string> = {
-    active: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-    Active: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+    active: 'bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-400',
+    Active: 'bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-400',
     online: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
     expired: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
     offline: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',

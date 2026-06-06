@@ -80,6 +80,7 @@ class PackageController extends Controller
         // Normalize all speed-related fields before saving
         $data = $this->normalizePackageData($request->all());
         $data['organization_id'] = $request->user()->organization_id;
+        $data['status'] = 'pppoe'; // Default status for regular packages
 
         $package = Package::create($data);
 

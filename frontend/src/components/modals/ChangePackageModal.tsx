@@ -12,6 +12,13 @@ interface ChangePackageModalProps {
   onSuccess?: () => void;
 }
 
+const getValidityLabel = (validity: number, validityType: Package['validity_type']) => {
+  if (validityType === 'months') return validity === 1 ? 'month' : 'months';
+  if (validityType === 'hours') return validity === 1 ? 'hour' : 'hours';
+  if (validityType === 'minutes') return validity === 1 ? 'minute' : 'minutes';
+  return validity === 1 ? 'day' : 'days';
+};
+
 export const ChangePackageModal: React.FC<ChangePackageModalProps> = ({
   isOpen,
   onClose,
@@ -166,7 +173,7 @@ export const ChangePackageModal: React.FC<ChangePackageModalProps> = ({
                   </div>
                   <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-slate-700">
                     <span className="text-[10px] text-gray-500">
-                      {pkg.validity} {pkg.validity_type === 'months' ? (pkg.validity === 1 ? 'month' : 'months') : (pkg.validity === 1 ? 'day' : 'days')}
+                      {pkg.validity} {getValidityLabel(pkg.validity, pkg.validity_type)}
                     </span>
                     <span className="text-lg font-black text-blue-600 dark:text-blue-400">
                       KSH {pkg.price.toLocaleString()}

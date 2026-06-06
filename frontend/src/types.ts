@@ -60,7 +60,7 @@ export interface Package {
   speed_down: string;
   price: number;
   validity: number;
-  validity_type: 'days' | 'months';
+  validity_type: 'days' | 'months' | 'hours' | 'minutes';
   type: 'time' | 'data';
   // Burst configuration
   burst_limit_up?: string;

@@ -620,19 +620,19 @@ export const CustomersPage: React.FC = () => {
             <div className="w-8 h-8 rounded-xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
             </div>
-            <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Total Users</span>
+            <span className="text-[10px] font-black uppercase text-blue-400 tracking-widest">Total Users</span>
           </div>
-          <p className="text-3xl font-black text-center text-gray-900 dark:text-white leading-none">{stats.total}</p>
+          <p className="text-3xl font-black text-center text-blue-900 dark:text-blue-400 leading-none">{stats.total}</p>
         </div>
 
         <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] border border-gray-100 dark:border-slate-800 shadow-sm">
           <div className="flex items-center justify-center gap-3 mb-2">
-            <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-400 flex items-center justify-center">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             </div>
-            <span className="text-[10px] font-black uppercase text-emerald-500 tracking-widest">Active Users</span>
+            <span className="text-[10px] font-black uppercase text-lime-700 dark:text-lime-400 tracking-widest">Active Users</span>
           </div>
-          <p className="text-3xl font-black text-center text-emerald-600 dark:text-emerald-400 leading-none">{stats.active}</p>
+          <p className="text-3xl font-black text-center text-lime-600 dark:text-lime-400 leading-none">{stats.active}</p>
         </div>
 
         <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] border border-gray-100 dark:border-slate-800 shadow-sm">
@@ -647,12 +647,12 @@ export const CustomersPage: React.FC = () => {
 
         <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] border border-gray-100 dark:border-slate-800 shadow-sm">
           <div className="flex items-center justify-center gap-3 mb-2">
-            <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-green-100 dark:bg-green-900/30 text-green-600 flex items-center justify-center">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             </div>
-            <span className="text-[10px] font-black uppercase text-emerald-500 tracking-widest">Online Users</span>
+            <span className="text-[10px] font-black uppercase text-green-500 tracking-widest">Online Users</span>
           </div>
-          <p className="text-3xl font-black text-center text-emerald-600 dark:text-emerald-400 leading-none">{stats.online}</p>
+          <p className="text-3xl font-black text-center text-green-600 dark:text-green-400 leading-none">{stats.online}</p>
         </div>
       </div>
 

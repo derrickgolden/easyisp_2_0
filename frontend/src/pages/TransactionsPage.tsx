@@ -6,6 +6,7 @@ import { transactionsApi } from '../services/apiService';
 import { STORAGE_KEYS } from '../constants/storage';
 import { toast } from 'sonner';
 import TableScrollModal from '../components/modals/TableScrollModal';
+import { useNavigate } from 'react-router-dom';
 
 export const TransactionsPage: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>(
@@ -17,6 +18,7 @@ export const TransactionsPage: React.FC = () => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchTransactions();
@@ -155,7 +157,7 @@ export const TransactionsPage: React.FC = () => {
           <table className="w-full text-sm">
             <thead className="text-left text-gray-400 uppercase text-[10px] tracking-widest border-b dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/30">
               <tr>
-                <th className="py-4 px-6">ID</th>
+                {/* <th className="py-4 px-6">ID</th> */}
                 <th className="py-4 px-6">Subscriber</th>
                 <th className="py-4 px-6">Type</th>
                 <th className="py-4 px-6">Method</th>
@@ -166,9 +168,11 @@ export const TransactionsPage: React.FC = () => {
             </thead>
             <tbody className="divide-y dark:divide-slate-800">
               {displayedTransactions.map((tx) => (
-                <tr key={tx.id} className="group hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-all">
-                  <td className="py-4 px-6 font-mono font-bold text-gray-500 text-[10px]">#{tx.id}</td>
-                  <td className="py-4 px-6">
+                <tr key={tx.id}
+                className="group hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-all">
+                  {/* <td className="py-4 px-6 font-mono font-bold text-gray-500 text-[10px]">#{tx.id}</td> */}
+                  <td onClick={() => navigate(`/crm/customers/${tx.customer_id}`)}
+                  className="py-4 px-6 cursor-pointer">
                     <p className="font-bold text-gray-900 dark:text-white leading-none mb-1">{tx.customer_name}</p>
                     <p className="text-[10px] text-gray-400 uppercase font-mono">{tx.customer_id}</p>
                   </td>

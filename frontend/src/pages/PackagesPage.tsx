@@ -1,8 +1,8 @@
 
-import React, { use, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, Badge } from '../components/UI';
 import { Customer, Package } from '../types';
-import { packagesApi } from '../services/apiService';
+import { hotspotPackagesApi, packagesApi } from '../services/apiService';
 import { STORAGE_KEYS } from '../constants/storage';
 import { PackageModal } from '../components/modals/PackageModal';
 import { toast } from 'sonner';
@@ -12,24 +12,52 @@ import { usePermissions } from '../hooks/usePermissions';
 export const PackagesPage: React.FC = () => {
 
   const [packages, setPackages] = useState<Package[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.PACKAGES) || '[]'));
+  const [hotspotPackages, setHotspotPackages] = useState<Package[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.HOTSPOT_PACKAGES) || '[]'));
   const [editingPackage, setEditingPackage] = useState<Partial<Package> | null>(null);
   const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [showPackageList, setShowPackageList] = useState<'pppoe' | 'hotspot'>('pppoe');
   const { can } = usePermissions();
+  const displayedPackages = showPackageList === 'hotspot' ? hotspotPackages : packages;
 
   useEffect(() => {
     fetchPackages();
+    fetchHotspotPackages();
   }, []);
+
+  const getPackageStatus = (pkg: any): 'pppoe' | 'hotspot' => {
+    return pkg?.status === 'hotspot' ? 'hotspot' : 'pppoe';
+  };
+
+  const getValidityLabel = (validity: number, validityType: Package['validity_type']) => {
+    if (validityType === 'months') return validity === 1 ? 'Month' : 'Months';
+    if (validityType === 'hours') return validity === 1 ? 'Hour' : 'Hours';
+    if (validityType === 'minutes') return validity === 1 ? 'Minute' : 'Minutes';
+    return validity === 1 ? 'Day' : 'Days';
+  };
 
   const fetchPackages = async () => {
     try {
       const res = await packagesApi.getAll();
-  const packagesList = Array.isArray(res) ? res : (res.data || []);
-  localStorage.setItem(STORAGE_KEYS.PACKAGES, JSON.stringify(packagesList));
-  setPackages(packagesList);
+      const rawList = Array.isArray(res) ? res : (res.data || []);
+      const packagesList = rawList.filter((pkg: any) => getPackageStatus(pkg) === 'pppoe');
+      localStorage.setItem(STORAGE_KEYS.PACKAGES, JSON.stringify(packagesList));
+      setPackages(packagesList);
     } catch (error) {
       console.error('Error fetching packages:', error);
+    }
+  };
+
+  const fetchHotspotPackages = async () => {
+    try {
+      const res = await hotspotPackagesApi.getAll();
+      const rawList = Array.isArray(res) ? res : (res.data || []);
+      const packagesList = rawList.filter((pkg: any) => getPackageStatus(pkg) === 'hotspot');
+      localStorage.setItem(STORAGE_KEYS.HOTSPOT_PACKAGES, JSON.stringify(packagesList));
+      setHotspotPackages(packagesList);
+    } catch (error) {
+      console.error('Error fetching hotspot packages:', error);
     }
   };
 
@@ -45,18 +73,26 @@ export const PackagesPage: React.FC = () => {
     setSaveError(null);
 
     try {
-      const existingIndex = packages.findIndex(p => p.id === editingPackage.id);
+      const isHotspot = showPackageList === 'hotspot';
+      const currentList = isHotspot ? hotspotPackages : packages;
+      const existingIndex = currentList.findIndex(p => p.id === editingPackage.id);
+      const api = isHotspot ? hotspotPackagesApi : packagesApi;
+      const modeLabel = isHotspot ? 'Hotspot package' : 'Package';
+      const payload = {
+        ...editingPackage,
+        status: isHotspot ? 'hotspot' : 'pppoe',
+      };
 
       if (existingIndex >= 0 && editingPackage.id) {
         // Update existing package
-        await packagesApi.update(editingPackage.id, editingPackage);
-        fetchPackages();
-        toast.success('Package updated successfully');
+        await api.update(editingPackage.id, payload);
+        await Promise.all([fetchPackages(), fetchHotspotPackages()]);
+        toast.success(`${modeLabel} updated successfully`);
       } else {
         // Create new package
-        const response = await packagesApi.create(editingPackage);
-        fetchPackages();
-        toast.success('Package created successfully');
+        await api.create(payload);
+        await Promise.all([fetchPackages(), fetchHotspotPackages()]);
+        toast.success(`${modeLabel} created successfully`);
       }
 
       setIsPackageModalOpen(false);
@@ -72,13 +108,15 @@ export const PackagesPage: React.FC = () => {
   }
 
   const handleDelete = async (id: string) => {
-    const customers: Customer[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMERS) || '[]');
+    const isHotspot = showPackageList === 'hotspot';
+    const customerKey = isHotspot ? STORAGE_KEYS.HOTSPOT_CUSTOMERS : STORAGE_KEYS.CUSTOMERS;
+    const customers: Customer[] = JSON.parse(localStorage.getItem(customerKey) || '[]');
     const isAssigned = customers.some(customer => customer.packageId === id || customer.package?.id === id);
 
     if (isAssigned) {
       await confirmAction(
         'Cannot delete package',
-        'This package is assigned to one or more customers. Reassign them before deleting.',
+        `This ${isHotspot ? 'hotspot package' : 'package'} is assigned to one or more customers. Reassign them before deleting.`,
         {
           icon: 'info',
           confirmButtonText: 'OK',
@@ -98,9 +136,13 @@ export const PackagesPage: React.FC = () => {
     if (!result.isConfirmed) return;
 
     try {
-      await packagesApi.delete(id);
-      fetchPackages();
-      toast.success('Package deleted successfully');
+      if (isHotspot) {
+        await hotspotPackagesApi.delete(id);
+      } else {
+        await packagesApi.delete(id);
+      }
+      await Promise.all([fetchPackages(), fetchHotspotPackages()]);
+      toast.success(`${isHotspot ? 'Hotspot package' : 'Package'} deleted successfully`);
     } catch (error) {
       console.error('Error deleting package:', error);
       toast.error('Error deleting package: ' + (error instanceof Error ? error.message : 'Unknown error'));
@@ -114,22 +156,46 @@ export const PackagesPage: React.FC = () => {
         <div>
           <h2 className="text-2xl font-black tracking-tight text-gray-900 dark:text-white">Internet Service Packages</h2>
           <p className="text-sm text-gray-500">Define bandwidth limits and billing cycles for customers.</p>
+          <div className="mt-3 inline-flex gap-2 rounded-xl border border-gray-200 dark:border-slate-700 p-1 bg-white dark:bg-slate-900">
+            <button
+              type="button"
+              onClick={() => setShowPackageList('pppoe')}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                showPackageList === 'pppoe'
+                  ? 'bg-blue-600 text-white shadow'
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              PPPoE Packages
+            </button>
+            <button
+              type="button"
+              // onClick={() => setShowPackageList('hotspot')}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                showPackageList === 'hotspot'
+                  ? 'bg-yellow-600 text-white shadow'
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              Hotspot Packages
+            </button>
+          </div>
         </div>
         {
           can('manage-packages') && (
             <button 
               onClick={() => { setEditingPackage({}); setIsPackageModalOpen(true); }}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2"
+              className={`${showPackageList === 'pppoe' ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20' : 'bg-yellow-600 hover:bg-yellow-700 shadow-yellow-500/20'} text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center gap-2`}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              Create Package
+              Create {showPackageList === 'pppoe' ? 'PPPoE' : 'Hotspot'} Package
             </button>
           )
         }
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {packages.map(pkg => (
+        { displayedPackages.map(pkg => (
           <Card key={pkg.id} title={pkg?.type?.toUpperCase()} className="relative group border-none shadow-xl hover:shadow-2xl transition-all">
             {
               can('manage-packages') && (
@@ -156,10 +222,10 @@ export const PackagesPage: React.FC = () => {
 
             <div className="mb-6">
               <h4 className="text-xl font-black text-gray-900 dark:text-white leading-tight mb-1">{pkg.name}</h4>
-              <p className="text-3xl font-black text-blue-600 dark:text-blue-400">
+              <p className={`text-3xl font-black ${showPackageList === 'pppoe' ? 'text-blue-600 dark:text-blue-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
                 <span className="text-sm font-medium mr-1 uppercase">KSH</span>
                 {pkg.price.toLocaleString()}
-                <span className="text-sm text-gray-400 font-medium ml-1">/ {pkg.validity} {pkg.validity_type === 'months' ? (pkg.validity === 1 ? 'Month' : 'Months') : (pkg.validity === 1 ? 'Day' : 'Days')}</span>
+                <span className="text-sm text-gray-400 font-medium ml-1">/ {pkg.validity} {getValidityLabel(pkg.validity, pkg.validity_type)}</span>
               </p>
             </div>
 
@@ -183,8 +249,8 @@ export const PackagesPage: React.FC = () => {
             {pkg.burst_limit_down && (
               <div className="mb-6 px-3 py-2 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/20 rounded-xl flex items-center justify-between">
                 <div>
-                  <span className="text-[9px] font-black uppercase text-blue-500 block leading-none mb-1">Burst Peak</span>
-                  <p className="text-sm font-bold text-blue-700 dark:text-blue-400">{pkg.burst_limit_down} DL / {pkg.burst_limit_up} UL</p>
+                  <span className={`text-[9px] font-black uppercase ${showPackageList === 'pppoe' ? 'text-blue-500' : 'text-yellow-500'} block leading-none mb-1`}>Burst Peak</span>
+                  <p className={`text-sm font-bold ${showPackageList === 'pppoe' ? 'text-blue-700 dark:text-blue-400' : 'text-yellow-700 dark:text-yellow-400'}`}>{pkg.burst_limit_down} DL / {pkg.burst_limit_up} UL</p>
                 </div>
                 <div className="flex flex-col items-end">
                    <Badge variant="active">Burst ON</Badge>
@@ -201,7 +267,8 @@ export const PackagesPage: React.FC = () => {
               <Badge variant="active">Production</Badge>
             </div>
           </Card>
-        ))}
+        ))
+        }
         
         {
           can('manage-packages') && (

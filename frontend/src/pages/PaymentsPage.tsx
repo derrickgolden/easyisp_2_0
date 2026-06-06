@@ -4,8 +4,10 @@ import { Card, Badge } from '../components/UI';
 import { Payment } from '../types';
 import { paymentsApi } from '../services/apiService';
 import { ResolveMpesaModal } from '../components/modals/ResolveMpesaModal';
+import TableScrollModal from '../components/modals/TableScrollModal';
 import { STORAGE_KEYS } from '../constants/storage';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 export const formatPhone = (value: string | null | undefined): string => {
   if (!value) return '_';
@@ -26,6 +28,33 @@ export const PaymentsPage: React.FC = () => {
   const [reconcilingPayment, setReconcilingPayment] = useState<Payment | null>(null);
   const [payments, setPayments] = useState<Payment[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.PAYMENTS) || '[]'));
   const [isSyncing, setIsSyncing] = useState(false);
+  const [completedCurrentPage, setCompletedCurrentPage] = useState(1);
+  const [completedRowsPerPage, setCompletedRowsPerPage] = useState(10);
+  const [pendingCurrentPage, setPendingCurrentPage] = useState(1);
+  const [pendingRowsPerPage, setPendingRowsPerPage] = useState(10);
+  const navigate = useNavigate();
+
+  const extractPaymentsList = (payload: any): Payment[] => {
+    if (Array.isArray(payload?.data)) {
+      return payload.data as Payment[];
+    }
+
+    if (Array.isArray(payload?.data?.data)) {
+      return payload.data.data as Payment[];
+    }
+
+    if (Array.isArray(payload)) {
+      return payload as Payment[];
+    }
+
+    return [];
+  };
+
+  const extractLastPage = (payload: any): number => {
+    const candidate = payload?.meta?.last_page ?? payload?.last_page ?? payload?.data?.last_page ?? 1;
+    const page = Number(candidate);
+    return Number.isFinite(page) && page > 0 ? page : 1;
+  };
 
   useEffect(() => {
     fetchPayments();
@@ -34,8 +63,23 @@ export const PaymentsPage: React.FC = () => {
   const fetchPayments = async (isToast: boolean = false) => {
     setIsSyncing(true);
     try {
-      const res = await paymentsApi.getAll();
-      const paymentsList = Array.isArray(res?.data) ? res.data : res?.data?.data || [];
+      const firstPage = await paymentsApi.getAll(1);
+      const paymentsList = [...extractPaymentsList(firstPage)];
+      const lastPage = extractLastPage(firstPage);
+
+      if (lastPage > 1) {
+        const remainingRequests: Array<Promise<any>> = [];
+
+        for (let page = 2; page <= lastPage; page++) {
+          remainingRequests.push(paymentsApi.getAll(page));
+        }
+
+        const remainingResults = await Promise.all(remainingRequests);
+        for (const result of remainingResults) {
+          paymentsList.push(...extractPaymentsList(result));
+        }
+      }
+
       setPayments(paymentsList as Payment[]);
       if (isToast) {
         toast.success('Ledger synced successfully!');
@@ -61,6 +105,32 @@ export const PaymentsPage: React.FC = () => {
     p.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.phone.includes(searchTerm)
   ));
+
+  const completedTotalPages = Math.max(1, Math.ceil(completedPayments.length / completedRowsPerPage));
+  const pendingTotalPages = Math.max(1, Math.ceil(pendingPayments.length / pendingRowsPerPage));
+
+  const completedStartIndex = (completedCurrentPage - 1) * completedRowsPerPage;
+  const pendingStartIndex = (pendingCurrentPage - 1) * pendingRowsPerPage;
+
+  const pagedCompletedPayments = completedPayments.slice(completedStartIndex, completedStartIndex + completedRowsPerPage);
+  const pagedPendingPayments = pendingPayments.slice(pendingStartIndex, pendingStartIndex + pendingRowsPerPage);
+
+  useEffect(() => {
+    setCompletedCurrentPage(1);
+    setPendingCurrentPage(1);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    if (completedCurrentPage > completedTotalPages) {
+      setCompletedCurrentPage(completedTotalPages);
+    }
+  }, [completedCurrentPage, completedTotalPages]);
+
+  useEffect(() => {
+    if (pendingCurrentPage > pendingTotalPages) {
+      setPendingCurrentPage(pendingTotalPages);
+    }
+  }, [pendingCurrentPage, pendingTotalPages]);
 
   const onExport = () => {
     // For demo, we'll just trigger a download of the current payments as CSV
@@ -164,7 +234,7 @@ export const PaymentsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y border-t border-amber-100 dark:border-amber-900/20">
-                  {pendingPayments.length > 0 ? pendingPayments.map((payment) => (
+                  {pagedPendingPayments.length > 0 ? pagedPendingPayments.map((payment) => (
                     <tr key={payment.id} className="group hover:bg-amber-50 dark:hover:bg-amber-900/10 transition-all">
                       <td className="py-5 px-6">
                         <span className="font-mono font-black text-gray-900 dark:text-white tracking-tight">{payment.mpesaCode}</span>
@@ -213,6 +283,13 @@ export const PaymentsPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+            <TableScrollModal
+              currentPage={pendingCurrentPage}
+              setCurrentPage={setPendingCurrentPage}
+              totalPages={pendingTotalPages}
+              rowsPerPage={pendingRowsPerPage}
+              setRowsPerPage={setPendingRowsPerPage}
+            />
           </Card>
         </div>
       ) : (
@@ -237,9 +314,11 @@ export const PaymentsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y dark:divide-slate-800">
-                  {completedPayments.length > 0 ? completedPayments.map((payment) => (
-                    <tr key={payment.id} className="group hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-all">
-                      <td className="py-5 px-6">
+                  {pagedCompletedPayments.length > 0 ? pagedCompletedPayments.map((payment) => (
+                    <tr key={payment.id}
+                      className="group hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-all">
+                      <td onClick={() => navigate(`/crm/customers/${payment.subscriberId}`)}
+                      className="py-5 px-6 cursor-pointer">
                         <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-[11px] font-black uppercase font-mono">
                           {payment.subscriberId}
                         </span>
@@ -279,6 +358,13 @@ export const PaymentsPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+            <TableScrollModal
+              currentPage={completedCurrentPage}
+              setCurrentPage={setCompletedCurrentPage}
+              totalPages={completedTotalPages}
+              rowsPerPage={completedRowsPerPage}
+              setRowsPerPage={setCompletedRowsPerPage}
+            />
           </Card>
         </div>
       )}

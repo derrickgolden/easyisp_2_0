@@ -7,6 +7,10 @@ export const COLORS = {
   success: '#22c55e',
   danger: '#ef4444',
   warning: '#f59e0b',
+  info: '#4D7C0F',
+  light: '#f8f9fa',
+  dark: '#212529',
+  gold: '#d4af37',
 };
 
 export const ICONS = {

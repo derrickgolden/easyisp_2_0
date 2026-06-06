@@ -18,6 +18,7 @@ class Package extends Model
         'validity',
         'validity_type',
         'type',
+        'status',
         'burst_limit_up',
         'burst_limit_down',
         'burst_threshold_up',
