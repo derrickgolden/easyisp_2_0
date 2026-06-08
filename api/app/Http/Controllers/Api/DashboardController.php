@@ -43,17 +43,28 @@ class DashboardController extends Controller
         $dailyRevenueMpesa = Payment::where('organization_id', $organizationId)
             ->whereDate('created_at', $now->toDateString())
             ->sum('amount');
+        $weeklyRevenueMpesa = Payment::where('organization_id', $organizationId)
+            ->where('created_at', '>=', $now->copy()->startOfWeek())
+            ->sum('amount');
+        $monthlyRevenueMpesa = Payment::where('organization_id', $organizationId)
+            ->where('created_at', '>=', $now->copy()->startOfMonth())
+            ->sum('amount');
 
         $dailyRevenueCash = Transaction::where('organization_id', $organizationId)
             ->where('type', 'credit')
             ->whereRaw('LOWER(method) = ?', ['cash'])
             ->whereDate('created_at', $now->toDateString())
             ->sum('amount');
-
-        // Offline routers count
-        $offlineRouters = Site::where('organization_id', $organizationId)
-            ->where('is_online', false)
-            ->count();
+        $weeklyRevenueCash = Transaction::where('organization_id', $organizationId)
+            ->where('type', 'credit')
+            ->whereRaw('LOWER(method) = ?', ['cash'])
+            ->where('created_at', '>=', $now->copy()->startOfWeek())
+            ->sum('amount');
+        $monthlyRevenueCash = Transaction::where('organization_id', $organizationId)
+            ->where('type', 'credit')
+            ->whereRaw('LOWER(method) = ?', ['cash'])
+            ->where('created_at', '>=', $now->copy()->startOfMonth())
+            ->sum('amount');
 
         // Clients gained by registration date within selected range.
         $windowStart = $now->copy()->subDays($days);
@@ -104,8 +115,11 @@ class DashboardController extends Controller
             'online_users' => $onlineUsers,
             'daily_revenue' => $dailyRevenueMpesa,
             'daily_revenue_mpesa' => $dailyRevenueMpesa,
+            'weekly_revenue_mpesa' => $weeklyRevenueMpesa,
+            'monthly_revenue_mpesa' => $monthlyRevenueMpesa,
             'daily_revenue_cash' => $dailyRevenueCash,
-            'offline_routers' => $offlineRouters,
+            'weekly_revenue_cash' => $weeklyRevenueCash,
+            'monthly_revenue_cash' => $monthlyRevenueCash,
             'clients_gained' => $clientsGained,
             'clients_lost' => $clientsLost,
             'window_days' => $days,

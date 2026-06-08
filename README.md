@@ -87,3 +87,36 @@ Callback URL: /payments/payhero/gDfe1cLVv91bPeSys9J6/stk/callback
 
 
 #reversing wrongly closed sessions
+
+
+##### when adding hotspot, mapping customers to right NAS-IP
+sudo nano /etc/freeradius/3.0/mods-config/sql/main/mysql/queries.conf
+# then add
+authorize_check_query = " \
+  SELECT rc.id, rc.username, rc.attribute, rc.value, rc.op \
+  FROM radcheck rc \
+  JOIN ( \
+    SELECT radius_username, organization_id FROM easyisp_2_0.customers \
+    UNION ALL \
+    SELECT radius_username, organization_id FROM easyisp_2_0.hotspot_customers \
+  ) c ON rc.username = c.radius_username \
+  LEFT JOIN easyisp_2_0.sites s ON s.ip_address = '%{NAS-IP-Address}' \
+  WHERE rc.username = '%{User-Name}' \
+  AND (s.organization_id = c.organization_id OR c.organization_id = 1)"
+
+authorize_check_query = " \
+  SELECT rc.id, rc.username, rc.attribute, rc.value, rc.op \
+  FROM radcheck rc \
+  JOIN easyisp_2_0.customers c ON rc.username = c.radius_username \
+  LEFT JOIN easyisp_2_0.sites s ON s.ip_address = '%{NAS-IP-Address}' \
+  WHERE rc.username = '%{User-Name}' \
+  AND (s.organization_id = c.organization_id OR c.organization_id = 1)"
+
+# no org bybass
+authorize_check_query = " \
+  SELECT rc.id, rc.username, rc.attribute, rc.value rc.op \
+  FROM radcheck rc \
+  JOIN easyisp_2_0.customers c ON rc.username = c.radius_username \
+  JOIN easyisp_2_0.sites s ON s.ip_address = '%{NAS-IP-Address}' \
+  WHERE rc.username = '%{User-Name}' \
+  AND s.organization_id = c.organization_id"

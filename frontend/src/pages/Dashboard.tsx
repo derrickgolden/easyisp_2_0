@@ -12,8 +12,11 @@ interface DashboardStats {
   online_users: number;
   daily_revenue: number;
   daily_revenue_mpesa?: number;
+  weekly_revenue_mpesa?: number;
+  monthly_revenue_mpesa?: number;
   daily_revenue_cash?: number;
-  offline_routers: number;
+  weekly_revenue_cash?: number;
+  monthly_revenue_cash?: number;
   clients_gained: number;
   clients_lost: number;
   window_days?: number;
@@ -46,8 +49,9 @@ export const Dashboard: React.FC = () => {
     online_users: 0,
     daily_revenue: 0,
     daily_revenue_mpesa: 0,
+    weekly_revenue_mpesa: 0,
+    monthly_revenue_mpesa: 0,
     daily_revenue_cash: 0,
-    offline_routers: 0,
     clients_gained: 0,
     clients_lost: 0,
     window_days: 30,
@@ -60,8 +64,7 @@ export const Dashboard: React.FC = () => {
   });
   const [insight, setInsight] = useState('Initializing AI heuristics engine...');
   
-  
-    useEffect(() => {
+  useEffect(() => {
     const requestId = ++refreshRequestIdRef.current;
     const refreshDashboard = async () => {
       setIsRevenueChartLoading(true);
@@ -147,13 +150,15 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
-        <StatCard label="Daily M-Pesa" value={formattedDailyRevenueMpesa} icon="" color={COLORS.gold} />
-        <StatCard label="Daily Cash" value={formattedDailyRevenueCash} icon="" color={COLORS.warning} />
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-4 gap-4">
         <StatCard label="Total Users" value={stats.total_users} icon={<ICONS.CRM />} color={COLORS.primary} />
         <StatCard label="Active Users" value={stats.active_users} icon={<ICONS.CRM />} color={COLORS.info} />
         <StatCard label="Online Now" value={stats.online_users} icon={<ICONS.Management />} color={COLORS.success} />
         <StatCard label="Today clients" value={clientsGainedToday} icon={<ICONS.CRM />} color={COLORS.secondary} />
+        <StatCard label="Daily M-Pesa" value={formattedDailyRevenueMpesa} icon="" color={COLORS.gold} />
+        <StatCard label="Daily Cash" value={formattedDailyRevenueCash} icon="" color={COLORS.warning} />
+        <StatCard label="Weekly M-Pesa" value={formatNumber(stats.weekly_revenue_mpesa ?? 0)} icon="" color={COLORS.gold} />
+        <StatCard label="Monthly M-Pesa" value={formatNumber(stats.monthly_revenue_mpesa ?? 0)} icon="" color={COLORS.gold} />
       </div>
 
       <Card title="Customer Momentum" className="overflow-hidden">
