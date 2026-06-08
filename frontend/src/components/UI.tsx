@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { ICONS } from '../constants';
 
 export const Card: React.FC<{ title: string; children: React.ReactNode; className?: string }> = ({ title, children, className }) => (
   <div className={`bg-white dark:bg-slate-900 rounded-xl shadow-md border border-gray-100 dark:border-slate-800 p-6 transition-all duration-300 ${className}`}>
@@ -8,8 +9,8 @@ export const Card: React.FC<{ title: string; children: React.ReactNode; classNam
   </div>
 );
 
-export const StatCard: React.FC<{ label: string; value: string | number; subValue?: string; icon: React.ReactNode; color: string }> = ({ label, value, subValue, icon, color }) => (
-  <div className="relative bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 p-6 transition-all duration-300">
+export const StatCard: React.FC<{ label: string; value: string | number; subValue?: string; icon: React.ReactNode; smIcon?: React.ReactNode; color: string }> = ({ label, value, subValue, icon, smIcon, color }) => (
+  <div className="relative bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 p-sm-6 transition-all duration-300">
     <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{label}</p>
     <div className='flex items-center mt-2 space-x-4'>
       {
@@ -21,8 +22,10 @@ export const StatCard: React.FC<{ label: string; value: string | number; subValu
       }
       <div>
         <div className="flex items-baseline space-x-2">
-          <p style={{ color }}
-          className="text-2xl font-bold text-gray-900 dark:text-white ">{value}</p>
+          <div className='flex items-center' style={{ color }}>
+            {smIcon && <div className="w-6 h-6 mr-2">{smIcon}</div>}
+            <span className="text-2xl font-bold ">{value}</span>
+          </div>
           {subValue && (
             <span className="absolute top-4 right-4 text-xs text-green-500 font-medium">
               {subValue}

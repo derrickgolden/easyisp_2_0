@@ -10,6 +10,7 @@ use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class DashboardController extends Controller
 {
@@ -107,7 +108,24 @@ class DashboardController extends Controller
             $lostMode = 'either';
         }
 
-        $clientsLost = $clientsLostQuery->count();
+        $lostCustomersList = (clone $clientsLostQuery)
+            ->with('package:id,name')
+            ->get(['id', 'first_name', 'last_name', 'phone', 'status', 'balance', 'expiry_date', 'package_id'])
+            ->map(function ($customer) {
+                return [
+                    'id' => $customer->id,
+                    'firstName' => $customer->first_name,
+                    'lastName' => $customer->last_name,
+                    'phone' => $customer->phone,
+                    'packageName' => $customer->package?->name,
+                    'status' => $customer->status,
+                    'balance' => $customer->balance,
+                    'expiry_date' => $customer->expiry_date,
+                ];
+            })
+            ->values();
+
+        $clientsLost = $lostCustomersList->count();
 
         return response()->json([
             'total_users' => $totalUsers,
@@ -122,6 +140,7 @@ class DashboardController extends Controller
             'monthly_revenue_cash' => $monthlyRevenueCash,
             'clients_gained' => $clientsGained,
             'clients_lost' => $clientsLost,
+            'lost_customers_list' => $lostCustomersList,
             'window_days' => $days,
             'lost_mode' => $lostMode,
         ]);

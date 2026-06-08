@@ -1,10 +1,11 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Card, StatCard, Badge, RevenueChart } from '../components/UI';
+import { Card, StatCard, Badge, RevenueChart, Modal } from '../components/UI';
 import { COLORS, ICONS } from '../constants';
 import { Site } from '../types';
 import { STORAGE_KEYS } from '../constants/storage';
 import { sitesApi, dashboardApi } from '../services/apiService';
+import { useNavigate } from 'react-router-dom';
 
 interface DashboardStats {
   total_users: number;
@@ -19,6 +20,16 @@ interface DashboardStats {
   monthly_revenue_cash?: number;
   clients_gained: number;
   clients_lost: number;
+  lost_customers_list: {
+    id: number;
+    firstName: string;
+    lastName: string;
+    phone: string;
+    packageName?: string;
+    status: string;
+    balance: number;
+    expiry_date?: string;
+  }[];
   window_days?: number;
   lost_mode?: 'expired' | 'offline' | 'either' | 'both';
 }
@@ -43,6 +54,9 @@ export const Dashboard: React.FC = () => {
   const [revenueTrendMethod, setRevenueTrendMethod] = useState<'mpesa' | 'cash'>('mpesa');
   const [isRevenueChartLoading, setIsRevenueChartLoading] = useState(false);
   const refreshRequestIdRef = React.useRef(0);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const navigate = useNavigate();
+
   const [stats, setStats] = useState<DashboardStats>({
     total_users: 0,
     active_users: 0,
@@ -52,8 +66,11 @@ export const Dashboard: React.FC = () => {
     weekly_revenue_mpesa: 0,
     monthly_revenue_mpesa: 0,
     daily_revenue_cash: 0,
+    weekly_revenue_cash: 0,
+    monthly_revenue_cash: 0,
     clients_gained: 0,
     clients_lost: 0,
+    lost_customers_list: [],
     window_days: 30,
     lost_mode: 'either',
   });
@@ -113,8 +130,11 @@ export const Dashboard: React.FC = () => {
   }, [statsWindowDays, lostMode, revenueTrendPeriod, revenueTrendDays, revenueTrendMethod]);
   
     // Format currency
-    const formatCurrency = useMemo(() => (amount: number) => {
-      return amount.toLocaleString('en-KE', {
+    const formatCurrency = useMemo(() => (amount: number | string | null | undefined) => {
+      const numericAmount = Number(amount ?? 0);
+      const safeAmount = Number.isFinite(numericAmount) ? numericAmount : 0;
+
+      return safeAmount.toLocaleString('en-KE', {
         style: 'currency',
         currency: 'KES',
         minimumFractionDigits: 0,
@@ -122,8 +142,11 @@ export const Dashboard: React.FC = () => {
       });
     }, []);
 
-    const formatNumber = useMemo(() => (amount: number) => {
-      return amount.toLocaleString('en-KE', {
+    const formatNumber = useMemo(() => (amount: number | string | null | undefined) => {
+      const numericAmount = Number(amount ?? 0);
+      const safeAmount = Number.isFinite(numericAmount) ? numericAmount : 0;
+
+      return safeAmount.toLocaleString('en-KE', {
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
       });
@@ -148,17 +171,37 @@ export const Dashboard: React.FC = () => {
       both: 'Expired AND Offline',
     } as const;
 
+    const formatExpiryRelative = (expiryDate?: string) => {
+      if (!expiryDate) return 'No expiry date';
+
+      const date = new Date(expiryDate);
+      if (Number.isNaN(date.getTime())) return 'Unknown expiry';
+
+      const diffMs = Date.now() - date.getTime();
+      const dayMs = 24 * 60 * 60 * 1000;
+      const absDays = Math.floor(Math.abs(diffMs) / dayMs);
+      const dayLabel = absDays === 1 ? 'day' : 'days';
+
+      if (absDays === 0) {
+        return diffMs >= 0 ? 'Expired today' : 'Expires today';
+      }
+
+      return diffMs >= 0
+        ? `Expired ${absDays} ${dayLabel} ago`
+        : `Expires in ${absDays} ${dayLabel}`;
+    };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
       <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-4 gap-4">
         <StatCard label="Total Users" value={stats.total_users} icon={<ICONS.CRM />} color={COLORS.primary} />
         <StatCard label="Active Users" value={stats.active_users} icon={<ICONS.CRM />} color={COLORS.info} />
         <StatCard label="Online Now" value={stats.online_users} icon={<ICONS.Management />} color={COLORS.success} />
-        <StatCard label="Today clients" value={clientsGainedToday} icon={<ICONS.CRM />} color={COLORS.secondary} />
-        <StatCard label="Daily M-Pesa" value={formattedDailyRevenueMpesa} icon="" color={COLORS.gold} />
-        <StatCard label="Daily Cash" value={formattedDailyRevenueCash} icon="" color={COLORS.warning} />
-        <StatCard label="Weekly M-Pesa" value={formatNumber(stats.weekly_revenue_mpesa ?? 0)} icon="" color={COLORS.gold} />
-        <StatCard label="Monthly M-Pesa" value={formatNumber(stats.monthly_revenue_mpesa ?? 0)} icon="" color={COLORS.gold} />
+        <StatCard label="Today clients" value={clientsGainedToday} icon={<ICONS.CRM />} color={COLORS.purple} />
+        <StatCard label="Daily M-Pesa" value={formattedDailyRevenueMpesa} icon="" smIcon={<ICONS.Revenue />} color={COLORS.gold} />
+        <StatCard label="Daily Cash" value={formattedDailyRevenueCash} icon="" smIcon={<ICONS.Cash />} color={COLORS.warning} />
+        <StatCard label="Weekly M-Pesa" value={formatNumber(stats.weekly_revenue_mpesa ?? 0)} icon="" smIcon={<ICONS.Revenue />} color={COLORS.gold} />
+        <StatCard label="Monthly M-Pesa" value={formatNumber(stats.monthly_revenue_mpesa ?? 0)} icon="" smIcon={<ICONS.Revenue />} color={COLORS.gold} />
       </div>
 
       <Card title="Customer Momentum" className="overflow-hidden">
@@ -210,7 +253,13 @@ export const Dashboard: React.FC = () => {
                   <option value="both">Expired AND Offline</option>
                 </select>
               </div>
+              <div className="flex items-center gap-2">
               <p className="text-3xl font-black text-red-600 dark:text-red-400">-{stats.clients_lost}</p>
+              <button onClick={() => setIsDetailModalOpen(true)}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700`}>
+                View Lost Customers
+              </button>
+              </div>
               <p className="text-xs text-red-800/80 dark:text-red-200/70">
                 Mode: {lostModeLabelMap[lostMode]}. Expiry checks use the last {statsWindowDays} days.
               </p>
@@ -326,6 +375,64 @@ export const Dashboard: React.FC = () => {
           </Card>
         </div>
       </div>
+
+      <Modal 
+        isOpen={isDetailModalOpen} 
+        onClose={() => setIsDetailModalOpen(false)} 
+        title="Lost Customers Detail"
+        maxWidth="max-w-4xl"
+      >
+              <div className="overflow-x-auto -mx-6">
+                <table className="w-full text-sm">
+                  <thead className="text-left text-gray-400 uppercase text-[10px] tracking-widest border-b dark:border-slate-800">
+                    <tr>
+                      <th className="py-4 px-6">Customer Name</th>
+                      <th className="py-4 px-6">Phone</th>
+                      <th className="py-4 px-6">Package</th>
+                      <th className="py-4 px-6 text-right">Balance</th>
+                      <th className="py-4 px-6 text-right">Expiry Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y dark:divide-slate-800">
+                    {stats.lost_customers_list.length > 0 ? stats.lost_customers_list.map((c) => (
+                      <tr 
+                        key={c.id} 
+                        onClick={() => { navigate(`/crm/customers/${c.id}`); setIsDetailModalOpen(false); }}
+                        className="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-all cursor-pointer group"
+                      >
+                        <td className="py-4 px-6">
+                          <p className="font-bold text-gray-900 dark:text-white group-hover:text-blue-600 transition-colors">{c.firstName} {c.lastName}</p>
+                          <p className="text-[9px] text-gray-400 font-mono">{c.id}</p>
+                        </td>
+                        <td className="py-4 px-6 text-gray-500">{c.phone}</td>
+                        <td className="py-4 px-6 text-xs font-bold text-blue-600">{c.packageName}</td>
+                        <td className="py-4 px-6 text-right">
+                          <span className={`font-black ${c.balance < 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                            KSH {c.balance.toLocaleString()}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6 text-right">
+                          <p className="whitespace-nowrap">{c.expiry_date}</p>
+                          <p className="text-[9px] text-gray-400 font-mono tracking-wide text-yellow-800 dark:text-yellow-300">{formatExpiryRelative(c.expiry_date)}</p>
+                        </td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td colSpan={6} className="py-10 text-center text-gray-400 italic">No customers found for this criteria.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-6 flex justify-end">
+                 <button 
+                   onClick={() => setIsDetailModalOpen(false)}
+                   className="px-6 py-2 bg-slate-900 dark:bg-white dark:text-slate-900 text-white text-xs font-black uppercase rounded-xl"
+                 >
+                   Close Ledger
+                 </button>
+              </div>
+      </Modal>
     </div>
   );
 };
