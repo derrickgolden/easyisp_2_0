@@ -2,7 +2,7 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
-// const API_BASE_URL = 'https://isp.easytech.africa/api'
+// const API_BASE_URL = 'https://isp.easytech.africa/api';
 
 export interface ApiResponse<T> {
   message?: string;
@@ -429,8 +429,8 @@ export const paymentsApi = {
     return response.data;
   },
 
-  getByCustomer: async (customerId: string, page = 1) => {
-    const response = await axiosInstance.get(`/payments/customer/${customerId}?page=${page}`);
+  getByCustomer: async (customerId: string) => {
+    const response = await axiosInstance.get(`/payments/customer/${customerId}`);
     return response.data;
   },
 

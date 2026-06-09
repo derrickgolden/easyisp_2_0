@@ -648,11 +648,12 @@ class PaymentController extends Controller
         ]);
     }
 
-    public function getByCustomer($customerId)
+    public function getByCustomer(Request $request, $customerId)
     {
-        $payments = Payment::where('customer_id', $customerId)
+        $payments = Payment::where('organization_id', $request->user()->organization_id)
+            ->where('customer_id', $customerId)
             ->orderByDesc('created_at')
-            ->paginate(15);
+            ->get();
         return PaymentResource::collection($payments);
     }
 }

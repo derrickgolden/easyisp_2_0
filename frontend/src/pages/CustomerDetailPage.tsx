@@ -78,6 +78,22 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
     [customer?.effectivePackagePrice, customer?.package?.price]
   );
 
+  const extractPaymentsList = (payload: any): Payment[] => {
+    if (Array.isArray(payload?.data)) {
+      return payload.data as Payment[];
+    }
+
+    if (Array.isArray(payload?.data?.data)) {
+      return payload.data.data as Payment[];
+    }
+
+    if (Array.isArray(payload)) {
+      return payload as Payment[];
+    }
+
+    return [];
+  };
+
   // Fetch customer and related data
   useEffect(() => {
     if (!customerId) return;
@@ -120,9 +136,11 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
   };
 
   const fetchPayments = async () => {
+    if (!customerId) return;
+
     try {
-      const res = await paymentsApi.getAll();
-      const paymentsList = Array.isArray(res?.data) ? res.data : res?.data?.data || [];
+      const response = await paymentsApi.getByCustomer(customerId);
+      const paymentsList = extractPaymentsList(response);
       actions.setPayments(paymentsList as Payment[]);
     } catch (error) {
       console.error('Error fetching payments:', error);
