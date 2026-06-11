@@ -462,35 +462,35 @@ class PaymentController extends Controller
         if ($billRef) {
             $normalizedBillRef = trim($billRef);
 
-            // 1) BillRef as radius username (case-insensitive + trims spaces)
-            $customer = (clone $query)
-                ->whereRaw('LOWER(TRIM(radius_username)) = ?', [strtolower($normalizedBillRef)])
-                ->first();
-            if ($customer) {
-                return $customer;
-            }
-
-            // 2) BillRef as phone number (e.g. 0714475702)
+            // 1) BillRef as phone number (e.g. 0714475702)
             $billRefPhoneCandidates = $this->normalizePhoneCandidates($normalizedBillRef);
             foreach ($billRefPhoneCandidates as $candidate) {
                 $customer = (clone $query)->where('phone', $candidate)->first();
                 if ($customer) {
-                    return $customer;
+                    return $this->resolvePaymentCustomerTarget($customer, $organizationId);
                 }
 
                 $customer = (clone $query)
                     ->whereRaw('LOWER(TRIM(radius_username)) = ?', [strtolower(trim($candidate))])
                     ->first();
                 if ($customer) {
-                    return $customer;
+                    return $this->resolvePaymentCustomerTarget($customer, $organizationId);
                 }
+            }
+
+            // 2) BillRef as radius username (case-insensitive + trims spaces)
+            $customer = (clone $query)
+                ->whereRaw('LOWER(TRIM(radius_username)) = ?', [strtolower($normalizedBillRef)])
+                ->first();
+            if ($customer) {
+                return $this->resolvePaymentCustomerTarget($customer, $organizationId);
             }
 
             // 3) Optional fallback: BillRef as numeric customer id
             if (is_numeric($normalizedBillRef) && strlen($normalizedBillRef) <= 9) {
                 $customer = (clone $query)->where('id', (int) $normalizedBillRef)->first();
                 if ($customer) {
-                    return $customer;
+                    return $this->resolvePaymentCustomerTarget($customer, $organizationId);
                 }
             }
         }
@@ -500,7 +500,7 @@ class PaymentController extends Controller
             foreach ($candidates as $candidate) {
                 $customer = (clone $query)->where('phone', $candidate)->first();
                 if ($customer) {
-                    return $customer;
+                    return $this->resolvePaymentCustomerTarget($customer, $organizationId);
                 }
 
                 // Some setups use phone-like usernames in RADIUS (case-insensitive)
@@ -508,12 +508,27 @@ class PaymentController extends Controller
                     ->whereRaw('LOWER(TRIM(radius_username)) = ?', [strtolower(trim($candidate))])
                     ->first();
                 if ($customer) {
-                    return $customer;
+                    return $this->resolvePaymentCustomerTarget($customer, $organizationId);
                 }
             }
         }
 
         return null;
+    }
+
+    private function resolvePaymentCustomerTarget(Customer $customer, int $organizationId): Customer
+    {
+        if ($customer->parent_id && !$customer->is_independent) {
+            $parent = Customer::where('organization_id', $organizationId)
+                ->where('id', $customer->parent_id)
+                ->first();
+
+            if ($parent) {
+                return $parent;
+            }
+        }
+
+        return $customer;
     }
 
     private function normalizePhoneCandidates(string $phone): array

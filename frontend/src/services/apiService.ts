@@ -383,6 +383,13 @@ export const hotspotPackagesApi = {
   },
 };
 
+export const hotspotCustomersApi = {
+  getAll: async (page = 1, perPage = 50) => {
+    const response = await axiosInstance.get(`/hotspot-customers?page=${page}&per_page=${perPage}`);
+    return response.data;
+  },
+};
+
 // Sites Endpoints
 export const sitesApi = {
   getAll: async (page = 1) => {

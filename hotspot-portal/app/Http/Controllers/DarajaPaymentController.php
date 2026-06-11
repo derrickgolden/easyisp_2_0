@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\HotspotCustomer;
 use App\Models\Organization;
 use App\Models\Package;
 use App\Models\Site;
@@ -117,7 +118,7 @@ class DarajaPaymentController extends Controller
         // Build the hotspot callback URL from this portal's own app URL + the org token.
         // The route is: POST /daraja/{token}/callback
         $appUrl = rtrim((string) config('app.url'), '/');
-        $appUrl = 'https://efe1-102-210-173-182.ngrok-free.app';
+        $appUrl = 'https://8f95-102-210-173-182.ngrok-free.app';
         $callbackUrl = $appUrl . '/daraja/' . urlencode((string) $organization->mpesa_callback_token) . '/callback';
 
         $timestamp = now()->format('YmdHis');
@@ -139,6 +140,24 @@ class DarajaPaymentController extends Controller
             'amount' => $amount,
             'status' => 'pending',
         ]);
+
+        $normalizedMac = $this->normalizeMacAddress((string) ($request->input('mac') ?? ''));
+        if ($normalizedMac !== null) {
+            HotspotCustomer::query()->updateOrCreate(
+                [
+                    'organization_id' => $organization->id,
+                    'mac_address' => $normalizedMac,
+                ],
+                [
+                    'site_id' => $site->id,
+                    'phone_number' => $normalizedPhone,
+                    'current_package_id' => $package->id,
+                    'status' => 'expired',
+                    'last_ip_address' => (string) ($request->input('ip') ?? ''),
+                    'last_seen_at' => now(),
+                ]
+            );
+        }
 
         // Encode hotspot context into the account reference so the callback can act on it.
         $accountReference = 'HS-' . $organization->id
@@ -440,6 +459,24 @@ class DarajaPaymentController extends Controller
         $payment->update([
             'expires_at' => $seconds > 0 ? now()->addSeconds($seconds) : null,
         ]);
+
+        HotspotCustomer::query()->updateOrCreate(
+            [
+                'organization_id' => $organization->id,
+                'mac_address' => $macAddress,
+            ],
+            [
+                'site_id' => $payment->site_id,
+                'phone_number' => $phone,
+                'current_package_id' => $package->id,
+                'status' => 'active',
+                'last_ip_address' => (string) ($payment->ip_address ?? ''),
+                'activated_at' => now(),
+                'expires_at' => $seconds > 0 ? now()->addSeconds($seconds) : null,
+                'last_seen_at' => now(),
+            ]
+        );
+
         return response()->json(['success' => true], 200);
     }
 

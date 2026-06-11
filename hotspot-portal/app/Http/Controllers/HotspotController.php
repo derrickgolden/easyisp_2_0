@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Site;
 use App\Models\Package;
 use App\Models\Organization;
+use App\Models\HotspotCustomer;
 use Illuminate\Support\Facades\Log;
 
 class HotspotController extends Controller
@@ -28,6 +29,21 @@ class HotspotController extends Controller
             'organization_id',
             $site->organization_id
         )->get();
+
+        $normalizedMac = $this->normalizeMacAddress((string) ($request->mac ?? ''));
+        if ($normalizedMac !== null) {
+            HotspotCustomer::query()->updateOrCreate(
+                [
+                    'organization_id' => $organization->id,
+                    'mac_address' => $normalizedMac,
+                ],
+                [
+                    'site_id' => $site->id,
+                    'last_ip_address' => (string) ($request->ip ?? ''),
+                    'last_seen_at' => now(),
+                ]
+            );
+        }
 
         Log::info('hotspot.portal', [
             'site_id' => $site->id,
@@ -62,5 +78,20 @@ class HotspotController extends Controller
     public function success()
     {
         return view('hotspot.success');
+    }
+
+    private function normalizeMacAddress(string $mac): ?string
+    {
+        $raw = strtoupper(trim($mac));
+        if ($raw === '') {
+            return null;
+        }
+
+        $hexOnly = preg_replace('/[^A-F0-9]/', '', $raw) ?? '';
+        if (strlen($hexOnly) !== 12) {
+            return null;
+        }
+
+        return implode(':', str_split($hexOnly, 2));
     }
 }

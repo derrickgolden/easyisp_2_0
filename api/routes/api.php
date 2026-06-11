@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\CustomerController;
+use App\Http\Controllers\Api\HotspotCustomerController;
 use App\Http\Controllers\Api\PackageController;
 use App\Http\Controllers\Api\HotspotPackageController;
 use App\Http\Controllers\Api\SiteController;
@@ -152,6 +153,7 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     
     // Customer management
     Route::apiResource('/customers', CustomerController::class);
+    Route::get('/hotspot-customers', [HotspotCustomerController::class, 'index']);
     Route::get('/customers/organization', [CustomerController::class, 'getByOrganization']);
     Route::get('/customers/{id}/with-relations', [CustomerController::class, 'showWithRelations']);
     
