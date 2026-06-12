@@ -478,7 +478,15 @@ class PaymentController extends Controller
                 }
             }
 
-            // 2) BillRef as radius username (case-insensitive + trims spaces)
+            // 2) BillRef as f_identity
+            $customer = (clone $query)
+                ->whereRaw('LOWER(TRIM(f_identity)) = ?', [strtolower($normalizedBillRef)])
+                ->first();
+            if ($customer) {
+                return $this->resolvePaymentCustomerTarget($customer, $organizationId);
+            }
+
+            // 3) BillRef as radius username (case-insensitive + trims spaces)
             $customer = (clone $query)
                 ->whereRaw('LOWER(TRIM(radius_username)) = ?', [strtolower($normalizedBillRef)])
                 ->first();
@@ -486,7 +494,7 @@ class PaymentController extends Controller
                 return $this->resolvePaymentCustomerTarget($customer, $organizationId);
             }
 
-            // 3) Optional fallback: BillRef as numeric customer id
+            // 4) Optional fallback: BillRef as numeric customer id
             if (is_numeric($normalizedBillRef) && strlen($normalizedBillRef) <= 9) {
                 $customer = (clone $query)->where('id', (int) $normalizedBillRef)->first();
                 if ($customer) {
