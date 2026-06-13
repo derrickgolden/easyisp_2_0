@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Customer;
+use App\Services\PhoneNumberService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -233,7 +234,7 @@ class CustomerMessagingService
             '{PackageName}' => $customer->package?->name ?? '',
             '{PaidAmount}' => '0',
             '{PackageAmount}' => (string) ($customer->effective_package_price ?? 0),
-            '{PhoneNumber}' => $customer->phone ?? '',
+            '{PhoneNumber}' => PhoneNumberService::normalizeToLocal((string) ($customer->phone ?? '')) ?? ($customer->phone ?? ''),
             '{RadiusUsername}' => $customer->radius_username ?? '',
             '{CustomerId}' => (string) $customer->id,
             '{Balance}' => (string) ($customer->balance ?? 0),

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\PhoneNumberService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Model;
@@ -127,5 +128,13 @@ class Customer extends Model
             return \Carbon\Carbon::parse($value)->format('Y-m-d H:i:s');
         }
         return $value;
+    }
+
+    public function setPhoneAttribute($value)
+    {
+        $value = trim((string) $value);
+        $normalized = PhoneNumberService::normalizeToE164($value);
+
+        $this->attributes['phone'] = $normalized ?? $value;
     }
 }

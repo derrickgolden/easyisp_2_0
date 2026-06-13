@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\Organization;
 use App\Services\IncomingPaymentService;
+use App\Services\PhoneNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -73,8 +74,7 @@ class DarajaPaymentController extends Controller
             ], 422);
         }
 
-
-        $normalizedPhone = $this->normalizeKenyanPhone((string) $request->input('phone'));
+        $normalizedPhone = PhoneNumberService::normalizeToE164((string) $request->input('phone'));
         if (!$normalizedPhone) {
             Log::warning('Daraja STK: Invalid phone format', [
                 'organization_id' => $organization->id,
@@ -292,7 +292,7 @@ class DarajaPaymentController extends Controller
         $amount = (float) ($metadataItems->firstWhere('Name', 'Amount')['Value'] ?? 0);
         $mpesaReceiptNumber = (string) ($metadataItems->firstWhere('Name', 'MpesaReceiptNumber')['Value'] ?? '');
         $phoneRaw = (string) ($metadataItems->firstWhere('Name', 'PhoneNumber')['Value'] ?? '');
-        $phone = $this->normalizeKenyanPhone($phoneRaw) ?: $phoneRaw;
+        $phone = PhoneNumberService::normalizeToE164($phoneRaw) ?: $phoneRaw;
         $accountReference = (string) (data_get($stkCallback, 'AccountReference')
             ?? data_get($payload, 'AccountReference')
             ?? data_get($payload, 'account_reference')
@@ -410,28 +410,6 @@ class DarajaPaymentController extends Controller
             ->where('phone', $phone)
             ->latest('id')
             ->first();
-    }
-
-    private function normalizeKenyanPhone(string $phone): ?string
-    {
-        $digits = preg_replace('/\D+/', '', $phone ?? '');
-        if (!$digits) {
-            return null;
-        }
-
-        if (strlen($digits) === 10 && str_starts_with($digits, '0')) {
-            return '254' . substr($digits, 1);
-        }
-
-        if (strlen($digits) === 9 && (str_starts_with($digits, '7') || str_starts_with($digits, '1'))) {
-            return '254' . $digits;
-        }
-
-        if (preg_match('/^254(7|1)\d{8}$/', $digits)) {
-            return $digits;
-        }
-
-        return null;
     }
 
     private function resolveOrganizationFromCallback(?string $accountReference, string $phone, Organization $fallbackOrganization): ?Organization

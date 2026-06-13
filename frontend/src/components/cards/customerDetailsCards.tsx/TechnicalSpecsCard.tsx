@@ -7,7 +7,7 @@ import { usePermissions } from '@/src/hooks/usePermissions';
 export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
     const [uptime, setUptime] = useState<string>('Offline');
     const [isPolling, setIsPolling] = useState(false);
-  const [isResettingMac, setIsResettingMac] = useState(false);
+    const [isResettingMac, setIsResettingMac] = useState(false);
     const [isAccountingModalOpen, setIsAccountingModalOpen] = useState(false);
     const isRequesting = useRef(false);
     const currentDelay = useRef(2000); // Use ref to persist delay across renders
@@ -69,8 +69,6 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
         if (timeoutId) clearTimeout(timeoutId);
       };
     }, [trafficUsername, nasIpAddress]);
-
-   
 
     useEffect(() => {
       if (!startTimeIso) {
