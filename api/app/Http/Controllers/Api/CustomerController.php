@@ -34,56 +34,6 @@ class CustomerController extends Controller
         $this->subscriptionService = $subscriptionService;
     }
 
-    // public function index(Request $request)
-    // {
-    //     $customers = $request->user()->organization->customers()
-    //         ->with(['package:id,name'])
-    //         ->latest()
-    //         ->get();
-
-    //     // 1. Get all active usernames from the radius connection in one go
-    //     $onlineUsernames = \DB::connection('radius')
-    //         ->table('radacct')
-    //         ->whereNull('acctstoptime')
-    //         ->pluck('username')
-    //         ->toArray();
-
-    //         // 2. Map the status to your customers
-    //     $customers->map(function ($customer) use ($onlineUsernames) {
-    //         $customer->is_online = in_array($customer->radius_username, $onlineUsernames) ? 1 : 0;
-    //         return $customer;
-    //     });
-
-    //     return CustomerResource::collection($customers);
-    // }
-
-    // public function index(Request $request)
-    // {
-    //     $customers = $request->user()->organization->customers()
-    //         ->with(['package:id,name'])
-    //         ->latest()
-    //         ->get();
-
-    //     // 1. Get latest RADIUS session per username (online or offline)
-    //     $latestSessions = \DB::connection('radius')
-    //         ->table('radacct')
-    //         ->whereNotNull('username')
-    //         ->orderByDesc('radacctid')
-    //         ->get(['username', 'nasipaddress', 'acctstoptime'])
-    //         ->unique('username')
-    //         ->keyBy('username');
-
-    //     // 2. Map online status + NAS IP to customers
-    //     $customers->map(function ($customer) use ($latestSessions) {
-    //         $session = $latestSessions->get($customer->radius_username);
-    //         $customer->is_online = ($session && is_null($session->acctstoptime)) ? 1 : 0;
-    //         $customer->radius_nas_ip = $session?->nasipaddress;
-    //         return $customer;
-    //     });
-
-    //     return CustomerResource::collection($customers);
-    // }
-
     public function index(Request $request)
     {
         // 1. Get your customers (highly recommend adding ->paginate(50) here)

@@ -32,13 +32,28 @@ class DashboardController extends Controller
         $totalUsers = Customer::where('organization_id', $organizationId)
             ->count();
 
-        $onlineUsers = Customer::where('organization_id', $organizationId)
-            ->whereRaw('EXISTS (
-                SELECT 1 FROM radius.radacct 
-                WHERE radacct.username COLLATE utf8mb4_unicode_ci = customers.radius_username 
-                AND acctstoptime IS NULL
-            )')
-            ->count();
+        // 1. Get only the usernames for this organization
+        $usernames = Customer::where('organization_id', $organizationId)
+            ->whereNotNull('radius_username')
+            ->pluck('radius_username')
+            ->toArray();
+
+        if (empty($usernames)) {
+            $onlineUsers = 0;
+        } else {
+            // 2. Query RADIUS strictly by indexed usernames
+            $onlineUsers = \DB::connection('radius')
+                ->table('radacct as r1')
+                ->whereIn('r1.username', $usernames)
+                ->whereNull('r1.acctstoptime')
+                ->whereIn('r1.radacctid', function($query) use ($usernames) {
+                    $query->selectRaw('MAX(radacctid)')
+                        ->from('radacct')
+                        ->whereIn('username', $usernames)
+                        ->groupBy('username');
+                })
+                ->count();
+        }
 
         // Daily revenue split by channel (today)
         $dailyRevenueMpesa = Payment::where('organization_id', $organizationId)

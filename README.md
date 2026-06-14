@@ -120,3 +120,9 @@ authorize_check_query = " \
   JOIN easyisp_2_0.sites s ON s.ip_address = '%{NAS-IP-Address}' \
   WHERE rc.username = '%{User-Name}' \
   AND s.organization_id = c.organization_id"
+
+
+  ### when updating new code
+git pull origin main
+# for supervisor(sms) to use the new code
+php artisan queue:restart
