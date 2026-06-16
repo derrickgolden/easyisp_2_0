@@ -128,11 +128,14 @@ export const PPPoECustomersPage: React.FC = () => {
   const filteredCustomers = useMemo(() => {
     return customers.filter(c => {
       // Basic Search
+      const normalizedSearch = searchTerm.trim().toLowerCase();
       const fullName = `${c.firstName} ${c.lastName}`.toLowerCase();
-      const matchesSearch = fullName.includes(searchTerm.toLowerCase()) ||
-                            c.phone.includes(searchTerm) ||
-                            c.radiusUsername.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            c.email?.toLowerCase().includes(searchTerm.toLowerCase());
+      const apartmentSearchText = `${c.apartment || ''} ${c.houseNo || ''}`.toLowerCase();
+      const matchesSearch = fullName.includes(normalizedSearch) ||
+                            c.phone.toLowerCase().includes(normalizedSearch) ||
+                            c.radiusUsername.toLowerCase().includes(normalizedSearch) ||
+                            c.email?.toLowerCase().includes(normalizedSearch) ||
+                            apartmentSearchText.includes(normalizedSearch);
       
       if (!matchesSearch) return false;
 

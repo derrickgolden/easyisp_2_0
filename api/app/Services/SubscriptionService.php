@@ -39,8 +39,6 @@ class SubscriptionService
                     ->exists();
 
                 if (!$isOnline) {
-                    Log::info("Auto-Activation skipped for {$customer->radius_username}: user is offline.");
-
                     if ($customer->status !== 'expired') {
                         $this->applyExpiredStatus($customer);
                     }
@@ -136,11 +134,6 @@ class SubscriptionService
             $child->save();
             $this->applyActiveStatus($child);
         });
-
-        \Log::info("Auto-Activation for {$customer->radius_username}: 
-            Package Validity: {$validityDays} {$validityType}, 
-            Extension Deducted: {$extensionDays} days, 
-            New Expiry: {$customer->expiry_date}");
 
         return $this->applyActiveStatus($customer);
     }

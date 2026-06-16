@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\HotspotPackage;
+use App\Models\Site;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Log;
 
 class HotspotPackageController extends Controller
 {
@@ -15,7 +17,7 @@ class HotspotPackageController extends Controller
 
     public function __construct(\App\Services\CustomerRadiusService $radiusService)
     {
-        $this->middleware('permission:manage-packages')->except(['index', 'show']);
+        $this->middleware('permission:manage-packages')->except(['index', 'show', 'publicIndex']);
         $this->middleware('permission:view-packages')->only(['index', 'show']);
         $this->radiusService = $radiusService;
     }
@@ -40,6 +42,40 @@ class HotspotPackageController extends Controller
         }
 
         return $data;
+    }
+
+    public function publicIndex(Request $request)
+    {
+        $nasIp = $request->query('nas_ip');
+
+        if (! $nasIp) {
+            return response()->json([
+                'message' => 'The nas_ip query parameter is required.',
+            ], 400);
+        }
+
+        $site = Site::where('ip_address', $nasIp)->first();
+
+        if (! $site) {
+            return response()->json([
+                'message' => 'Site not found for the provided NAS IP.',
+            ], 404);
+        }
+
+        $packages = HotspotPackage::where('organization_id', $site->organization_id)
+            ->get(['id', 'name', 'price', 'validity', 'validity_type']);
+
+        $formatted = $packages->map(function ($package) {
+            return [
+                'id' => $package->id,
+                'name' => $package->name,
+                'price' => $package->price,
+                'validity' => $package->validity,
+                'validity_type' => $package->validity_type,
+            ];
+        });
+
+        return response()->json($formatted);
     }
 
     public function index(Request $request)

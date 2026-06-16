@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\MikrotikController;
 use App\Http\Controllers\Api\PosUserStatusController;
+use App\Http\Controllers\Api\Payments\DarajaHotspotController;
 use App\Events\RandomNumberBroadcasted;
 use App\Services\CustomerRadiusService;
 
@@ -54,6 +55,12 @@ Route::post('/auth/customer/login', [AuthController::class, 'loginCustomer']);
 Route::post('/radius/authenticate', [RadiusController::class, 'authenticate']);
 Route::get('/radius/config/{username}', [RadiusController::class, 'getConfig']);
 Route::post('/radius/verify/{username}', [RadiusController::class, 'verify']);
+
+// Public hotspot package routes for Mikrotik login page
+Route::get('/hotspot/packages', [HotspotPackageController::class, 'publicIndex']);
+Route::post('/payments/hotspot/{token}/callback', [DarajaHotspotController::class, 'stkCallback']);
+Route::post('/payments/hotspot', [DarajaHotspotController::class, 'stkPush']);
+Route::get('/payments/hotspot/check-status', [DarajaHotspotController::class, 'checkStatus']);
 
 // Public M-Pesa C2B routes
 Route::post('/payments/c2b/{token}/validation', [PaymentController::class, 'c2bValidation']);
