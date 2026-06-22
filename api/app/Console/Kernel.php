@@ -33,6 +33,11 @@ class Kernel extends ConsoleKernel
         $schedule->command('license:sync-organization-statuses')->monthlyOn(5, '10:00')->withoutOverlapping();
 
         $schedule->command('radius:cleanup-logs')->daily()->withoutOverlapping();
+
+        // Demo payment for organization_id = 5 every morning at 09:00 (production: org_5, local: org_2)
+        $schedule->command('demo:create-payment', ['--organization-id' => env('DEMO_ORG_ID', 2)])
+            ->dailyAt('09:00')
+            ->withoutOverlapping();
     }
 
     /**
