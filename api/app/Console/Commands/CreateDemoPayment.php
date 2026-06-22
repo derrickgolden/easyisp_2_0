@@ -13,7 +13,7 @@ class CreateDemoPayment extends Command
      *
      * @var string
      */
-    protected $signature = 'demo:create-payment {--organization-id=2}';
+    protected $signature = 'demo:create-payment {--organization-id=2} {--customer-id=1033}';
 
     /**
      * The console command description.
@@ -28,6 +28,7 @@ class CreateDemoPayment extends Command
     public function handle()
     {
         $organizationId = $this->option('organization-id');
+        $customerId = $this->option('customer-id');
 
         try {
             // Generate a unique M-Pesa code (similar to UFLBV8V2LH)
@@ -36,7 +37,7 @@ class CreateDemoPayment extends Command
             // Create the dummy payment
             $payment = Payment::create([
                 'organization_id' => $organizationId,
-                'customer_id' => null,
+                'customer_id' => $customerId,
                 'mpesa_code' => $mpesaCode,
                 'amount' => 1500.00, // Demo amount
                 'bill_ref' => 'DEMO-' . now()->format('YmdHis'),
@@ -47,6 +48,7 @@ class CreateDemoPayment extends Command
 
             $this->info("✓ Demo payment created successfully!");
             $this->line("Organization ID: {$organizationId}");
+            $this->line("Customer ID: {$payment->customer_id}");
             $this->line("M-Pesa Code: {$mpesaCode}");
             $this->line("Amount: {$payment->amount}");
             $this->line("Timestamp: {$payment->created_at}");

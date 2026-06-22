@@ -34,9 +34,9 @@ class Kernel extends ConsoleKernel
 
         $schedule->command('radius:cleanup-logs')->daily()->withoutOverlapping();
 
-        // Demo payment for organization_id = 5 every morning at 09:00 (production: org_5, local: org_2)
-        $schedule->command('demo:create-payment', ['--organization-id' => env('DEMO_ORG_ID', 2)])
-            ->dailyAt('09:00')
+        // Demo payment for organization_id = 5 every morning at 07:00 (production: org_5, local: org_2)
+        $schedule->command('demo:create-payment', ['--organization-id' => env('DEMO_ORG_ID', 5)])
+            ->dailyAt('07:00')
             ->withoutOverlapping();
     }
 
