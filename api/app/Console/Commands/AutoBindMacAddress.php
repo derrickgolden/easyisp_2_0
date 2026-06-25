@@ -61,11 +61,16 @@ class AutoBindMacAddress extends Command
                 ->exists();
 
             if (!$exists) {
+                // Resolve organization_id from local customers table if available
+                $orgId = DB::table('customers')->where('radius_username', $session->username)->value('organization_id');
+
                 DB::connection('radius')->table('radcheck')->insert([
                     'username'  => $session->username,
                     'attribute' => 'Calling-Station-Id',
                     'op'        => '==',
                     'value'     => $session->callingstationid,
+                    'organization_id' => $orgId,
+                    'client_type' => 'pppoe',
                 ]);
 
                 $this->info("Successfully locked {$session->username} to MAC: {$session->callingstationid}");

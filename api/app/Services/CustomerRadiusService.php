@@ -64,7 +64,17 @@ class CustomerRadiusService
 
             // 2. Add Authentication (radcheck)
             // Using 'Cleartext-Password' as the attribute for MS-CHAPv2 compatibility
-            $this->addCheckAttribute($customer->radius_username, 'Cleartext-Password', ':=', $customer->radius_password);
+            // Include organization_id and client_type so the radcheck row is attributed correctly
+            $this->addCheckAttribute(
+                $customer->radius_username,
+                'Cleartext-Password',
+                ':=',
+                $customer->radius_password,
+                [
+                    'organization_id' => $customer->organization_id,
+                    'client_type' => 'pppoe',
+                ]
+            );
             
             if ($customer->status !== 'active') {
                 return [
@@ -105,18 +115,32 @@ class CustomerRadiusService
 
     // public function disconnectCustomer($username)
     // {
-    //     // 1. Sanitize inputs immediately
-    //     $safeUsername = escapeshellarg($username);
+    //     $radiusConnection = DB::connection('radius');
 
-    //     $sessions = DB::connection('radius')
+    //     $sessions = $radiusConnection
     //         ->table('radacct')
     //         ->where('username', $username)
     //         ->whereNull('acctstoptime')
-    //         ->get(['acctsessionid', 'nasipaddress']);
+    //         ->get(['acctsessionid', 'nasipaddress', 'radacctid']); 
 
-    //         Log::info("Attempting to disconnect user {$username}. Active sessions found: " . json_encode($sessions));
+    //     Log::info("--- START DISCONNECT: {$username} ---");
+
     //     if ($sessions->isEmpty()) {
-    //         return ['status' => false, 'message' => "⚠️ No active session found."];
+    //         $lastSession = $radiusConnection
+    //             ->table('radacct')
+    //             ->where('username', $username)
+    //             ->orderByDesc('radacctid')
+    //             ->first(['acctsessionid', 'nasipaddress', 'radacctid', 'acctterminatecause']);
+
+    //         if (!$lastSession) {
+    //             Log::info("No active session found, and no previous session exists for {$username}.");
+
+    //             return ['status' => false, 'message' => "⚠️ No active session found"];
+    //         }
+
+    //         $sessions = collect([$lastSession]);
+
+    //         Log::warning("No active sessions found for {$username}; attempting disconnect using latest session record.");
     //     }
 
     //     $responses = [];
@@ -124,11 +148,12 @@ class CustomerRadiusService
     //         $router = \App\Models\Site::where('ip_address', $session->nasipaddress)->first();
 
     //         if (!$router) {
+    //             Log::error("Router IP {$session->nasipaddress} not found in Sites table.");
     //             $responses[] = ['status' => false, 'message' => "❌ Router {$session->nasipaddress} not in DB."];
     //             continue;
     //         }
-            
-    //         // 2. Prepare CoA Request
+
+    //         // 1. Prepare CoA Request (Fixed the typo here: escapeshellarg)
     //         $coaRequest = "User-Name=$username,Acct-Session-Id={$session->acctsessionid}";
     //         $command = sprintf(
     //             'echo %s | radclient -x %s:%d disconnect %s 2>&1',
@@ -139,103 +164,88 @@ class CustomerRadiusService
     //         );
 
     //         $output = shell_exec($command);
-    //         Log::info("CoA command executed: {$command}. Output: {$output}");
-    //         // 3. Robust parsing
+    //         Log::info("CoA Output for {$username}: " . str_replace("\n", " ", $output));
+            
+    //         // 2. Parse Result
     //         if (strpos($output, 'Disconnect-ACK') !== false) {
-    //             $responses[] = [
-    //                 'status' => true,
-    //                 'message' => "✅ {$username} disconnected from {$router->name}.",
-    //                 'output' => $output,
-    //             ];
-    //             Log::info("Successfully disconnected {$username} from {$router->name}.");
-    //         } elseif (strpos($output, 'Disconnect-NAK') !== false) {
-    //             // The router is online but the session is already gone (Ghost Session)
-    //             $this->forceCloseSession($username, $session->acctsessionid);
-    //             Log::warning("Received Disconnect-NAK for {$username} on {$router->name}. Session likely already closed. Forcing local session termination.");
-    //             $responses[] = [
-    //                 'status' => true,
-    //                 'message' => "👻 Ghost session cleared for {$username} (Router rejected request).",
-    //             ];
-    //         }   elseif (strpos($output, 'No reply') !== false) {
-                
-    //             // Check the boolean directly from the site model
+    //             $this->forceCloseSession($session, 'Admin-Disconnect');
+    //             $responses[] = ['status' => true, 'message' => "✅ Success."];
+    //         } 
+    //         elseif (strpos($output, 'Disconnect-NAK') !== false) {
+    //             // This is your Ghost Session case
+    //             $affected = $this->forceCloseSession($session, 'Ghost-NAK-Cleanup');
+    //             Log::warning("Ghost cleared for {$username}. Rows updated: {$affected}");
+    //             $responses[] = ['status' => true, 'message' => "👻 Ghost cleared."];
+    //         } 
+    //         else {
+    //             // Timeout or No Reply
     //             if ($router->is_online == false) {
-    //                 $this->forceCloseSession($username, $session->acctsessionid);
-
-    //                 $responses[] = [
-    //                     'status' => true,
-    //                     'message' => "⚡ {$router->name} is offline (Last seen: {$router->last_seen}). Session closed.",
-    //                 ];
+    //                 $this->forceCloseSession($session, 'Router-Offline-Cleanup');
+    //                 $responses[] = ['status' => true, 'message' => "⚡ Router offline, closed locally."];
     //             } else {
-    //                 $responses[] = [
-    //                     'status' => false,
-    //                     'message' => "🚫 Timeout: {$router->name} is reachable via Ping but RADIUS CoA failed.",
-    //                 ];
+    //                 $responses[] = ['status' => false, 'message' => "🚫 Timeout/Network Error."];
     //             }
     //         }
     //     }
 
-    //     Log::info("Disconnect responses for {$username}: " . json_encode($responses));
-
-    //     return [
-    //         'status' => !collect($responses)->contains('status', false),
-    //         'details' => $responses,
-    //     ];
+    //     return ['status' => !collect($responses)->contains('status', false), 'details' => $responses];
     // }
 
-    // private function forceCloseSession($username, $sessionId, $cause = 'NAS-Off') {
-    //     return DB::connection('radius')->table('radacct')
-    //         ->where('username', $username)
-    //         ->where('acctsessionid', $sessionId)
-    //         ->whereNull('acctstoptime') // Only update if it's actually still open
-    //         ->update([
-    //             'acctstoptime' => now(),
-    //             'acctterminatecause' => $cause,
-    //             'acctsessiontime' => DB::raw('UNIX_TIMESTAMP(NOW()) - UNIX_TIMESTAMP(acctstarttime)')
-    //         ]);
-    // }
-
-    public function disconnectCustomer($username)
+    public function disconnectCustomer($username, $organizationId)
     {
         $radiusConnection = DB::connection('radius');
 
+        // 1. Fetch only the NAS IPs that belong to this specific organization
+        $allowedNasIps = \App\Models\Site::where('organization_id', $organizationId)
+            ->pluck('ip_address')
+            ->toArray();
+
+        if (empty($allowedNasIps)) {
+            Log::error("Org ID {$organizationId} has no assigned NAS IPs. Aborting disconnect for {$username}.");
+            return ['status' => false, 'message' => "❌ No routers found for this organization."];
+        }
+
+        // 2. Query radacct scoped tightly to this tenant's routers
         $sessions = $radiusConnection
             ->table('radacct')
             ->where('username', $username)
+            ->whereIn('nasipaddress', $allowedNasIps) // Crucial: Isolates the tenant's sessions
             ->whereNull('acctstoptime')
             ->get(['acctsessionid', 'nasipaddress', 'radacctid']); 
 
-        Log::info("--- START DISCONNECT: {$username} ---");
+        Log::info("--- START TENANT DISCONNECT: {$username} (Org: {$organizationId}) ---");
 
         if ($sessions->isEmpty()) {
             $lastSession = $radiusConnection
                 ->table('radacct')
                 ->where('username', $username)
+                ->whereIn('nasipaddress', $allowedNasIps) // Match fallback scope too
                 ->orderByDesc('radacctid')
                 ->first(['acctsessionid', 'nasipaddress', 'radacctid', 'acctterminatecause']);
 
             if (!$lastSession) {
-                Log::info("No active session found, and no previous session exists for {$username}.");
-
+                Log::info("No active or historical session found for {$username} under Org {$organizationId}.");
                 return ['status' => false, 'message' => "⚠️ No active session found"];
             }
 
             $sessions = collect([$lastSession]);
-
-            Log::warning("No active sessions found for {$username}; attempting disconnect using latest session record.");
+            Log::warning("No active sessions found for {$username}; attempting disconnect using latest tenant session record.");
         }
 
         $responses = [];
         foreach ($sessions as $session) {
-            $router = \App\Models\Site::where('ip_address', $session->nasipaddress)->first();
+            // Fetch the router—we already know it belongs to this org due to the whereIn filter
+            $router = \App\Models\Site::where('ip_address', $session->nasipaddress)
+                ->where('organization_id', $organizationId)
+                ->first();
 
             if (!$router) {
-                Log::error("Router IP {$session->nasipaddress} not found in Sites table.");
-                $responses[] = ['status' => false, 'message' => "❌ Router {$session->nasipaddress} not in DB."];
+                Log::error("Router IP {$session->nasipaddress} mismatch or not found for Org {$organizationId}.");
+                $responses[] = ['status' => false, 'message' => "❌ Router access denied."];
                 continue;
             }
 
-            // 1. Prepare CoA Request (Fixed the typo here: escapeshellarg)
+            // Prepare CoA Request
             $coaRequest = "User-Name=$username,Acct-Session-Id={$session->acctsessionid}";
             $command = sprintf(
                 'echo %s | radclient -x %s:%d disconnect %s 2>&1',
@@ -246,22 +256,20 @@ class CustomerRadiusService
             );
 
             $output = shell_exec($command);
-            Log::info("CoA Output for {$username}: " . str_replace("\n", " ", $output));
+            Log::info("CoA Output for {$username} (Org {$organizationId}): " . str_replace("\n", " ", $output));
             
-            // 2. Parse Result
+            // Parse Result
             if (strpos($output, 'Disconnect-ACK') !== false) {
                 $this->forceCloseSession($session, 'Admin-Disconnect');
                 $responses[] = ['status' => true, 'message' => "✅ Success."];
             } 
             elseif (strpos($output, 'Disconnect-NAK') !== false) {
-                // This is your Ghost Session case
                 $affected = $this->forceCloseSession($session, 'Ghost-NAK-Cleanup');
                 Log::warning("Ghost cleared for {$username}. Rows updated: {$affected}");
                 $responses[] = ['status' => true, 'message' => "👻 Ghost cleared."];
             } 
             else {
-                // Timeout or No Reply
-                if ($router->is_online == false) {
+                if (!$router->is_online) {
                     $this->forceCloseSession($session, 'Router-Offline-Cleanup');
                     $responses[] = ['status' => true, 'message' => "⚡ Router offline, closed locally."];
                 } else {
@@ -305,11 +313,16 @@ class CustomerRadiusService
         }
     }
 
-    public function flushMacOnly($username) {
-        return $this->radiusConnection->table('radcheck')
+    public function flushMacOnly($username, $organizationId = null) {
+        $query = $this->radiusConnection->table('radcheck')
             ->where('username', $username)
-            ->where('attribute', 'Calling-Station-Id')
-            ->delete();
+            ->where('attribute', 'Calling-Station-Id');
+
+        if ($organizationId !== null) {
+            $query->where('organization_id', $organizationId);
+        }
+
+        return $query->delete();
     }
 
     public function getTechnicalSpecs(Request $request, $id)
@@ -543,27 +556,45 @@ class CustomerRadiusService
     /**
      * Add User-Password to radcheck
      */
-    private function addUserPassword($username, $password)
+    private function addUserPassword($username, $password, $extra = [])
     {
-        $this->radiusConnection->table('radcheck')->insert([
+        $insert = [
             'username' => $username,
             'attribute' => 'User-Password',
             'op' => ':=',
             'value' => $password,
-        ]);
+        ];
+
+        if (isset($extra['organization_id'])) {
+            $insert['organization_id'] = $extra['organization_id'];
+        }
+        if (isset($extra['client_type'])) {
+            $insert['client_type'] = $extra['client_type'];
+        }
+
+        $this->radiusConnection->table('radcheck')->insert($insert);
     }
 
     /**
      * Add check attribute to radcheck
      */
-    private function addCheckAttribute($username, $attribute, $op, $value)
+    private function addCheckAttribute($username, $attribute, $op, $value, $extra = [])
     {
-        $this->radiusConnection->table('radcheck')->insert([
+        $insert = [
             'username' => $username,
             'attribute' => $attribute,
             'op' => $op,
             'value' => $value,
-        ]);
+        ];
+
+        if (isset($extra['organization_id'])) {
+            $insert['organization_id'] = $extra['organization_id'];
+        }
+        if (isset($extra['client_type'])) {
+            $insert['client_type'] = $extra['client_type'];
+        }
+
+        $this->radiusConnection->table('radcheck')->insert($insert);
     }
 
     /**

@@ -319,6 +319,8 @@ class RadiusController extends Controller
                 $customer->radius_username,
                 $customer->radius_password,
                 [
+                    'organization_id' => $customer->organization_id,
+                    'client_type' => 'pppoe',
                     'check' => [
                         [
                             'attribute' => 'Framed-IP-Address',
@@ -406,6 +408,8 @@ class RadiusController extends Controller
                     $customer->radius_username,
                     $customer->radius_password,
                     [
+                        'organization_id' => $customer->organization_id,
+                        'client_type' => 'pppoe',
                         'check' => [
                             [
                                 'attribute' => 'Framed-IP-Address',

@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\SiteController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PayheroPaymentController;
 use App\Http\Controllers\Api\DarajaPaymentController;
+use App\Http\Controllers\Api\HotspotPaymentController;
 use App\Http\Controllers\Api\TransactionController;
 use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\ExpenseController;
@@ -193,6 +194,7 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     Route::post('/payments/{paymentId}/resolve', [PaymentController::class, 'resolvePending']);
     Route::post('/payments/c2b/register-urls', [PaymentController::class, 'registerC2BUrls']);
     Route::apiResource('/payments', PaymentController::class);
+    Route::apiResource('/hotspot-payments', HotspotPaymentController::class);
     
     // Transaction management
     Route::apiResource('/transactions', TransactionController::class);

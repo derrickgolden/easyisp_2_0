@@ -512,6 +512,8 @@ class DarajaHotspotController extends Controller
             [
                 'op' => ':=',
                 'value' => $password,
+                'organization_id' => $organization->id,
+                'client_type' => 'hotspot',
             ]
         );
 
@@ -523,6 +525,8 @@ class DarajaHotspotController extends Controller
             [
                 'op' => '==',
                 'value' => $macAddress,
+                'organization_id' => $organization->id,
+                'client_type' => 'hotspot',
             ]
         );
 

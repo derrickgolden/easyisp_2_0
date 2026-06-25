@@ -205,23 +205,40 @@ class RadiusService
         $username = trim($username);
 
         try {
+            $organizationId = $attributes['organization_id'] ?? null;
+            $clientType = $attributes['client_type'] ?? null;
+
             // Insert User-Password check into radcheck table
-            $this->radiusConnection->table('radcheck')->insert([
+            $passwordInsert = [
                 'username' => $username,
                 'attribute' => 'User-Password',
                 'op' => ':=',
                 'value' => $password, // In production, should be hashed
-            ]);
+            ];
+            if (isset($organizationId)) {
+                $passwordInsert['organization_id'] = $organizationId;
+            }
+            if (isset($clientType)) {
+                $passwordInsert['client_type'] = $clientType;
+            }
+            $this->radiusConnection->table('radcheck')->insert($passwordInsert);
 
             // Add check attributes if provided
             if (!empty($attributes['check'])) {
                 foreach ($attributes['check'] as $attr) {
-                    $this->radiusConnection->table('radcheck')->insert([
+                    $checkInsert = [
                         'username' => $username,
                         'attribute' => $attr['attribute'],
                         'op' => $attr['op'] ?? ':=',
                         'value' => $attr['value'],
-                    ]);
+                    ];
+                    if (isset($organizationId)) {
+                        $checkInsert['organization_id'] = $organizationId;
+                    }
+                    if (isset($clientType)) {
+                        $checkInsert['client_type'] = $clientType;
+                    }
+                    $this->radiusConnection->table('radcheck')->insert($checkInsert);
                 }
             }
 

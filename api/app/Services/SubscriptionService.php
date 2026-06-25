@@ -160,7 +160,7 @@ class SubscriptionService
             ); // Match your MikroTik/Radius profile
 
         // Disconnect user to force re-auth into redirect group
-        app(CustomerRadiusService::class)->disconnectCustomer($customer->radius_username);
+        app(CustomerRadiusService::class)->disconnectCustomer($customer->radius_username, $customer->organization_id);
         
     }
         
@@ -184,7 +184,7 @@ class SubscriptionService
                 );
 
             // This is where the magic happens: User is moved from Suspended -> Package
-            app(CustomerRadiusService::class)->disconnectCustomer($customer->radius_username);
+            app(CustomerRadiusService::class)->disconnectCustomer($customer->radius_username, $customer->organization_id);
             Log::info("User {$customer->radius_username} resumed and RADIUS group updated.");
         }
     }
@@ -207,7 +207,7 @@ class SubscriptionService
                 );
 
             // Kick the session immediately
-            app(CustomerRadiusService::class)->disconnectCustomer($customer->radius_username);
+            app(CustomerRadiusService::class)->disconnectCustomer($customer->radius_username, $customer->organization_id);
             
             \Log::warning("User {$customer->radius_username} has been SUSPENDED.");
         }

@@ -397,6 +397,8 @@ class DarajaPaymentController extends Controller
             [
                 'op' => ':=',
                 'value' => $password,
+                'organization_id' => $organization->id,
+                'client_type' => 'pppoe',
             ]
         );
 
@@ -408,6 +410,8 @@ class DarajaPaymentController extends Controller
             [
                 'op' => '==',
                 'value' => $macAddress,
+                'organization_id' => $organization->id,
+                'client_type' => 'pppoe',
             ]
         );
 

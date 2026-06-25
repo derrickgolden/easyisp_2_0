@@ -10,7 +10,6 @@ import { confirmAction } from '../utils/alerts';
 import { usePermissions } from '../hooks/usePermissions';
 
 export const PackagesPage: React.FC = () => {
-
   const [packages, setPackages] = useState<Package[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.PACKAGES) || '[]'));
   const [hotspotPackages, setHotspotPackages] = useState<Package[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.HOTSPOT_PACKAGES) || '[]'));
   const [editingPackage, setEditingPackage] = useState<Partial<Package> | null>(null);
@@ -170,7 +169,7 @@ export const PackagesPage: React.FC = () => {
             </button>
             <button
               type="button"
-              // onClick={() => setShowPackageList('hotspot')}
+              onClick={() => setShowPackageList('hotspot')}
               className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
                 showPackageList === 'hotspot'
                   ? 'bg-yellow-600 text-white shadow'

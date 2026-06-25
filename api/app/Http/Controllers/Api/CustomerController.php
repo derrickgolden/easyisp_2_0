@@ -373,7 +373,7 @@ class CustomerController extends Controller
             $syncResult = $this->radiusService->syncCustomerToRadius($customer, $oldUsername);
             if ($syncResult['success']) {
                 // Force the router to kick the user so they reconnect with new settings
-                $this->radiusService->disconnectCustomer($oldUsername ?? $customer->radius_username);
+                $this->radiusService->disconnectCustomer($oldUsername ?? $customer->radius_username, $customer->organization_id);
             }else {
                 \Log::error('RADIUS sync failed for customer ' . $customer->id . ': ' . $syncResult['message']);
             }
@@ -445,7 +445,7 @@ class CustomerController extends Controller
             foreach ($customer->subAccounts as $subAccount) {
                 // Remove from RADIUS
                 $this->radiusService->removeCustomerFromRadius($subAccount->radius_username);
-                $this->radiusService->disconnectCustomer($subAccount->radius_username);
+                $this->radiusService->disconnectCustomer($subAccount->radius_username, $subAccount->organization_id);
                 
                 // Delete from MySQL
                 $subAccount->delete();
@@ -453,7 +453,7 @@ class CustomerController extends Controller
 
             // 2. Clean up the Master Account
             $this->radiusService->removeCustomerFromRadius($customer->radius_username);
-            $this->radiusService->disconnectCustomer($customer->radius_username);
+            $this->radiusService->disconnectCustomer($customer->radius_username, $customer->organization_id);
             $customer->delete();
 
             return response()->json(['message' => 'Master and sub-accounts deleted successfully']);
@@ -626,11 +626,11 @@ class CustomerController extends Controller
         }
 
         try {
-            // Remove customer from RADIUS database
-            $this->radiusService->flushMacOnly($customer->radius_username);
+            // Remove MAC lock only for this organization
+            $this->radiusService->flushMacOnly($customer->radius_username, $customer->organization_id);
             
-            // Disconnect any active sessions
-            $this->radiusService->disconnectCustomer($customer->radius_username);
+            // Disconnect any active sessions for this username
+            $this->radiusService->disconnectCustomer($customer->radius_username, $customer->organization_id);
                         
             return response()->json([
                 'message' => 'MAC binding reset.',

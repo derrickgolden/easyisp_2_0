@@ -582,6 +582,33 @@ export const paymentsApi = {
   },
 };
 
+export const hotspotPaymentsApi = {
+  getAll: async (page = 1) => {
+    const response = await axiosInstance.get(`/hotspot-payments?page=${page}`);
+    return response.data;
+  },
+
+  getById: async (id: string) => {
+    const response = await axiosInstance.get(`/hotspot-payments/${id}`);
+    return response.data;
+  },
+
+  create: async (paymentData: any) => {
+    const response = await axiosInstance.post('/hotspot-payments', paymentData);
+    return response.data;
+  },
+
+  update: async (id: string, paymentData: any) => {
+    const response = await axiosInstance.put(`/hotspot-payments/${id}`, paymentData);
+    return response.data;
+  },
+
+  delete: async (id: string) => {
+    const response = await axiosInstance.delete(`/hotspot-payments/${id}`);
+    return response.data;
+  },
+};
+
 // Transactions Endpoints
 export const transactionsApi = {
   getAll: async (page = 1, perPage = 10, search = '') => {

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\SiteResource;
 use App\Models\Site;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class SiteController extends Controller
@@ -76,9 +77,13 @@ class SiteController extends Controller
             $data['radius_secret'] = 'p5D031tEhfRNXBwm';
         }
 
-        $site = Site::create(array_merge($data, [
-            'organization_id' => $request->user()->organization_id,
-        ]));
+        $site = DB::transaction(function () use ($data, $request) {
+            $site = Site::create(array_merge($data, [
+                'organization_id' => $request->user()->organization_id,
+            ]));
+            $this->syncNas($site);
+            return $site;
+        });
 
         return response()->json([
             'message' => 'Site created successfully',
@@ -123,7 +128,12 @@ class SiteController extends Controller
             unset($data['radius_secret']);
         }
 
-        $site->update($data);
+        $oldIpAddress = $site->ip_address;
+
+        DB::transaction(function () use ($site, $data, $oldIpAddress) {
+            $site->update($data);
+            $this->syncNas($site, $oldIpAddress);
+        });
 
         return response()->json([
             'message' => 'Site updated successfully',
@@ -138,8 +148,47 @@ class SiteController extends Controller
             return response()->json(['message' => 'Site not found'], 404);
         }
 
-        $site->delete();
+        DB::transaction(function () use ($site) {
+            $this->deleteNas($site);
+            $site->delete();
+        });
+
         return response()->json(['message' => 'Site deleted successfully']);
+    }
+
+    private function syncNas(Site $site, ?string $oldIpAddress = null): void
+    {
+        $description = 'Site: ' . $site->name . ' (' . ($site->location ?? 'Not specified') . ')';
+        $radiusConnection = DB::connection('radius');
+
+        // 3. If the IP address actually changed, delete or overwrite the old record
+        if ($oldIpAddress && $oldIpAddress !== $site->ip_address) {
+            $radiusConnection->table('nas')
+                ->where('nasname', $oldIpAddress)
+                ->where('organization_id', $site->organization_id)
+                ->delete();
+        }
+
+        $radiusConnection->table('nas')->updateOrInsert(
+            ['nasname' => $site->ip_address, 'organization_id' => $site->organization_id],
+            [
+                'nasname'         => $site->ip_address,
+                'shortname'       => $site->name,
+                'type'            => 'other',
+                'secret'          => $site->radius_secret ?? 'secret',
+                'description'     => $description,
+                'organization_id' => $site->organization_id,
+                'status'          => 'active',
+            ]
+        );
+    }
+
+    private function deleteNas(Site $site): void
+    {
+        DB::connection('radius')->table('nas')
+            ->where('nasname', $site->ip_address)
+            ->where('organization_id', $site->organization_id)
+            ->delete();
     }
 
     /**

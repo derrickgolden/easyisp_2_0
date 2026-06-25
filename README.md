@@ -98,7 +98,7 @@ authorize_check_query = " \
   JOIN ( \
     SELECT radius_username, organization_id FROM easyisp_2_0.customers \
     UNION ALL \
-    SELECT radius_username, organization_id FROM easyisp_2_0.hotspot_customers \
+    SELECT mac_address AS radius_username, organization_id FROM easyisp_2_0.hotspot_customers \
   ) c ON rc.username = c.radius_username \
   LEFT JOIN easyisp_2_0.sites s ON s.ip_address = '%{NAS-IP-Address}' \
   WHERE rc.username = '%{User-Name}' \
@@ -126,3 +126,26 @@ authorize_check_query = " \
 git pull origin main
 # for supervisor(sms) to use the new code
 php artisan queue:restart
+
+
+
+# Making radius table independent
+# 1. add org_id column
+  ALTER TABLE radius.nas ADD COLUMN organization_id INT DEFAULT 1;
+# 2. mirror data from sites table to nas table
+  INSERT INTO radius.nas (
+      nasname, 
+      shortname, 
+      type, 
+      secret, 
+      description, 
+      organization_id
+  )
+  SELECT 
+      ip_address AS nasname, 
+      name AS shortname, 
+      'other' AS type, 
+      radius_secret AS secret, 
+      COALESCE(description, CONCAT('Site: ', name, ' (', location, ')')) AS description,
+      organization_id
+  FROM easyisp_2_0.sites;

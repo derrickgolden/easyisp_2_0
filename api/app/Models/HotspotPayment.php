@@ -27,7 +27,7 @@ class HotspotPayment extends Model
     ];
 
     protected $casts = [
-        'amount' => 'decimal:10,2',
+        'amount' => 'decimal:2',
         'expires_at' => 'datetime',
     ];
 
