@@ -307,6 +307,7 @@ class CustomerRadiusService
             $this->radiusConnection->table('radreply')->where('username', $username)->delete();
             $this->radiusConnection->table('radusergroup')->where('username', $username)->delete();
             $this->radiusConnection->table('radpostauth')->where('username', $username)->delete();
+            $this->radiusConnection->table('radacct')->where('username', $username)->delete();
             return true;
         } catch (Exception $e) {
             return false;

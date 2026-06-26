@@ -31,24 +31,15 @@ class AutoBindMacAddress extends Command
         // 1. Get the latest callingstationid for users who don't have a 'Calling-Station-Id' attribute in radcheck
         $sessions = DB::connection('radius')
             ->table('radacct as a')
-            ->select('a.username', 'a.callingstationid', 's.organization_id')
+            ->select('a.username', 'a.callingstationid', 'a.nasipaddress')
             // Only look at the latest session for each user
-            ->whereIn('a.radacctid', function($query) {
+            ->whereIn('a.radacctid', function ($query) {
                 $query->select(DB::raw('MAX(radacctid)'))
                     ->from('radacct')
                     ->groupBy('username');
             })
-            // Map session NAS IP to local organization via sites
-            ->leftJoin('sites as s', 'a.nasipaddress', '=', 's.ip_address')
-            // Join to check if they ALREADY have a MAC lock
-            ->leftJoin('radcheck as c', function($join) {
-                $join->on('a.username', '=', 'c.username')
-                    ->where('c.attribute', '=', 'Calling-Station-Id');
-            })
-            ->whereNull('c.id') // Ensure no lock exists yet
             ->whereNotNull('a.callingstationid')
             ->where('a.callingstationid', '!=', '')
-            ->whereNotNull('s.organization_id')
             ->get();
 
         if ($sessions->isEmpty()) {
@@ -57,6 +48,15 @@ class AutoBindMacAddress extends Command
         }
 
         foreach ($sessions as $session) {
+            $organizationId = DB::table('sites')
+                ->where('ip_address', $session->nasipaddress)
+                ->value('organization_id');
+
+            if (empty($organizationId)) {
+                $this->info("Skipping auto-bind for {$session->username}; no matching site organization found.");
+                continue;
+            }
+
             // Double check to prevent race conditions during loop
             $exists = DB::connection('radius')->table('radcheck')
                 ->where('username', $session->username)
@@ -67,20 +67,20 @@ class AutoBindMacAddress extends Command
                 // Only auto-bind if the username still exists in local customers for this organization.
                 $customer = DB::table('customers')
                     ->where('radius_username', $session->username)
-                    ->where('organization_id', $session->organization_id)
+                    ->where('organization_id', $organizationId)
                     ->first();
 
                 if (!$customer) {
-                    $this->info("Skipping auto-bind for deleted or unknown user {$session->username} in org {$session->organization_id}");
+                    $this->info("Skipping auto-bind for deleted or unknown user {$session->username} in org {$organizationId}");
                     continue;
                 }
 
                 DB::connection('radius')->table('radcheck')->insert([
-                    'username'  => $session->username,
+                    'username' => $session->username,
                     'attribute' => 'Calling-Station-Id',
-                    'op'        => '==',
-                    'value'     => $session->callingstationid,
-                    'organization_id' => $session->organization_id,
+                    'op' => '==',
+                    'value' => $session->callingstationid,
+                    'organization_id' => $organizationId,
                     'client_type' => 'pppoe',
                 ]);
 

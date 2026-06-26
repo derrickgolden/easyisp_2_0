@@ -208,16 +208,18 @@ class RadiusService
             $organizationId = $attributes['organization_id'] ?? null;
             $clientType = $attributes['client_type'] ?? null;
 
+            if (empty($organizationId)) {
+                return ['success' => false, 'message' => 'organization_id is required for RADIUS user creation'];
+            }
+
             // Insert User-Password check into radcheck table
             $passwordInsert = [
                 'username' => $username,
                 'attribute' => 'User-Password',
                 'op' => ':=',
                 'value' => $password, // In production, should be hashed
+                'organization_id' => $organizationId,
             ];
-            if (isset($organizationId)) {
-                $passwordInsert['organization_id'] = $organizationId;
-            }
             if (isset($clientType)) {
                 $passwordInsert['client_type'] = $clientType;
             }

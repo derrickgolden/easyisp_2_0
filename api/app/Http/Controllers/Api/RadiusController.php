@@ -206,6 +206,7 @@ class RadiusController extends Controller
         $request->validate([
             'username' => 'required|string|unique:raduser,username',
             'password' => 'required|string|min:6',
+            'organization_id' => 'required|exists:organizations,id',
             'group' => 'sometimes|string',
             'check_attributes' => 'sometimes|array',
             'reply_attributes' => 'sometimes|array',
