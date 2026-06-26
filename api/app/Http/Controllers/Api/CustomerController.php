@@ -317,6 +317,11 @@ class CustomerController extends Controller
             'balance' => 'sometimes|numeric|min:0',
             'ip_address' => 'nullable|string',
             'mac_address' => 'nullable|string',
+            'parent_id' => [
+                'nullable',
+                Rule::exists('customers', 'id')->where(fn ($query) => $query->where('organization_id', $customer->organization_id)),
+            ],
+            'is_independent' => 'sometimes|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -324,6 +329,23 @@ class CustomerController extends Controller
         }
 
         $updateData = $request->all();
+        $newIndependent = $request->has('is_independent')
+            ? filter_var($request->input('is_independent'), FILTER_VALIDATE_BOOLEAN)
+            : $customer->is_independent;
+        $newParentId = $request->filled('parent_id') ? $request->input('parent_id') : $customer->parent_id;
+
+        if ($request->filled('is_independent') && !$newIndependent && !$newParentId) {
+            return response()->json(['errors' => ['is_independent' => ['Dependent accounts must specify a valid parent account.']]], 422);
+        }
+
+        if ($customer->is_independent && !$newIndependent && $newParentId) {
+            $parent = Customer::where('organization_id', $customer->organization_id)->find($newParentId);
+            if ($parent && $parent->expiry_date) {
+                $updateData['expiry_date'] = $parent->expiry_date;
+                $updateData['extension_date'] = $parent->extension_date;
+            }
+        }
+
         if (!$request->filled('site_id')) {
             $ipForSiteResolution = $updateData['ip_address'] ?? $customer->ip_address;
             $resolvedSiteId = $this->resolveSiteIdFromIp($ipForSiteResolution, $customer->organization_id);
@@ -361,8 +383,9 @@ class CustomerController extends Controller
                     $usernameModified = true;
                 }
                 
-                // Update request data with modified username
+                // Update request and payload data with modified username
                 $request->merge(['radius_username' => $newUsername]);
+                $updateData['radius_username'] = $newUsername;
             }
         }
 

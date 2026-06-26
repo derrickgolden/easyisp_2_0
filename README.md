@@ -127,25 +127,3 @@ git pull origin main
 # for supervisor(sms) to use the new code
 php artisan queue:restart
 
-
-
-# Making radius table independent
-# 1. add org_id column
-  ALTER TABLE radius.nas ADD COLUMN organization_id INT DEFAULT 1;
-# 2. mirror data from sites table to nas table
-  INSERT INTO radius.nas (
-      nasname, 
-      shortname, 
-      type, 
-      secret, 
-      description, 
-      organization_id
-  )
-  SELECT 
-      ip_address AS nasname, 
-      name AS shortname, 
-      'other' AS type, 
-      radius_secret AS secret, 
-      COALESCE(description, CONCAT('Site: ', name, ' (', location, ')')) AS description,
-      organization_id
-  FROM easyisp_2_0.sites;
