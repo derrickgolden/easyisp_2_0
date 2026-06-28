@@ -334,10 +334,6 @@ class CustomerController extends Controller
             : $customer->is_independent;
         $newParentId = $request->filled('parent_id') ? $request->input('parent_id') : $customer->parent_id;
 
-        if ($request->filled('is_independent') && !$newIndependent && !$newParentId) {
-            return response()->json(['errors' => ['is_independent' => ['Dependent accounts must specify a valid parent account.']]], 422);
-        }
-
         if ($customer->is_independent && !$newIndependent && $newParentId) {
             $parent = Customer::where('organization_id', $customer->organization_id)->find($newParentId);
             if ($parent && $parent->expiry_date) {

@@ -416,9 +416,9 @@ comment="Wireguard Primary Gateway IP for ${selectedSite?.name}"
 # Allow RADIUS and COA from the WireGuard Tunnel only
 /ip firewall filter
 add action=accept chain=input src-address=10.30.30.1 protocol=udp dst-port=1812,1813 \
-comment="Allow RADIUS Auth/Acct"
-add action=accept chain=input src-address=10.0.0.1 protocol=udp dst-port=3799 \
-comment="Allow RADIUS COA (Disconnect)"
+comment="Allow RADIUS Auth/Acct" place-before=0
+add action=accept chain=input src-address=10.30.30.1 protocol=udp dst-port=3799 \
+comment="Allow RADIUS COA (Disconnect)" place-before=0
 
 # API configuration
 /ip service enable api
@@ -426,7 +426,7 @@ comment="Allow RADIUS COA (Disconnect)"
 /ip service set api address=10.30.30.0/24
 # restrict API access to the WireGuard tunnel for security
 /ip firewall filter
-add chain=input protocol=tcp dst-port=8728 src-address=10.30.30.0/24 action=accept comment="Allow API from WireGuard"
+add chain=input protocol=tcp dst-port=8728 src-address=10.30.30.0/24 action=accept comment="Allow API from WireGuard" place-before=0
 add chain=input protocol=tcp dst-port=8728 action=drop comment="Drop API from others"
 #create api user with strong password
 /user add name=apiuser password=hjdTY162JGFkas group=full
