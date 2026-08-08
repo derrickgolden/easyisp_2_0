@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PayheroPaymentController;
 use App\Http\Controllers\Api\DarajaPaymentController;
 use App\Http\Controllers\Api\HotspotPaymentController;
+use App\Http\Controllers\Api\HotspotTransactionController;
 use App\Http\Controllers\Api\TransactionController;
 use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\ExpenseController;
@@ -25,6 +26,7 @@ use App\Http\Controllers\Api\SmsController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\MikrotikController;
+use App\Http\Controllers\Api\PortalContextController;
 use App\Http\Controllers\Api\PosUserStatusController;
 use App\Http\Controllers\Api\Payments\DarajaHotspotController;
 use App\Events\RandomNumberBroadcasted;
@@ -59,9 +61,12 @@ Route::post('/radius/verify/{username}', [RadiusController::class, 'verify']);
 
 // Public hotspot package routes for Mikrotik login page
 Route::get('/hotspot/packages', [HotspotPackageController::class, 'publicIndex']);
+Route::get('/customer/resolve-portal', [PortalContextController::class, 'resolve']);
+Route::get('/portal/pppoe-payment', [SiteController::class, 'pppoePaymentPortal']);
 Route::post('/payments/hotspot/{token}/callback', [DarajaHotspotController::class, 'stkCallback']);
 Route::post('/payments/hotspot', [DarajaHotspotController::class, 'stkPush']);
 Route::get('/payments/hotspot/check-status', [DarajaHotspotController::class, 'checkStatus']);
+Route::post('/hotspot/sync-device', [HotspotCustomerController::class, 'syncDevice']);
 
 // Public M-Pesa C2B routes
 Route::post('/payments/c2b/{token}/validation', [PaymentController::class, 'c2bValidation']);
@@ -88,6 +93,10 @@ Route::middleware(['auth:sanctum', 'abilities:access-system', 'permissions.team'
 
         // User management
         Route::apiResource('/users', UserController::class);
+
+        // POS users status management routes (separate laravel_pos database)
+        Route::get('/pos-users', [PosUserStatusController::class, 'index']);
+        Route::patch('/pos-users/{id}/toggle-status', [PosUserStatusController::class, 'toggleStatus']);
 });
 
 // Admin routes
@@ -158,24 +167,35 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     // Lead management
     Route::apiResource('/leads', LeadController::class);
     Route::get('/leads-stats', [LeadController::class, 'stats']);
+  
     
     // Customer management
-    Route::apiResource('/customers', CustomerController::class);
-    Route::get('/hotspot-customers', [HotspotCustomerController::class, 'index']);
+    // hotspot
+    Route::get('/hotspot-customers/{id}/with-relations', [HotspotCustomerController::class, 'showWithRelations']);
+    Route::get('/hotspot-customers/{id}/technical-specs', [HotspotCustomerController::class, 'technicalSpecs']);
+    Route::post('/hotspot-customers/{customer}/pause-subscription', [HotspotCustomerController::class, 'pauseSubscription']);
+    Route::post('/hotspot-customers/{customer}/resume-subscription', [HotspotCustomerController::class, 'resumeSubscription']);
+    Route::apiResource('/hotspot-customers', HotspotCustomerController::class);
+    // pppoe
     Route::get('/customers/organization', [CustomerController::class, 'getByOrganization']);
     Route::get('/customers/{id}/with-relations', [CustomerController::class, 'showWithRelations']);
+    Route::post('/customers/{customer}/pause-subscription', [CustomerController::class, 'pauseSubscription']);
+    Route::post('/customers/{customer}/resume-subscription', [CustomerController::class, 'resumeSubscription']);
+    Route::apiResource('/customers', CustomerController::class);
     
+
     // Customer RADIUS sync routes
-    Route::get('/customers/{id}/technical-specs', [CustomerRadiusService::class, 'getTechnicalSpecs']);
+    Route::get('/customers/{id}/technical-specs', [CustomerController::class, 'technicalSpecs']);
     Route::post('/customers/{id}/sync-radius', [CustomerController::class, 'syncToRadius']);
     Route::post('/customers/sync-all-radius', [CustomerController::class, 'syncAllToRadius']);
     Route::get('/customers/{id}/radius-status', [CustomerController::class, 'getRadiusStatus']);
     Route::post('/customers/{id}/reset-mac-binding', [CustomerController::class, 'resetMacBinding']);
+
+  
     
     // Customer pause/resume subscription routes
-    Route::post('/customers/{customer}/pause-subscription', [CustomerController::class, 'pauseSubscription']);
-    Route::post('/customers/{customer}/resume-subscription', [CustomerController::class, 'resumeSubscription']);
     
+
     // Package management
     Route::apiResource('/packages', PackageController::class);
     Route::apiResource('/hotspot-packages', HotspotPackageController::class);
@@ -183,6 +203,7 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     // Site management
     Route::apiResource('/sites', SiteController::class);
     Route::get('/sites/{id}/ipam', [SiteController::class, 'getIpamData']);
+    Route::get('/sites/{id}/hotspot-template', [SiteController::class, 'downloadHotspotTemplate']);
     Route::post('/sites/{id}/reboot', [MikrotikController::class, 'rebootSite']);
     
     // Payment management
@@ -194,11 +215,18 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     Route::post('/payments/{paymentId}/resolve', [PaymentController::class, 'resolvePending']);
     Route::post('/payments/c2b/register-urls', [PaymentController::class, 'registerC2BUrls']);
     Route::apiResource('/payments', PaymentController::class);
+
+    Route::get('/hotspot-payments/pending', [HotspotPaymentController::class, 'pending']);
+    Route::post('/hotspot-payments/{paymentId}/resolve', [HotspotPaymentController::class, 'resolvePending']);
     Route::apiResource('/hotspot-payments', HotspotPaymentController::class);
+    Route::get('/hotspot-payments/customer/{customerId}', [HotspotPaymentController::class, 'getByCustomer']);
     
     // Transaction management
     Route::apiResource('/transactions', TransactionController::class);
     Route::get('/transactions/customer/{customerId}', [TransactionController::class, 'getByCustomer']);
+
+    Route::apiResource('/hotspot-transactions', HotspotTransactionController::class);
+    Route::get('/hotspot-transactions/customer/{customerId}', [HotspotTransactionController::class, 'getByCustomer']);
     
     // Ticket management
     Route::apiResource('/tickets', TicketController::class);
@@ -228,10 +256,6 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     Route::post('/sms/send', [SmsController::class, 'send']);
     Route::post('/sms/send-bulk', [SmsController::class, 'sendBulk']);
     Route::get('/sms/logs', [SmsController::class, 'getLogs']);
-
-    // POS users status management routes (separate laravel_pos database)
-    Route::get('/pos-users', [PosUserStatusController::class, 'index']);
-    Route::patch('/pos-users/{id}/toggle-status', [PosUserStatusController::class, 'toggleStatus']);
 
 });
 
