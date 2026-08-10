@@ -18,7 +18,6 @@ interface OrganizationTableProps {
 export const OrganizationTable: React.FC<OrganizationTableProps> = ({ organizations, onEdit, onDelete }) => {
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [selectedOrgForAdmins, setSelectedOrgForAdmins] = useState<Organization | null>(null);
-console.log(organizations);   
   const formatSnapshotMonth = (value?: string) => {
     if (!value) return 'N/A';
 

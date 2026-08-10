@@ -264,7 +264,6 @@ export const SitesPage: React.FC = () => {
       <ConfigModal 
         isOpen={isConfigOpen} 
         onClose={() => setIsConfigOpen(false)} selectedSite={selectedSite} 
-        onCopy={() => toast.message("Copied")} 
       />
     </div>
   );

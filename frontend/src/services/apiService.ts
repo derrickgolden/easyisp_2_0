@@ -1,5 +1,6 @@
 // API Configuration
 import axios, { AxiosInstance, AxiosError } from 'axios';
+import { get } from 'node:http';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 // const API_BASE_URL = 'https://isp.easytech.africa/api';
@@ -384,10 +385,71 @@ export const hotspotPackagesApi = {
 };
 
 export const hotspotCustomersApi = {
-  getAll: async (page = 1, perPage = 50) => {
-    const response = await axiosInstance.get(`/hotspot-customers?page=${page}&per_page=${perPage}`);
+  getAll: async (params: {
+    page?: number;
+    perPage?: number;
+    search?: string;
+    status?: string;
+    onlineStatus?: string;
+    siteId?: string;
+    packageId?: string;
+  } = {}) => {
+    const response = await axiosInstance.get('/hotspot-customers', {
+      params: {
+        page: params.page ?? 1,
+        per_page: params.perPage,
+        search: params.search,
+        status: params.status,
+        online_status: params.onlineStatus,
+        site_id: params.siteId,
+        package_id: params.packageId,
+      },
+    });
     return response.data;
   },
+
+  getById: async (id: string) => {
+    const response = await axiosInstance.get(`/hotspot-customers/${id}`);
+    return response.data;
+  },
+
+  getWithRelations: async (id: string) => {
+    const response = await axiosInstance.get(`/hotspot-customers/${id}/with-relations`);
+    return response.data;
+  },
+
+  create: async (customerData: any) => {
+    const response = await axiosInstance.post('/hotspot-customers', customerData);
+    return response.data;
+  },
+
+  update: async (id: string, customerData: any) => {
+    const response = await axiosInstance.put(`/hotspot-customers/${id}`, customerData);
+    return response.data;
+  },
+
+  pauseSubscription: async (id: string) => {
+    const response = await axiosInstance.post(`/hotspot-customers/${id}/pause-subscription`);
+    return response.data;
+  },
+
+  resumeSubscription: async (id: string) => {
+    const response = await axiosInstance.post(`/hotspot-customers/${id}/resume-subscription`);
+    return response.data;
+  },
+
+  delete: async (id: string) => {
+    const response = await retryOnRateLimit(() => axiosInstance.delete(`/hotspot-customers/${id}`), {
+      maxAttempts: 4,
+      baseDelayMs: 500,
+    });
+    return response.data;
+  },
+
+  getTechnicalSpecs: async (id: string) => {
+    const response = await axiosInstance.get(`/hotspot-customers/${id}/technical-specs`);
+    return response.data;
+  }
 };
 
 // Sites Endpoints
@@ -417,6 +479,11 @@ export const sitesApi = {
     return response.data;
   },
 
+  downloadHotspotHtml: async (siteId: string)=> {
+    const response = await axiosInstance.get(`/sites/${siteId}/hotspot-template`, {responseType: 'blob',});
+    return response.data;
+  },
+
   reboot: async (id: string) => {
     const response = await axiosInstance.post(`/sites/${id}/reboot`);
     return response.data;
@@ -427,7 +494,6 @@ export const sitesApi = {
     return response.data;
   },
 };
-
 
 // Payments Endpoints
 export const paymentsApi = {
@@ -603,8 +669,25 @@ export const hotspotPaymentsApi = {
     return response.data;
   },
 
+  getPending: async (page = 1) => {
+    const response = await axiosInstance.get(`/hotspot-payments/pending?page=${page}`);
+    return response.data;
+  },
+
+  resolvePending: async (paymentId: string, customerId: string) => {
+    const response = await axiosInstance.post(`/hotspot-payments/${paymentId}/resolve`, {
+      customer_id: customerId,
+    });
+    return response.data;
+  },
+
   delete: async (id: string) => {
     const response = await axiosInstance.delete(`/hotspot-payments/${id}`);
+    return response.data;
+  },
+
+  getByCustomerId: async (customerId: string) => {
+    const response = await axiosInstance.get(`/hotspot-payments/customer/${customerId}`);
     return response.data;
   },
 };
@@ -642,6 +725,42 @@ export const transactionsApi = {
     description: string;
   }) => {
     const response = await axiosInstance.post('/transactions', data);
+    return response.data;
+  },
+};
+
+export const hotspotTransactionsApi = {
+  getAll: async (page = 1, perPage = 10, search = '') => {
+    const query = new URLSearchParams();
+    query.append('page', String(page));
+    query.append('per_page', String(perPage));
+    if (search.trim()) {
+      query.append('search', search.trim());
+    }
+
+    const response = await axiosInstance.get(`/hotspot-transactions?${query.toString()}`);
+    return response.data;
+  },
+
+  getByCustomer: async (customerId: string, page = 1, perPage = 10) => {
+    const response = await axiosInstance.get(`/hotspot-transactions/customer/${customerId}?page=${page}&per_page=${perPage}`);
+    return response.data;
+  },
+
+  getById: async (id: string) => {
+    const response = await axiosInstance.get(`/hotspot-transactions/${id}`);
+    return response.data;
+  },
+
+  create: async (data: {
+    customer_id: string;
+    amount: number;
+    type: 'credit' | 'debit';
+    category: string;
+    method: string;
+    description: string;
+  }) => {
+    const response = await axiosInstance.post('/hotspot-transactions', data);
     return response.data;
   },
 };

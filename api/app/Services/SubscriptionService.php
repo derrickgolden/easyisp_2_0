@@ -17,13 +17,11 @@ class SubscriptionService
     {        
         // 1. If the user is manually suspended, ensure they are blocked and STOP logic
         if ($customer->status === 'suspended') {
-            $this->applySuspendedStatus($customer);
+            // $this->applySuspendedStatus($customer);
             return; 
         }
 
         $effectiveDate = $this->getEffectiveExpiryDate($customer);
-
-        $past = $effectiveDate->isPast() ? "true": "false";
 
         // Check and send pre-expiry warnings (48-hour and 1-hour)
         $this->checkAndSendExpiryWarnings($customer, $effectiveDate);

@@ -114,6 +114,7 @@ export interface OrganizationInput {
 	acronym: string;
 	subscription_tier: "lite" | "pro" | "enterprise";
 	status?: "active" | "suspended";
+	client_type?: "PPPoE" | "Hotspot" | "DHCP" | "Both";
 	settings?: Record<string, unknown> | null;
 }
 

@@ -1,13 +1,14 @@
 import { Modal } from "../UI";
 import { useEffect, useState } from "react";
-import { customersApi } from "../../services/apiService";
+import { customersApi, hotspotCustomersApi } from "../../services/apiService";
 import { toast } from "sonner";
 import { Customer } from "../../types";
 
 interface ChangeDateModalProps {
-  isChangeDateModalOpen: {open: boolean, type: string};
-  setIsChangeDateModalOpen: ({open, type}) => void;
+  isChangeDateModalOpen: {open: boolean; type: string};
+  setIsChangeDateModalOpen: (value: {open: boolean; type: string}) => void;
   customer?: Customer | null;
+  customerType: "pppoe" | "hotspot";
   onSuccess?: () => void;
 }
 
@@ -15,6 +16,7 @@ export const ChangeDateModal: React.FC<ChangeDateModalProps> = ({
   isChangeDateModalOpen,
   setIsChangeDateModalOpen,
   customer,
+  customerType,
   onSuccess,
 }) => {
   const [newDate, setNewDate] = useState<string>("");
@@ -37,7 +39,13 @@ export const ChangeDateModal: React.FC<ChangeDateModalProps> = ({
           ? { expiry_date: newDate }
           : { extension_date: newDate };
 
-      await customersApi.update(String(customer.id), payload);
+      if (customerType === "pppoe") {
+        await customersApi.update(String(customer.id), payload);
+      }else if (customerType === "hotspot") {
+        await hotspotCustomersApi.update(String(customer.id), payload);
+      }else {
+        throw new Error("Invalid customer type");
+      }
 
       toast.success(
         isChangeDateModalOpen.type === "expiry"

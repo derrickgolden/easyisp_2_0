@@ -34,41 +34,41 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
     const [trafficPollCount, setTrafficPollCount] = useState(0);
     const [lastTrafficPollAt, setLastTrafficPollAt] = useState<string | null>(null);
 
-    useEffect(() => {
-      if (!trafficUsername || !nasIpAddress || nasIpAddress === 'N/A') return;
+    // useEffect(() => {
+    //   if (!trafficUsername || !nasIpAddress || nasIpAddress === 'N/A') return;
 
-      setTrafficPollCount(0);
-      setLastTrafficPollAt(null);
+    //   setTrafficPollCount(0);
+    //   setLastTrafficPollAt(null);
 
-      let isActive = true;
-      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    //   let isActive = true;
+    //   let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-      const pollTraffic = async () => {
-        try {
-          const data = await customersApi.getUserTraffic(trafficUsername, nasIpAddress);
+    //   const pollTraffic = async () => {
+    //     try {
+    //       const data = await customersApi.getUserTraffic(trafficUsername, nasIpAddress);
 
-          if (isActive) {
-            setTraffic(data);
-          }
-        } catch (err) {
-          console.error('Error fetching user traffic:', err);
-        } finally {
-          if (isActive) {
-            setTrafficPollCount((prev) => prev + 1);
-            setLastTrafficPollAt(new Date().toLocaleTimeString());
-            timeoutId = setTimeout(pollTraffic, 1000);
-          }
+    //       if (isActive) {
+    //         setTraffic(data);
+    //       }
+    //     } catch (err) {
+    //       console.error('Error fetching user traffic:', err);
+    //     } finally {
+    //       if (isActive) {
+    //         setTrafficPollCount((prev) => prev + 1);
+    //         setLastTrafficPollAt(new Date().toLocaleTimeString());
+    //         timeoutId = setTimeout(pollTraffic, 1000);
+    //       }
           
-        }
-      };
+    //     }
+    //   };
 
-      pollTraffic();
+    //   pollTraffic();
 
-      return () => {
-        isActive = false;
-        if (timeoutId) clearTimeout(timeoutId);
-      };
-    }, [trafficUsername, nasIpAddress]);
+    //   return () => {
+    //     isActive = false;
+    //     if (timeoutId) clearTimeout(timeoutId);
+    //   };
+    // }, [trafficUsername, nasIpAddress]);
 
     useEffect(() => {
       if (!startTimeIso) {
@@ -209,7 +209,7 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
                     </div>
                  </div>
                  {/* show user traffic */}
-                 <div className="rounded-2xl border border-gray-400 dark:border-white/10 bg-gray-800/30 dark:bg-gray-800/20 p-3 space-y-2">
+                 {/* <div className="rounded-2xl border border-gray-400 dark:border-white/10 bg-gray-800/30 dark:bg-gray-800/20 p-3 space-y-2">
                     <div className="flex justify-between items-center">
                       <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Live Traffic</p>
                       <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${traffic.status === 'online' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'}`}>
@@ -233,7 +233,7 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
                     <p className="text-[9px] font-mono text-slate-500 uppercase tracking-wider">
                       Interface IP: {traffic.ip || technicalSpecs?.framed_ip || 'N/A'}
                     </p>
-                 </div>
+                 </div> */}
                  <div className=" border-t border-white/5 space-y-3">
                     <div className="flex justify-between items-center">
                         <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Last Uptime</span>

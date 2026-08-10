@@ -19,7 +19,7 @@ export const PPPoECustomersPage: React.FC = () => {
   const [isPolling, setIsPolling] = useState(false);
   
   // Filter States
-  const [filters, setFilters] = useState(() => {
+  const [filters, setFilters] = useState<{ [key: string]: string }>(() => {
     const saved = sessionStorage.getItem('customerFilters');
     return saved ? JSON.parse(saved) : {
       siteFilter: '',
@@ -133,7 +133,7 @@ export const PPPoECustomersPage: React.FC = () => {
       const apartmentSearchText = `${c.apartment || ''} ${c.houseNo || ''}`.toLowerCase();
       const matchesSearch = fullName.includes(normalizedSearch) ||
                             c.phone.toLowerCase().includes(normalizedSearch) ||
-                            c.radiusUsername.toLowerCase().includes(normalizedSearch) ||
+                            c.radiusUsername?.toLowerCase().includes(normalizedSearch) ||
                             c.email?.toLowerCase().includes(normalizedSearch) ||
                             apartmentSearchText.includes(normalizedSearch);
       

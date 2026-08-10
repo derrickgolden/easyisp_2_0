@@ -28,6 +28,8 @@ class Kernel extends ConsoleKernel
 
         $schedule->command('isp:check-expirations')->everyMinute()->withoutOverlapping();
 
+        $schedule->command('isp:check-hotspot-expirations')->everyMinute()->withoutOverlapping();
+
         $schedule->command('license:generate-monthly-bills')->monthlyOn(28, '02:36')->withoutOverlapping();
 
         $schedule->command('license:sync-organization-statuses')->monthlyOn(5, '10:00')->withoutOverlapping();

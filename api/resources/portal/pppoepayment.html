@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>__SITE_NAME__ PPPoE Renewal</title>
+    <style>
+        :root {
+            --ink: #0b132b;
+            --sea: #1c2541;
+            --mint: #5bc0be;
+            --sand: #f4f1de;
+            --card: #ffffff;
+            --warn: #b80c09;
+            --ok: #1f7a8c;
+            --muted: #5a6270;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+            color: var(--ink);
+            background: radial-gradient(circle at 0% 0%, #d7e3fc 0%, #f8f9fa 40%, #ffffff 100%);
+            display: grid;
+            place-items: center;
+            padding: 20px;
+        }
+
+        .portal {
+            width: 100%;
+            max-width: 820px;
+            background: var(--card);
+            border-radius: 20px;
+            box-shadow: 0 14px 40px rgba(28, 37, 65, 0.16);
+            overflow: hidden;
+        }
+
+        .hero {
+            background: linear-gradient(140deg, var(--ink), var(--sea));
+            color: #fff;
+            padding: 28px 24px;
+        }
+
+        .hero h1 {
+            margin: 0 0 8px 0;
+            font-size: 1.6rem;
+            letter-spacing: 0.03em;
+        }
+
+        .hero p {
+            margin: 0;
+            color: #cfe5f7;
+            font-size: 0.95rem;
+        }
+
+        .content {
+            padding: 20px 24px 24px;
+            display: grid;
+            gap: 14px;
+        }
+
+        .status {
+            border-radius: 12px;
+            padding: 12px 14px;
+            font-size: 0.94rem;
+            border: 1px solid #dde3ea;
+            background: #f8fbff;
+        }
+
+        .status.warn {
+            border-color: #f3cdcd;
+            background: #fff5f5;
+            color: var(--warn);
+        }
+
+        .status.ok {
+            border-color: #b8e2dc;
+            background: #effcf8;
+            color: var(--ok);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 12px;
+        }
+
+        .card {
+            border: 1px solid #dfe6ee;
+            border-radius: 12px;
+            padding: 12px;
+            background: #fff;
+        }
+
+        .label {
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        .value {
+            font-size: 1rem;
+            font-weight: 700;
+            word-break: break-word;
+        }
+
+        .pay {
+            border: 1px solid #d8eced;
+            border-radius: 12px;
+            padding: 14px;
+            background: #f7ffff;
+        }
+
+        .pay h2 {
+            margin: 0 0 10px;
+            font-size: 1rem;
+            color: var(--sea);
+        }
+
+        .pay p {
+            margin: 0;
+            color: #233;
+            line-height: 1.5;
+            font-size: 0.92rem;
+        }
+
+        .copy {
+            margin-top: 10px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid #b8c8d8;
+            background: #fff;
+            font-size: 0.9rem;
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .footer {
+            color: var(--muted);
+            font-size: 0.82rem;
+            text-align: center;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+<div class="portal">
+    <div class="hero">
+        <h1>PPPoE Renewal Portal</h1>
+        <p>__SITE_NAME__ • Account renewal for expired PPPoE subscribers</p>
+    </div>
+
+    <div class="content">
+        <div id="status" class="status">Resolving your account context...</div>
+
+        <div class="grid">
+            <div class="card">
+                <div class="label">Tenant</div>
+                <div id="tenant-name" class="value">-</div>
+            </div>
+            <div class="card">
+                <div class="label">Site</div>
+                <div id="site-name" class="value">__SITE_NAME__</div>
+            </div>
+            <div class="card">
+                <div class="label">Subscriber</div>
+                <div id="subscriber-name" class="value">-</div>
+            </div>
+            <div class="card">
+                <div class="label">Status</div>
+                <div id="subscriber-status" class="value">-</div>
+            </div>
+        </div>
+
+        <div class="pay">
+            <h2>Payment Instructions</h2>
+            <p id="payment-text">Loading payment instructions...</p>
+            <button id="copy-ref" class="copy" type="button">Copy account reference</button>
+        </div>
+
+        <div class="footer">
+            If payment is successful but service is not restored, contact support and share your account reference.
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_BASE_URL = "__API_BASE_URL__";
+    const DEFAULT_SITE_ID = "__SITE_ID__";
+    const DEFAULT_NAS_IP = "__SITE_NAS_IP__";
+
+    const params = new URLSearchParams(window.location.search);
+    const clientIp = params.get("ip") || params.get("client_ip") || "";
+    const nasIp = params.get("nas_ip") || params.get("nas") || DEFAULT_NAS_IP;
+    const siteId = params.get("site_id") || params.get("site") || DEFAULT_SITE_ID;
+    const identity = params.get("identity") || "";
+    const mac = params.get("mac") || "";
+
+    const statusEl = document.getElementById("status");
+    const tenantNameEl = document.getElementById("tenant-name");
+    const siteNameEl = document.getElementById("site-name");
+    const subscriberNameEl = document.getElementById("subscriber-name");
+    const subscriberStatusEl = document.getElementById("subscriber-status");
+    const paymentTextEl = document.getElementById("payment-text");
+    const copyRefBtn = document.getElementById("copy-ref");
+
+    let accountReference = "";
+
+    async function init() {
+        if (!clientIp) {
+            setWarn("Missing client IP in redirect URL. Add ip=$(client-ip) in router redirect.");
+            paymentTextEl.textContent = "Unable to build payment context because client IP is missing.";
+            copyRefBtn.disabled = true;
+            return;
+        }
+
+        try {
+            const query = new URLSearchParams({
+                client_ip: clientIp,
+                nas_ip: nasIp,
+                site_id: siteId,
+                identity,
+                mac,
+            });
+
+            const response = await fetch(`${API_BASE_URL}/api/portal/context?${query.toString()}`);
+            const payload = await response.json();
+
+            if (!response.ok || !payload.success || !payload.data) {
+                throw new Error(payload.message || "Failed to resolve context");
+            }
+
+            const data = payload.data;
+            const tenantName = data?.tenant?.name || "Unknown Tenant";
+            const siteName = data?.site?.name || "Unknown Site";
+            const subscriberType = data?.subscriber?.type || "pppoe";
+            const radiusUsername = data?.subscriber?.radius_username || data?.session?.username || "Unknown";
+            const phone = data?.subscriber?.phone || "N/A";
+            const status = data?.subscriber?.status || "unknown";
+            const paybill = data?.payment?.gateway?.paybill || "Not configured";
+
+            tenantNameEl.textContent = tenantName;
+            siteNameEl.textContent = siteName;
+            subscriberNameEl.textContent = radiusUsername;
+            subscriberStatusEl.textContent = status.toUpperCase();
+
+            accountReference = radiusUsername !== "Unknown" ? radiusUsername : phone;
+
+            setOk(`Context resolved for ${subscriberType.toUpperCase()} account ${radiusUsername}.`);
+            paymentTextEl.textContent = `Send payment to Paybill ${paybill}. Use account reference ${accountReference}. Phone on account: ${phone}. Service should restore after payment confirmation.`;
+            copyRefBtn.disabled = false;
+        } catch (error) {
+            setWarn(error.message || "Unable to resolve portal context.");
+            paymentTextEl.textContent = "Could not auto-resolve this PPPoE account. Contact support and share your IP address.";
+            copyRefBtn.disabled = true;
+        }
+    }
+
+    function setWarn(text) {
+        statusEl.classList.remove("ok");
+        statusEl.classList.add("warn");
+        statusEl.textContent = text;
+    }
+
+    function setOk(text) {
+        statusEl.classList.remove("warn");
+        statusEl.classList.add("ok");
+        statusEl.textContent = text;
+    }
+
+    copyRefBtn.addEventListener("click", async () => {
+        if (!accountReference) {
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(accountReference);
+            const oldText = copyRefBtn.textContent;
+            copyRefBtn.textContent = `Copied: ${accountReference}`;
+            setTimeout(() => { copyRefBtn.textContent = oldText; }, 1400);
+        } catch (error) {
+            alert("Could not copy automatically. Reference: " + accountReference);
+        }
+    });
+
+    init();
+</script>
+</body>
+</html>

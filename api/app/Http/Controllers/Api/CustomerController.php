@@ -86,6 +86,11 @@ class CustomerController extends Controller
         ]);
     }
 
+    public function technicalSpecs(Request $request, $id)
+    {
+        return $this->radiusService->getTechnicalSpecs($request, $id, Customer::class);
+    }
+
     public function store(Request $request)
     {
         $orgId = $request->user()->organization_id;
@@ -131,12 +136,6 @@ class CustomerController extends Controller
 
         try {
             $customerData = $request->all();
-            if (!$request->filled('site_id')) {
-                $resolvedSiteId = $this->resolveSiteIdFromIp($customerData['ip_address'] ?? null, $orgId);
-                if ($resolvedSiteId !== null) {
-                    $customerData['site_id'] = $resolvedSiteId;
-                }
-            }
 
             // Get organization for company acronym
             $organization = \App\Models\Organization::find($request->user()->organization_id);
@@ -339,14 +338,6 @@ class CustomerController extends Controller
             if ($parent && $parent->expiry_date) {
                 $updateData['expiry_date'] = $parent->expiry_date;
                 $updateData['extension_date'] = $parent->extension_date;
-            }
-        }
-
-        if (!$request->filled('site_id')) {
-            $ipForSiteResolution = $updateData['ip_address'] ?? $customer->ip_address;
-            $resolvedSiteId = $this->resolveSiteIdFromIp($ipForSiteResolution, $customer->organization_id);
-            if ($resolvedSiteId !== null) {
-                $updateData['site_id'] = $resolvedSiteId;
             }
         }
 
@@ -662,28 +653,5 @@ class CustomerController extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
-    }
-
-    private function resolveSiteIdFromIp(?string $ipAddress, int $organizationId): ?int
-    {
-        if (!$ipAddress || !filter_var($ipAddress, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-            return null;
-        }
-
-        $ipOctets = explode('.', $ipAddress);
-        if (count($ipOctets) !== 4) {
-            return null;
-        }
-
-        $subnetPrefix = implode('.', array_slice($ipOctets, 0, 3));
-
-        $site = Site::query()
-            ->where('organization_id', $organizationId)
-            ->whereNotNull('ip_address')
-            ->whereRaw("SUBSTRING_INDEX(ip_address, '.', 3) = ?", [$subnetPrefix])
-            ->orderBy('id')
-            ->first();
-
-        return $site?->id;
     }
 }

@@ -371,7 +371,7 @@ class PaymentController extends Controller
         $payments = Payment::where('organization_id', $request->user()->organization_id)
             ->where('status', 'pending')
             ->orderByDesc('created_at')
-            ->paginate(15);
+            ->paginate(30);
 
         return PaymentResource::collection($payments);
     }
@@ -563,9 +563,11 @@ class PaymentController extends Controller
 
     public function index(Request $request)
     {
-        $payments = Payment::where('organization_id', $request->user()->organization_id)
+        $payments = Payment::with('customer')
+            ->where('organization_id', $request->user()->organization_id)
             ->orderByDesc('created_at')
             ->paginate(15);
+
         return PaymentResource::collection($payments);
     }
 

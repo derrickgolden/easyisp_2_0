@@ -4,13 +4,16 @@ namespace App\Http\Controllers\Api\Payments;
 
 use App\Http\Controllers\Controller;
 use App\Models\HotspotCustomer;
+use App\Models\HotspotPayment;
 use App\Models\Organization;
-use App\Models\Package;
+use App\Models\HotspotPackage;
 use App\Models\Site;
+use App\Services\HotspotSubscriptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Jenssegers\Agent\Agent;
 
 class DarajaHotspotController extends Controller
 {
@@ -50,14 +53,6 @@ class DarajaHotspotController extends Controller
             ], 422);
         }
 
-        Log::info('Daraja STK push initiated (hotspot)', [
-            'site_id' => $site->id,
-            'site_ip_address' => $site->ip_address,
-            'request_ip' => $request->ip(),
-            'mac' => $request->input('mac'),
-            'package_id' => $request->input('package_id'),
-        ]);
-
         $organization = Organization::find($site->organization_id);
         if (!$organization) {
             Log::error('Daraja STK (hotspot): Organization not found for site', [
@@ -70,7 +65,7 @@ class DarajaHotspotController extends Controller
             ], 422);
         }
 
-        $package = Package::query()
+        $package = HotspotPackage::query()
             ->where('id', $request->input('package_id'))
             ->where('organization_id', $organization->id)
             ->first();
@@ -135,7 +130,7 @@ class DarajaHotspotController extends Controller
         // Build the hotspot callback URL from this portal's own app URL + the org token.
         // The route is: POST /api/payments/hotspot/{token}/callback
         // $appUrl = rtrim((string) config('app.url'), '/');
-        $appUrl = 'https://74f3-102-210-173-182.ngrok-free.app';
+        $appUrl = 'https://22a9-102-210-173-182.ngrok-free.app';
         $callbackUrl = $appUrl . '/api/payments/hotspot/' . urlencode((string) $organization->mpesa_callback_token) . '/callback';
 
         $timestamp = now()->format('YmdHis');
@@ -147,8 +142,26 @@ class DarajaHotspotController extends Controller
         $mac = (string) ($request->input('mac') ?? '');
         $packageId = (string) ($request->input('package_id') ?? '');
 
-        $payment = \App\Models\HotspotPayment::create([
+        $normalizedMac = $this->normalizeMacAddress((string) ($request->input('mac') ?? ''));
+        $hotspotCustomer = null;
+        if ($normalizedMac !== null) {
+            $hotspotCustomer = $this->upsertHotspotCustomer(
+                organizationId: $organization->id,
+                siteId: $site->id,
+                phone: $normalizedPhone,
+                packageId: $package->id,
+                macAddress: $normalizedMac,
+                attributes: [
+                    'status' => 'expired',
+                    'ip_address' => (string) ($request->input('ip') ?? ''),
+                    'password' => hash('sha256', $normalizedPhone),
+                ]
+            );
+        }
+
+        $payment = HotspotPayment::create([
             'organization_id' => $organization->id,
+            'customer_id' => $hotspotCustomer?->id,
             'site_id' => $site->id,
             'package_id' => $package->id,
             'phone' => $normalizedPhone,
@@ -158,22 +171,27 @@ class DarajaHotspotController extends Controller
             'status' => 'pending',
         ]);
 
-        $normalizedMac = $this->normalizeMacAddress((string) ($request->input('mac') ?? ''));
-        if ($normalizedMac !== null) {
-            HotspotCustomer::query()->updateOrCreate(
-                [
-                    'organization_id' => $organization->id,
-                    'mac_address' => $normalizedMac,
-                ],
-                [
-                    'site_id' => $site->id,
-                    'phone_number' => $normalizedPhone,
-                    'current_package_id' => $package->id,
-                    'status' => 'expired',
-                    'last_ip_address' => (string) ($request->input('ip') ?? ''),
-                    'last_seen_at' => now(),
-                ]
-            );
+        $agent = new Agent();
+
+        // 2. Extract user device metadata
+        $device = $agent->device();           // e.g., "iPhone", "Samsung", "MacBook"
+        $platform = $agent->platform();       // e.g., "iOS", "Android", "Windows"
+        $browser = $agent->browser();
+
+        $friendlyDeviceName = $device . ' (' . $platform . ')';
+
+        Log::info('Daraja STK (hotspot) payment initiated', [
+            'device_name' => $friendlyDeviceName,
+            'browser_name' => $browser,
+            'os_platform' => $platform,
+        ]);
+
+        if ($normalizedMac !== null && $hotspotCustomer !== null) {
+            $hotspotCustomer->update([
+                'device_name' => $friendlyDeviceName,
+                'browser_name' => $browser,
+                'os_platform' => $platform,
+            ]);
         }
 
         // Encode hotspot context into the account reference so the callback can act on it.
@@ -455,7 +473,7 @@ class DarajaHotspotController extends Controller
         }
 
         // Resolve payment by callback phone (latest pending for this organization).
-        $payment = \App\Models\HotspotPayment::query()
+        $payment = HotspotPayment::query()
             ->where('organization_id', $organization->id)
             ->where('phone', $phone)
             ->where('status', 'pending')
@@ -472,18 +490,13 @@ class DarajaHotspotController extends Controller
             ], 404);
         }
 
-        $package = Package::find($payment->package_id);
+        $package = HotspotPackage::find($payment->package_id);
 
         if (!$package) {
             return response()->json([
                 'success' => false
             ], 404);
         }
-
-        $payment->update([
-            'status' => 'paid',
-            'mpesa_receipt' => $mpesaReceiptNumber,
-        ]);
 
         $macAddress = $this->normalizeMacAddress((string) ($payment->mac_address ?? ''));
         if ($macAddress === null) {
@@ -500,68 +513,6 @@ class DarajaHotspotController extends Controller
             ], 422);
         }
 
-        $username = $macAddress;
-        $password = $macAddress;
-        $radiusConnection = $this->radiusConnection();
-
-        $radiusConnection->table('radcheck')->updateOrInsert(
-            [
-                'username' => $username,
-                'attribute' => 'Cleartext-Password',
-            ],
-            [
-                'op' => ':=',
-                'value' => $password,
-                'organization_id' => $organization->id,
-                'client_type' => 'hotspot',
-            ]
-        );
-
-        $radiusConnection->table('radcheck')->updateOrInsert(
-            [
-                'username' => $username,
-                'attribute' => 'Calling-Station-Id',
-            ],
-            [
-                'op' => '==',
-                'value' => $macAddress,
-                'organization_id' => $organization->id,
-                'client_type' => 'hotspot',
-            ]
-        );
-
-        $downloadSpeed = data_get($package, 'download_speed') ?? data_get($package, 'speed_down');
-        $uploadSpeed = data_get($package, 'upload_speed') ?? data_get($package, 'speed_up');
-        $rateLimit = $this->buildMikrotikRateLimit($downloadSpeed, $uploadSpeed);
-
-        if ($rateLimit !== null) {
-            $radiusConnection->table('radreply')->updateOrInsert(
-                [
-                    'username' => $username,
-                    'attribute' => 'Mikrotik-Rate-Limit',
-                ],
-                [
-                    'op' => ':=',
-                    'value' => $rateLimit,
-                ]
-            );
-        }
-
-        $seconds = $this->resolveSessionTimeoutSeconds($package);
-
-        if ($seconds > 0) {
-            $radiusConnection->table('radreply')->updateOrInsert(
-                [
-                    'username' => $username,
-                    'attribute' => 'Session-Timeout',
-                ],
-                [
-                    'op' => ':=',
-                    'value' => (string) $seconds,
-                ]
-            );
-        }
-
         Log::info('Daraja STK (hotspot) callback payment successful', [
             'organization_id' => $organization->id,
             'amount' => $amount,
@@ -572,27 +523,43 @@ class DarajaHotspotController extends Controller
             'mac' => $payment->mac_address,
         ]);
 
-        // TODO: trigger hotspot session provisioning here (e.g. dispatch a job,
-        // call the MikroTik/NAS API, or fire an event) using $package->id and $payment->mac_address.
+        $customer = $payment->customer_id
+            ? HotspotCustomer::query()->find($payment->customer_id)
+            : null;
 
+        if (!$customer) {
+            $customer = $this->upsertHotspotCustomer(
+                organizationId: $organization->id,
+                siteId: $payment->site_id,
+                phone: $payment->phone,
+                packageId: $payment->package_id,
+                macAddress: $macAddress,
+                attributes: [
+                    'status' => 'expired',
+                    'ip_address' => (string) ($payment->ip_address ?? ''),
+                ]
+            );
+
+            $payment->update(['customer_id' => $customer->id]);
+        }
+
+        [, $seconds] = app(HotspotSubscriptionService::class)->applyActiveStatus($customer);
+        
         $payment->update([
+            'status' => 'paid',
+            'mpesa_receipt' => $mpesaReceiptNumber,
             'expires_at' => $seconds > 0 ? now()->addSeconds($seconds) : null,
         ]);
 
-        HotspotCustomer::query()->updateOrCreate(
-            [
-                'organization_id' => $organization->id,
-                'mac_address' => $macAddress,
-            ],
-            [
-                'site_id' => $payment->site_id,
-                'phone_number' => $phone,
-                'current_package_id' => $package->id,
-                'status' => 'active',
-                'last_ip_address' => (string) ($payment->ip_address ?? ''),
+        $this->upsertHotspotCustomer(
+            organizationId: $organization->id,
+            siteId: $payment->site_id,
+            phone: $payment->phone,
+            packageId: $payment->package_id,
+            macAddress: $macAddress,
+            attributes: [
                 'activated_at' => now(),
-                'expires_at' => $seconds > 0 ? now()->addSeconds($seconds) : null,
-                'last_seen_at' => now(),
+                'expiry_date' => $seconds > 0 ? now()->addSeconds($seconds) : null,
             ]
         );
 
@@ -647,45 +614,6 @@ class DarajaHotspotController extends Controller
         return DB::connection('radius');
     }
 
-    private function buildMikrotikRateLimit(mixed $downloadSpeed, mixed $uploadSpeed): ?string
-    {
-        $download = $this->normalizeRateSpeedToken($downloadSpeed);
-        $upload = $this->normalizeRateSpeedToken($uploadSpeed);
-
-        if (!$download || !$upload) {
-            return null;
-        }
-
-        return $download . '/' . $upload;
-    }
-
-    private function normalizeRateSpeedToken(mixed $speed): ?string
-    {
-        $raw = strtoupper(trim((string) ($speed ?? '')));
-        if ($raw === '') {
-            return null;
-        }
-
-        $compact = preg_replace('/\s+/', '', $raw) ?? '';
-        if ($compact === '') {
-            return null;
-        }
-
-        $compact = str_replace(['MBPS', 'MPS'], 'M', $compact);
-        $compact = str_replace(['KBPS', 'KPS'], 'K', $compact);
-        $compact = str_replace(['GBPS', 'GPS'], 'G', $compact);
-
-        if (preg_match('/^\d+(\.\d+)?$/', $compact)) {
-            return $compact . 'M';
-        }
-
-        if (preg_match('/^\d+(\.\d+)?[KMG]$/', $compact)) {
-            return $compact;
-        }
-
-        return null;
-    }
-
     private function normalizeMacAddress(string $mac): ?string
     {
         $raw = strtoupper(trim($mac));
@@ -701,31 +629,27 @@ class DarajaHotspotController extends Controller
         return implode(':', str_split($hexOnly, 2));
     }
 
-    private function resolveSessionTimeoutSeconds(Package $package): int
-    {
-        $sessionTimeout = (int) data_get($package, 'session_timeout', 0);
-        if ($sessionTimeout > 0) {
-            return $sessionTimeout;
-        }
-
-        $durationHours = (int) data_get($package, 'duration_hours', 0);
-        if ($durationHours > 0) {
-            return $durationHours * 3600;
-        }
-
-        $validity = (int) data_get($package, 'validity', 0);
-        if ($validity <= 0) {
-            return 0;
-        }
-
-        $validityType = strtolower((string) data_get($package, 'validity_type', 'days'));
-
-        return match ($validityType) {
-            'minutes' => $validity * 60,
-            'hours' => $validity * 3600,
-            'months' => $validity * 30 * 86400,
-            default => $validity * 86400,
-        };
+    private function upsertHotspotCustomer(
+        int $organizationId,
+        ?int $siteId,
+        string $phone,
+        int $packageId,
+        string $macAddress,
+        array $attributes = []
+    ): HotspotCustomer {
+        return HotspotCustomer::query()->updateOrCreate(
+            [
+                'radius_username' => $macAddress,
+            ],
+            array_merge([
+                'organization_id' => $organizationId,
+                'site_id' => $siteId,
+                'phone' => $phone,
+                'package_id' => $packageId,
+                'mac_address' => $macAddress,
+                'radius_password' => $macAddress,
+            ], $attributes)
+        );
     }
 
 }

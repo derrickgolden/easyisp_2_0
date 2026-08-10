@@ -127,3 +127,5 @@ git pull origin main
 # for supervisor(sms) to use the new code
 php artisan queue:restart
 
+# roll customers back
+php artisan migrate:rollback --path=/database/migrations/2026_06_10_000003_create_hotspot_customers_table.php

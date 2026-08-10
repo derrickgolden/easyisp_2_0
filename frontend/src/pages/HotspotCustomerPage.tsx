@@ -1,23 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Badge, Card } from '../components/UI';
-import { Package, Site } from '../types';
+import { Customer, Package, Site } from '../types';
+import { useNavigate } from 'react-router-dom';
 import { hotspotCustomersApi, hotspotPackagesApi, sitesApi } from '../services/apiService';
 import { STORAGE_KEYS } from '../constants/storage';
-
-type HotspotCustomerRecord = {
-    id: string;
-    macAddress: string;
-    phoneNumber: string;
-    status: 'active' | 'expired' | 'blacklisted';
-    siteId: string;
-    siteName: string;
-    packageId: string;
-    packageName: string;
-    lastIpAddress: string;
-    activatedAt?: string | null;
-    expiresAt?: string | null;
-    lastSeenAt?: string | null;
-};
+import TableScrollModal from '../components/modals/TableScrollModal';
+import { usePermissions } from '../hooks/usePermissions';
+import { HotspotCustomerModal } from '../components/modals/HotspotCustomerModal';
 
 const formatDateTime = (value?: string | null) => {
     if (!value) return '-';
@@ -27,55 +16,103 @@ const formatDateTime = (value?: string | null) => {
 };
 
 export const HotspotCustomersPage: React.FC = () => {
+    const navigate = useNavigate();
     const [showFilters, setShowFilters] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [isPolling, setIsPolling] = useState(false);
+    const didInitialCustomerLoad = useRef(false);
+    const { can } = usePermissions();
 
     const [filters, setFilters] = useState(() => ({
         siteFilter: '',
         statusFilter: '',
+        connectivityFilter: '',
         packageFilter: '',
         searchTerm: '',
     }));
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
 
-    const [customers, setCustomers] = useState<HotspotCustomerRecord[]>([]);
+    const [customers, setCustomers] = useState<Customer[]>([]);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalCustomers, setTotalCustomers] = useState(0);
+    const [stats, setStats] = useState({
+        total: 0,
+        active: 0,
+        online: 0,
+        expired: 0,
+    });
     const [sites, setSites] = useState<Site[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.SITES) || '[]'));
     const [hotspotPackages, setHotspotPackages] = useState<Package[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.HOTSPOT_PACKAGES) || '[]'));
+    const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+    const [editingHotspotCustomer, setEditingHotspotCustomer] = useState< Partial<Customer> | null>(null);
 
     useEffect(() => {
-        fetchHotspotCustomers();
         fetchSites();
         fetchHotspotPackages();
     }, []);
 
     useEffect(() => {
-        setCurrentPage(1);
-    }, [filters]);
+        const timer = setTimeout(() => {
+            setDebouncedSearchTerm(filters.searchTerm);
+        }, 350);
+
+        return () => clearTimeout(timer);
+    }, [filters.searchTerm]);
+
+    useEffect(() => {
+        if (currentPage !== 1) {
+            setCurrentPage(1);
+            return;
+        }
+
+        fetchHotspotCustomers();
+    }, [filters.siteFilter, filters.statusFilter, filters.connectivityFilter, filters.packageFilter, debouncedSearchTerm, rowsPerPage]);
+
+    useEffect(() => {
+        if (!didInitialCustomerLoad.current) {
+            didInitialCustomerLoad.current = true;
+            return;
+        }
+
+        fetchHotspotCustomers();
+    }, [currentPage]);
+
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [currentPage, totalPages]);
 
     const fetchHotspotCustomers = async () => {
         try {
             setIsPolling(true);
-            const response = await hotspotCustomersApi.getAll(1, 300);
-            const raw = Array.isArray(response?.data) ? response.data : [];
+            const response = await hotspotCustomersApi.getAll({
+                page: currentPage,
+                perPage: rowsPerPage,
+                search: debouncedSearchTerm,
+                status: filters.statusFilter,
+                onlineStatus: filters.connectivityFilter,
+                siteId: filters.siteFilter,
+                packageId: filters.packageFilter,
+            });
 
-            const records: HotspotCustomerRecord[] = raw.map((item: any) => ({
-                id: String(item.id),
-                macAddress: String(item.mac_address || ''),
-                phoneNumber: String(item.phone_number || ''),
-                status: item.status || 'expired',
-                siteId: String(item.site_id || ''),
-                siteName: String(item.site?.name || ''),
-                packageId: String(item.current_package_id || ''),
-                packageName: String(item.current_package?.name || ''),
-                lastIpAddress: String(item.last_ip_address || ''),
-                activatedAt: item.activated_at,
-                expiresAt: item.expires_at,
-                lastSeenAt: item.last_seen_at,
-            }));
+            const list = Array.isArray(response?.data) ? response.data : [];
+            const apiTotalPages = Number(response?.meta?.last_page || 1);
+            const apiTotal = Number(response?.meta?.total || 0);
+            const apiStats = response?.stats || {};
 
-            setCustomers(records);
-            localStorage.setItem(STORAGE_KEYS.HOTSPOT_CUSTOMERS, JSON.stringify(records));
+            setCustomers(list);
+            setTotalPages(apiTotalPages > 0 ? apiTotalPages : 1);
+            setTotalCustomers(apiTotal >= 0 ? apiTotal : 0);
+            setStats({
+                total: Number(apiStats.total || 0),
+                active: Number(apiStats.active || 0),
+                online: Number(apiStats.online || 0),
+                expired: Number(apiStats.expired || 0),
+            });
+
+            localStorage.setItem(STORAGE_KEYS.HOTSPOT_CUSTOMERS, JSON.stringify(list));
         } catch (error) {
             console.error('Error fetching hotspot customers:', error);
         } finally {
@@ -105,49 +142,22 @@ export const HotspotCustomersPage: React.FC = () => {
         }
     };
 
-    const stats = useMemo(() => {
-        const total = customers.length;
-        const active = customers.filter(c => c.status === 'active').length;
-        const expired = customers.filter(c => c.status === 'expired').length;
-        const blacklisted = customers.filter(c => c.status === 'blacklisted').length;
-        return { total, active, expired, blacklisted };
-    }, [customers]);
-
-    const filteredCustomers = useMemo(() => {
-        return customers.filter(customer => {
-            const fullText = [
-                customer.macAddress,
-                customer.phoneNumber,
-                customer.packageName,
-                customer.siteName,
-                customer.lastIpAddress,
-            ].join(' ').toLowerCase();
-
-            const matchesSearch = fullText.includes(filters.searchTerm.toLowerCase());
-            const matchesStatus = !filters.statusFilter || customer.status === filters.statusFilter;
-            const matchesSite = !filters.siteFilter || customer.siteId === filters.siteFilter;
-            const matchesPackage = !filters.packageFilter || customer.packageId === filters.packageFilter;
-
-            return matchesSearch && matchesStatus && matchesSite && matchesPackage;
-        });
-    }, [customers, filters]);
-
-    const paginatedData = useMemo(() => {
-        const start = (currentPage - 1) * rowsPerPage;
-        return filteredCustomers.slice(start, start + rowsPerPage);
-    }, [filteredCustomers, currentPage, rowsPerPage]);
-
-    const totalPages = Math.max(1, Math.ceil(filteredCustomers.length / rowsPerPage));
-    const activeFilterCount = [filters.siteFilter, filters.statusFilter, filters.packageFilter].filter(Boolean).length;
+    const activeFilterCount = [filters.siteFilter, filters.statusFilter, filters.connectivityFilter, filters.packageFilter].filter(Boolean).length;
 
     const resetFilters = () => {
         setFilters({
             siteFilter: '',
             statusFilter: '',
+            connectivityFilter: '',
             packageFilter: '',
             searchTerm: '',
         });
     };
+
+    const onAdd=() => { 
+        // setEditingCustomer({ connectionType: 'PPPoE', installationFee: 0 }); 
+        setIsCustomerModalOpen(true); 
+    }
 
     return (
         <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
@@ -163,14 +173,15 @@ export const HotspotCustomersPage: React.FC = () => {
                 </div>
 
                 <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] border border-gray-100 dark:border-slate-800 shadow-sm">
+                    <p className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-widest text-center mb-2">Online Users</p>
+                    <p className="text-3xl font-black text-center text-emerald-600 dark:text-emerald-400 leading-none">{stats.online}</p>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] border border-gray-100 dark:border-slate-800 shadow-sm">
                     <p className="text-[10px] font-black uppercase text-red-500 tracking-widest text-center mb-2">Expired Users</p>
                     <p className="text-3xl font-black text-center text-red-600 dark:text-red-400 leading-none">{stats.expired}</p>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] border border-gray-100 dark:border-slate-800 shadow-sm">
-                    <p className="text-[10px] font-black uppercase text-gray-500 tracking-widest text-center mb-2">Blacklisted</p>
-                    <p className="text-3xl font-black text-center text-gray-700 dark:text-gray-300 leading-none">{stats.blacklisted}</p>
-                </div>
             </div>
 
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-1">
@@ -179,27 +190,44 @@ export const HotspotCustomersPage: React.FC = () => {
                     <p className="text-sm text-slate-500 font-medium">Live hotspot sessions and subscription lifecycle state.</p>
                 </div>
 
-                <button
-                    type="button"
-                    onClick={() => setShowFilters(!showFilters)}
-                    className={`relative px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 border ${
-                        showFilters || activeFilterCount > 0
-                            ? 'bg-yellow-600 border-yellow-600 text-white shadow-md shadow-yellow-500/20'
-                            : 'bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-800 text-slate-600 hover:border-yellow-400'
-                    }`}
-                >
-                    Filters
-                    {activeFilterCount > 0 && (
-                        <span className={`flex items-center justify-center w-5 h-5 text-[10px] rounded-full ${showFilters ? 'bg-white text-yellow-600' : 'bg-yellow-600 text-white'}`}>
-                            {activeFilterCount}
-                        </span>
-                    )}
-                </button>
+                <div className="flex items-center gap-2 justify-end">
+                    <button
+                        type="button"
+                        onClick={() => setShowFilters(!showFilters)}
+                        className={`relative px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 border text-center ${
+                            showFilters || activeFilterCount > 0
+                                ? 'bg-yellow-600 border-yellow-600 text-white shadow-md shadow-yellow-500/20'
+                                : 'bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-800 text-slate-600 hover:border-yellow-400'
+                        }`}
+                    >
+                        <span>Filters</span>
+                        {activeFilterCount > 0 && (
+                            <span className={`flex items-center justify-center w-5 h-5 text-[10px] rounded-full ${showFilters ? 'bg-white text-yellow-600' : 'bg-yellow-600 text-white'}`}>
+                                {activeFilterCount}
+                            </span>
+                        )}
+                    </button>
+
+                    {
+                        can('create-customers') && (
+                        <button 
+                            type="button"
+                            onClick={onAdd}
+                            className="bg-blue-600 hover:bg-blue-700 justify-self-end active:scale-95 text-white px-5 py-2.5 rounded-xl text-sm font-black shadow-lg shadow-blue-500/25 transition-all flex items-center gap-2"
+                        >
+                            <div className="bg-white/20 rounded-lg p-0.5">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                            </div>
+                            Create Voucher
+                        </button>
+                        )
+                    }
+                </div>
             </div>
 
             {showFilters && (
                 <Card title="Advanced Parameters" className="animate-in slide-in-from-top-4 duration-300 border-none shadow-xl bg-gray-50/50 dark:bg-slate-900/50">
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                         <div className="space-y-1">
                             <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Network Site</label>
                             <select
@@ -242,6 +270,19 @@ export const HotspotCustomersPage: React.FC = () => {
                             </select>
                         </div>
 
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Live Connectivity</label>
+                            <select
+                                value={filters.connectivityFilter}
+                                onChange={e => setFilters(prev => ({ ...prev, connectivityFilter: e.target.value }))}
+                                className="w-full bg-white dark:bg-slate-800 border-none rounded-xl text-xs p-2.5 focus:ring-2 focus:ring-yellow-500 text-gray-900 dark:text-white appearance-none font-bold"
+                            >
+                                <option value="">All Sessions</option>
+                                <option value="online">Online</option>
+                                <option value="offline">Offline</option>
+                            </select>
+                        </div>
+
                         <div className="flex items-end">
                             <button
                                 onClick={resetFilters}
@@ -268,7 +309,7 @@ export const HotspotCustomersPage: React.FC = () => {
                             className="w-full pl-10 pr-4 py-2.5 bg-gray-200 dark:bg-slate-700 border border-gray-500 dark:border-transparent rounded-xl text-sm focus:border-none focus:ring-2 focus:ring-yellow-500 transition-all text-gray-900 dark:text-white"
                         />
                     </div>
-                    <p className="text-xs text-gray-400 italic">Showing {filteredCustomers.length} of {customers.length} subscribers</p>
+                    <p className="text-xs text-gray-400 italic">Showing {customers.length} of {totalCustomers} subscribers</p>
                 </div>
 
                 <div className="overflow-x-auto -mx-6">
@@ -277,45 +318,56 @@ export const HotspotCustomersPage: React.FC = () => {
                             <tr>
                                 <th className="pb-3 px-6">Device / Contact</th>
                                 <th className="pb-3 px-6">Status</th>
+                                <th className="pb-3 px-6">Connectivity</th>
                                 <th className="pb-3 px-6">Site</th>
                                 <th className="pb-3 px-6">Package</th>
-                                <th className="pb-3 px-6">Network</th>
                                 <th className="pb-3 px-6">Activated</th>
                                 <th className="pb-3 px-6">Expires</th>
-                                <th className="pb-3 px-6">Last Seen</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y dark:divide-slate-800">
-                            {paginatedData.length > 0 ? paginatedData.map((customer, index) => (
+                            {customers.length > 0 ? customers.map((customer, index) => (
                                 <tr
+                                    onClick={() => navigate(`/crm/hotspot-customers/${customer.id}`)}
                                     key={customer.id}
-                                    className={`hover:bg-gray-100 dark:hover:bg-slate-800/40 transition-all ${index % 2 === 0 ? 'bg-gray-50 dark:bg-slate-800/20' : 'bg-white dark:bg-slate-900'}`}
+                                    className={`hover:bg-gray-100 dark:hover:bg-slate-800/40 transition-all cursor-pointer ${index % 2 === 0 ? 'bg-gray-50 dark:bg-slate-800/20' : 'bg-white dark:bg-slate-900'}`}
                                 >
                                     <td className="py-4 px-6">
                                         <div>
-                                            <p className="font-mono text-xs font-bold text-gray-900 dark:text-white">{customer.macAddress || '-'}</p>
-                                            <p className="text-[10px] text-gray-400">{customer.phoneNumber || 'No phone'}</p>
+                                            <p className="font-mono text-xs font-bold text-gray-900 dark:text-white">
+                                                {[customer?.firstName, customer?.lastName].filter(Boolean).join(' ') || customer.hostName || customer.macAddress || '-'}
+                                            </p>
+                                            <p className="text-[10px] text-gray-400">{customer.phone || 'No phone'}</p>
                                         </div>
                                     </td>
                                     <td className="py-4 px-6">
                                         <Badge variant={customer.status}>{customer.status.toUpperCase()}</Badge>
                                     </td>
-                                    <td className="py-4 px-6 text-xs text-gray-700 dark:text-gray-300">{customer.siteName || '-'}</td>
-                                    <td className="py-4 px-6 text-xs text-gray-700 dark:text-gray-300">{customer.packageName || '-'}</td>
+                                    {/* <td className="py-4 px-6">
+                                        <Badge variant={customer.isOnline ? 'online' : 'offline'}>
+                                            {(customer.onlineStatus || (customer.isOnline ? 'online' : 'offline')).toUpperCase()}
+                                        </Badge>
+                                    </td> */}
                                     <td className="py-4 px-6">
-                                        <div>
-                                            <p className="font-mono text-xs text-gray-700 dark:text-gray-300">{customer.lastIpAddress || '-'}</p>
+                                        <div className="flex flex-col">
+                                            { customer.isOnline ? (
+                                            <span className="text-[10px] text-green-500 font-bold flex items-center gap-1">
+                                                <span className="w-1 h-1 bg-green-500 rounded-full animate-pulse"></span>
+                                                Online
+                                            </span>
+                                            ) : (
+                                            <span className="text-[10px] text-red-400 font-medium italic">Offline</span>
+                                            )}
                                         </div>
                                     </td>
+                                    <td className="py-4 px-6 text-xs text-gray-700 dark:text-gray-300">{customer?.site?.name || '-'}</td>
+                                    <td className="py-4 px-6 text-xs text-gray-700 dark:text-gray-300">{customer?.package?.name || '-'}</td>
                                     <td className="py-4 px-6 text-xs text-gray-500">{formatDateTime(customer.activatedAt)}</td>
-                                    <td className="py-4 px-6 text-xs text-gray-500">{formatDateTime(customer.expiresAt)}</td>
-                                    <td className="py-4 px-6 text-xs text-gray-500">
-                                        {isPolling ? 'Refreshing...' : formatDateTime(customer.lastSeenAt)}
-                                    </td>
+                                    <td className="py-4 px-6 text-xs text-gray-500">{formatDateTime(customer.expiryDate)}</td>
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan={8} className="py-16 text-center text-gray-400 italic">
+                                    <td colSpan={9} className="py-16 text-center text-gray-400 italic">
                                         No hotspot customers found.
                                     </td>
                                 </tr>
@@ -324,39 +376,23 @@ export const HotspotCustomersPage: React.FC = () => {
                     </table>
                 </div>
 
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 pt-4 border-t border-gray-100 dark:border-slate-800">
-                    <p className="text-xs text-gray-400">Page {currentPage} of {totalPages}</p>
-                    <div className="flex items-center gap-2">
-                        <select
-                            value={rowsPerPage}
-                            onChange={(e) => {
-                                setRowsPerPage(Number(e.target.value));
-                                setCurrentPage(1);
-                            }}
-                            className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-xs p-2 text-gray-900 dark:text-white"
-                        >
-                            {[10, 20, 50].map(size => <option key={size} value={size}>{size}/page</option>)}
-                        </select>
-
-                        <button
-                            type="button"
-                            disabled={currentPage <= 1}
-                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                            className="px-3 py-2 text-xs font-bold rounded-lg border border-gray-200 dark:border-slate-700 disabled:opacity-40"
-                        >
-                            Prev
-                        </button>
-                        <button
-                            type="button"
-                            disabled={currentPage >= totalPages}
-                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                            className="px-3 py-2 text-xs font-bold rounded-lg border border-gray-200 dark:border-slate-700 disabled:opacity-40"
-                        >
-                            Next
-                        </button>
-                    </div>
-                </div>
+                <TableScrollModal 
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                    totalPages={totalPages}
+                    rowsPerPage={rowsPerPage}
+                    setRowsPerPage={setRowsPerPage}
+                />
             </Card>
+
+            <HotspotCustomerModal
+                isOpen={isCustomerModalOpen}
+                onClose={() => setIsCustomerModalOpen(false)}
+                setIsCustomerModalOpen={setIsCustomerModalOpen}
+                editingHotspotCustomer={editingHotspotCustomer}
+                setEditingHotspotCustomer={setEditingHotspotCustomer}
+                customers={ customers}
+            />
         </div>
     );
 };

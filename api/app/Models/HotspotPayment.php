@@ -13,6 +13,7 @@ class HotspotPayment extends Model
 
     protected $fillable = [
         'organization_id',
+        'customer_id',
         'site_id',
         'package_id',
         'phone',
@@ -39,6 +40,11 @@ class HotspotPayment extends Model
     public function site()
     {
         return $this->belongsTo(Site::class);
+    }
+
+    public function customer()
+    {
+        return $this->belongsTo(HotspotCustomer::class, 'customer_id');
     }
 
     public function package()

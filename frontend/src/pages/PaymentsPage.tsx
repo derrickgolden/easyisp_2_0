@@ -9,7 +9,7 @@ export const formatPhone = (value: string | null | undefined): string => {
 };
 
 export const PaymentsPage = () => {
-    const [showPaymentList, setShowPaymentList] = useState<'pppoe' | 'hotspot'>('pppoe');
+    const [showPaymentList, setShowPaymentList] = useState(()=>localStorage.getItem('easy-tech-connectionType') || 'pppoe');
 
     return (
         <div className=" animate-in slide-in-from-bottom-4 duration-500 pb-20">
@@ -17,7 +17,7 @@ export const PaymentsPage = () => {
             <div className="mb-3 inline-flex gap-2 rounded-xl border border-gray-200 dark:border-slate-700 p-1 bg-white dark:bg-slate-900">
                 <button
                 type="button"
-                onClick={() => setShowPaymentList('pppoe')}
+                onClick={() => {setShowPaymentList('pppoe'); localStorage.setItem('easy-tech-connectionType', 'pppoe');}}
                 className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
                     showPaymentList === 'pppoe'
                     ? 'bg-blue-600 text-white shadow'
@@ -28,7 +28,7 @@ export const PaymentsPage = () => {
                 </button>
                 <button
                 type="button"
-                onClick={() => setShowPaymentList('hotspot')}
+                onClick={() => {setShowPaymentList('hotspot'); localStorage.setItem('easy-tech-connectionType', 'hotspot');}}
                 className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
                     showPaymentList === 'hotspot'
                     ? 'bg-yellow-600 text-white shadow'

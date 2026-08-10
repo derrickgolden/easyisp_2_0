@@ -16,7 +16,8 @@ export const PackagesPage: React.FC = () => {
   const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [showPackageList, setShowPackageList] = useState<'pppoe' | 'hotspot'>('pppoe');
+  const [showPackageList, setShowPackageList] = useState(() => localStorage.getItem('easy-tech-connectionType') || 'pppoe');
+  const [theme, setTheme] = useState(() => localStorage.getItem('easy-tech-theme') || 'light');
   const { can } = usePermissions();
   const displayedPackages = showPackageList === 'hotspot' ? hotspotPackages : packages;
 
@@ -24,10 +25,6 @@ export const PackagesPage: React.FC = () => {
     fetchPackages();
     fetchHotspotPackages();
   }, []);
-
-  const getPackageStatus = (pkg: any): 'pppoe' | 'hotspot' => {
-    return pkg?.status === 'hotspot' ? 'hotspot' : 'pppoe';
-  };
 
   const getValidityLabel = (validity: number, validityType: Package['validity_type']) => {
     if (validityType === 'months') return validity === 1 ? 'Month' : 'Months';
@@ -39,8 +36,7 @@ export const PackagesPage: React.FC = () => {
   const fetchPackages = async () => {
     try {
       const res = await packagesApi.getAll();
-      const rawList = Array.isArray(res) ? res : (res.data || []);
-      const packagesList = rawList.filter((pkg: any) => getPackageStatus(pkg) === 'pppoe');
+      const packagesList = Array.isArray(res) ? res : (res.data || []);
       localStorage.setItem(STORAGE_KEYS.PACKAGES, JSON.stringify(packagesList));
       setPackages(packagesList);
     } catch (error) {
@@ -51,8 +47,7 @@ export const PackagesPage: React.FC = () => {
   const fetchHotspotPackages = async () => {
     try {
       const res = await hotspotPackagesApi.getAll();
-      const rawList = Array.isArray(res) ? res : (res.data || []);
-      const packagesList = rawList.filter((pkg: any) => getPackageStatus(pkg) === 'hotspot');
+      const packagesList = Array.isArray(res) ? res : (res.data || []);
       localStorage.setItem(STORAGE_KEYS.HOTSPOT_PACKAGES, JSON.stringify(packagesList));
       setHotspotPackages(packagesList);
     } catch (error) {
@@ -158,7 +153,7 @@ export const PackagesPage: React.FC = () => {
           <div className="mt-3 inline-flex gap-2 rounded-xl border border-gray-200 dark:border-slate-700 p-1 bg-white dark:bg-slate-900">
             <button
               type="button"
-              onClick={() => setShowPackageList('pppoe')}
+              onClick={() => {setShowPackageList('pppoe'); localStorage.setItem('easy-tech-connectionType', 'pppoe')}}
               className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
                 showPackageList === 'pppoe'
                   ? 'bg-blue-600 text-white shadow'
@@ -169,7 +164,7 @@ export const PackagesPage: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => setShowPackageList('hotspot')}
+              onClick={() => {setShowPackageList('hotspot'); localStorage.setItem('easy-tech-connectionType', 'hotspot')}}
               className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
                 showPackageList === 'hotspot'
                   ? 'bg-yellow-600 text-white shadow'

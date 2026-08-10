@@ -7,6 +7,9 @@ import { toast } from 'sonner';
 const WIREGUARD_PUBLIC_KEY = import.meta.env.VITE_WIREGUARD_PUBLIC_KEY;
 const WIREGUARD_ALLOWED_ADDRESS = import.meta.env.VITE_WIREGUARD_ALLOWED_ADDRESS;
 const WIREGUARD_ENDPOINT_ADDRESS = import.meta.env.VITE_WIREGUARD_ENDPOINT_ADDRESS;
+const SERVER_IP_ADDRESS = import.meta.env.VITE_SERVER_IP_ADDRESS;
+const RADIUS_SECRET = import.meta.env.VITE_RADIUS_SECRET;
+const DST_HOST = import.meta.env.VITE_DST_HOST;
 
 interface SiteProvisionModalProps {
   isOpen: boolean;
@@ -360,95 +363,288 @@ interface ConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
   selectedSite: Site | null;
-  onCopy: () => void;
 }
 
-export const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, onClose, selectedSite, onCopy }) => (
-  <Modal isOpen={isOpen} onClose={onClose} title="MikroTik CLI Environment" maxWidth="max-w-3xl">
-    <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800">
-      <pre className="text-green-400 font-mono text-[11px] overflow-x-auto leading-relaxed">
-        {`# EasyTech Auto-Provision Script
-# TARGET: ${selectedSite?.name}
+export const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, onClose, selectedSite }) => {
+  const [showConfigType, setShowConfigType] = useState(() => localStorage.getItem('easy-tech-connectionType') || 'pppoe');
 
-# IP Pools
-/ip pool
-add name=expired_pool ranges=10.0.0.100-10.0.0.200
-add name=pppoe-pool ranges=10.254.0.10-10.254.0.250
+  // 1. Define your raw HTML content as a string
+  const downloadHotspotHtml = async () => {
+    if (!selectedSite) return;
+    
+    try {
+      const blob = await sitesApi.downloadHotspotHtml(selectedSite.id);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `login-${selectedSite.name.toLowerCase().replace(/\s+/g, '-')}.html`);
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up memory
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.success('Hotspot template downloaded successfully');
+    } catch (error) {
+      toast.error('Failed to download hotspot template from server');
+    }
+  };
 
-# PPP Profiles
-/ppp profile
-add local-address=10.0.0.1 name=Expired_Redirect remote-address=expired_pool
-add dns-server=8.8.8.8,1.1.1.1 local-address=10.254.0.1 name=pppoe-profile \\
-    remote-address=pppoe-pool
+        
 
-# DNS Configuration
-/ip dns set servers=8.8.8.8,1.1.1.1 allow-remote-requests=no
+  const onCopy = () => {};
 
-# PPPoe Server Configuration
-# 1. Create the Bridge if not already created.
-/interface bridge add name=bridge-pppoe
+  return(
+    <Modal isOpen={isOpen} onClose={onClose} title="MikroTik CLI Environment" maxWidth="max-w-3xl">
+      <div className="flex flex-wrap gap-2 mb-4">
+        <button className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded" 
+        onClick={() => setShowConfigType('pppoe')}>
+          PPPoE
+        </button>
+        <button className="bg-yellow-500 hover:bg-yellow-600 text-white py-2 px-4 rounded" 
+        onClick={() => setShowConfigType('hotspot')}>
+          Hotspot
+        </button>
+        {
+          showConfigType === 'hotspot' && (
+            <>
+              <button className="bg-purple-500 hover:bg-purple-600 text-white py-2 px-4 rounded" 
+              onClick={downloadHotspotHtml}>
+                Download Hotspot HTML
+              </button>
+              <button className="bg-purple-500 hover:bg-purple-600 text-white py-2 px-4 rounded" 
+              onClick={() => setShowConfigType('hotspot_script')}>
+                Hotspot Script
+              </button>     
+            </>
+          )
+        }
+      </div>
 
-# 2. Add all the ports you want to serve customers on
-/interface bridge port
-add bridge=bridge-pppoe interface=ether3
+      {
+        showConfigType === 'pppoe' && (
+          <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800">
+            <pre className="text-green-400 font-mono text-[11px] overflow-x-auto leading-relaxed">
+              {`# EasyTech Auto-Provision Script for PPPoE
+      # TARGET: ${selectedSite?.name}
 
-# 3. Point the PPPoE Server to the BRIDGE
-/interface pppoe-server server
-add default-profile=pppoe-profile disabled=no interface=bridge-pppoe \
-    one-session-per-host=yes service-name=pppoe-server
+      # IP Pools
+      /ip pool
+      add name=expired_pool ranges=10.0.0.100-10.0.0.200
+      add name=pppoe-pool ranges=10.254.0.10-10.254.0.250
 
-# RADIUS Configuration
-/ppp aaa set use-radius=yes
-/ppp aaa set interim-update=2m
-/radius add address=10.30.30.1 service=ppp,login,hotspot secret=p5D031tEhfRNXBwm
-/radius incoming set accept=yes
+      # PPP Profiles
+      /ppp profile
+      add local-address=10.0.0.1 name=Expired_Redirect remote-address=expired_pool dns-server=10.0.0.1
+      add dns-server=8.8.8.8,1.1.1.1 local-address=10.254.0.1 name=pppoe-profile remote-address=pppoe-pool
 
-# WireGuard Configuration
-/interface wireguard add name=wg-client listen-port=13231
-/interface wireguard peers add interface=wg-client public-key="${WIREGUARD_PUBLIC_KEY}" \
-endpoint-address=${WIREGUARD_ENDPOINT_ADDRESS} endpoint-port=51820 allowed-address=${WIREGUARD_ALLOWED_ADDRESS} persistent-keepalive=25s
+      # DNS Configuration
+      /ip dns set servers=8.8.8.8,1.1.1.1 allow-remote-requests=no
 
-# WireGuard IP Address Configuration
-/ip address add address=${selectedSite?.ip_address}/24 interface=wg-client \
-comment="Wireguard Primary Gateway IP for ${selectedSite?.name}"
+      # PPPoe Server Configuration
+      # 1. Create the Bridge if not already created.
+      /interface bridge add name=bridge-pppoe
 
-# Firewall Rules
-# Allow RADIUS and COA from the WireGuard Tunnel only
-/ip firewall filter
-add action=accept chain=input src-address=10.30.30.1 protocol=udp dst-port=1812,1813 \
-comment="Allow RADIUS Auth/Acct" place-before=0
-add action=accept chain=input src-address=10.30.30.1 protocol=udp dst-port=3799 \
-comment="Allow RADIUS COA (Disconnect)" place-before=0
+      # 2. Add all the ports you want to serve customers on
+      /interface bridge port
+      add bridge=bridge-pppoe interface=ether3
 
-# API configuration
-/ip service enable api
-# Bind API to the WireGuard interface for secure access from EasyTech platform
-/ip service set api address=10.30.30.0/24
-# restrict API access to the WireGuard tunnel for security
-/ip firewall filter
-add chain=input protocol=tcp dst-port=8728 src-address=10.30.30.0/24 action=accept comment="Allow API from WireGuard" place-before=0
-add chain=input protocol=tcp dst-port=8728 action=drop comment="Drop API from others"
-#create api user with strong password
-/user add name=apiuser password=hjdTY162JGFkas group=full
+      # 3. Point the PPPoE Server to the BRIDGE
+      /interface pppoe-server server
+      add default-profile=pppoe-profile disabled=no interface=bridge-pppoe \
+          one-session-per-host=yes service-name=pppoe-server
 
-# System Clock
-/system clock set time-zone-name=Africa/Nairobi
+      # RADIUS Configuration
+      /ppp aaa set use-radius=yes
+      /ppp aaa set interim-update=2m
+      /radius add address=${SERVER_IP_ADDRESS} service=ppp,login secret=${RADIUS_SECRET}
+      /radius incoming set accept=yes
 
-# Other common configurations can be added here as needed
-/ip firewall address-list add list=POOLED address=10.254.0.0/24 comment="PPPoE Pool Address List for EasyTech"
+      # WireGuard Configuration
+      /interface wireguard add name=wg-client listen-port=13231
+      /interface wireguard peers add interface=wg-client public-key="${WIREGUARD_PUBLIC_KEY}" \
+      endpoint-address=${WIREGUARD_ENDPOINT_ADDRESS} endpoint-port=51820 allowed-address=${WIREGUARD_ALLOWED_ADDRESS} persistent-keepalive=25s
 
-/ip firewall filter disable [find action=fasttrack-connection]
+      # WireGuard IP Address Configuration
+      /ip address add address=${selectedSite?.ip_address}/24 interface=wg-client \
+      comment="Wireguard Primary Gateway IP for ${selectedSite?.name}"
 
-# HOTSPOT CONFIGURATION
-# If you want to enable Hotspot for the site, you can add the following configuration
-/ip hotspot setup
+      # Firewall Rules
+      # Allow RADIUS and COA from the WireGuard Tunnel only
+      /ip firewall filter
+      add action=accept chain=input src-address=${SERVER_IP_ADDRESS} protocol=udp dst-port=1812,1813 \
+      comment="Allow RADIUS Auth/Acct" place-before=0
+      add action=accept chain=input src-address=${SERVER_IP_ADDRESS} protocol=udp dst-port=3799 \
+      comment="Allow RADIUS COA (Disconnect)" place-before=0
 
-# Note: This script is auto-generated by EasyTech. Please review and modify as necessary before applying to your MikroTik device.`}
+      # API configuration
+      /ip service enable api
+      # Bind API to the WireGuard interface for secure access from EasyTech platform
+      /ip service set api address=10.30.30.0/24
+      # restrict API access to the WireGuard tunnel for security
+      /ip firewall filter
+      add chain=input protocol=tcp dst-port=8728,8291 src-address=10.30.30.0/24 action=accept comment="Allow EasyTech API from WireGuard" place-before=0
+      add chain=input protocol=tcp dst-port=8728,8291 action=drop comment="Drop API from others not from EasyTech WireGuard"
+      #create api user with strong password
+      /user add name=apiuser password=hjdTY162JGFkas group=full
 
-      </pre>
-    </div>
-    <button onClick={onCopy} className="w-full mt-4 py-2 border border-gray-200 dark:border-slate-700 text-xs font-bold rounded-xl dark:text-gray-300">
-      Copy Script to Clipboard
-    </button>
-  </Modal>
-);
+      ###############################################################################
+      # CONSOLIDATED EXPIRED PPPOE CAPTIVE PORTAL REDIRECT RULES
+      # Compatible with RouterOS v7.x
+      ###############################################################################
+
+      /ip firewall filter
+      add chain=forward action=accept src-address=10.0.0.0/24 dst-address=10.20.20.1 protocol=tcp dst-port=80 comment="Expired users -> Aqua HTTP"
+      add chain=forward action=accept src-address=10.0.0.0/24 dst-address=10.20.20.1 protocol=tcp dst-port=443 comment="Expired users -> Aqua HTTPS"
+
+      /ip firewall filter
+      add chain=forward src-address=10.0.0.0/24 dst-address=10.20.20.1 action=accept comment="Expired users -> Caddy"
+
+      /ip firewall filter 
+      add chain=forward src-address=10.0.0.0/24 protocol=udp  dst-port=53  action=accept  comment="Expired users -> DNS UDP"
+
+      /ip firewall filter 
+      add chain=forward src-address=10.0.0.0/24 protocol=tcp  dst-port=53  action=accept  comment="Expired users -> DNS TCP"
+
+      /ip firewall filter
+      add chain=input action=accept src-address=10.0.0.0/24 protocol=udp dst-port=53 comment="Expired users -> Router DNS UDP"
+      add chain=input action=accept src-address=10.0.0.0/24 protocol=tcp dst-port=53 comment="Expired users -> Router DNS TCP"
+
+      /ip firewall filter
+      add chain=forward src-address=10.0.0.0/24 action=drop comment="Block Internet for expired users"
+
+      /interface wireguard peers
+      set [find name="peer1"] allowed-address=10.20.20.0/24,10.0.0.0/24
+
+      /ppp profile
+      set [find name="Expired_Redirect"] dns-server=10.0.0.1
+
+      /ip dns static
+      add name=aqua.easytech.africa address=10.20.20.1
+      
+      
+      # System Clock
+      /system clock set time-zone-name=Africa/Nairobi
+
+      # Other common configurations can be added here as needed
+      /ip firewall address-list add list=POOLED address=10.254.0.0/24 comment="PPPoE Pool Address List for EasyTech"
+
+      /ip firewall filter disable [find action=fasttrack-connection]
+
+      # Note: This script is auto-generated by EasyTech. Please review and modify as necessary before applying to your MikroTik device.`}
+
+            </pre>
+          </div>
+        )
+      }
+      {
+        showConfigType === 'hotspot' && (
+          <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800">
+            <pre className="text-green-400 font-mono text-[11px] overflow-x-auto leading-relaxed">
+              {`# EasyTech Auto-Provision Script for Hotspot
+      # TARGET: ${selectedSite?.name}
+
+      # DNS Configuration
+      /ip dns set servers=8.8.8.8,1.1.1.1 allow-remote-requests=no
+
+      # WireGuard Configuration
+      /interface wireguard add name=wg-client listen-port=13231
+      /interface wireguard peers add interface=wg-client public-key="${WIREGUARD_PUBLIC_KEY}" \
+      endpoint-address=${WIREGUARD_ENDPOINT_ADDRESS} endpoint-port=51820 allowed-address=${WIREGUARD_ALLOWED_ADDRESS} persistent-keepalive=25s
+
+      # WireGuard IP Address Configuration
+      /ip address add address=${selectedSite?.ip_address}/24 interface=wg-client \
+      comment="Wireguard Primary Gateway IP for ${selectedSite?.name}"
+
+      # Hotspot Server Configuration
+      # 1. Create the Bridge if not already created.
+      /interface bridge add name=bridge-hotspot
+
+      # 2. Add all the ports you want to serve customers on
+      /interface bridge port
+      add bridge=bridge-hotspot interface=ether3
+
+      # RADIUS Configuration
+      /ppp aaa set use-radius=yes
+      /radius add address=${SERVER_IP_ADDRESS} service=login,hotspot secret=${RADIUS_SECRET}
+      /radius incoming set accept=yes
+
+      # 3. Hotspot Configuration
+      /ip hotspot setup
+
+      # Disable Cookies and Enable MAC Authentication
+      /ip hotspot profile set hsprof1 login-by=mac,http-chap,http-pap
+
+      # Configure the MAC Format and Password
+      /ip hotspot profile set hsprof1 mac-auth-mode=mac-as-username-and-password
+      /ip hotspot profile set hsprof1 use-radius=yes
+      /ip hotspot profile set hsprof1 radius-interim-update=00:02:00
+
+      /ip hotspot walled-garden ip add dst-host=${DST_HOST} action=accept
+
+      # Create the Hotspot On-Login Script
+      /system script add name=hotspot_sync_script
+      # Set the Hotspot User Profile to use the on-login script
+      /ip hotspot user profile set [ find default=yes ] on-login=":global hotspotMac \$\"mac-address\"; :global hotspotUser \$user; /system script run hotspot_sync_script"
+
+       # Firewall Rules
+      # Allow RADIUS and COA from the WireGuard Tunnel only
+      /ip firewall filter
+      add action=accept chain=input src-address=${SERVER_IP_ADDRESS} protocol=udp dst-port=1812,1813,3799 \
+      comment="Allow EasyTech RADIUS Auth/Acct/COA" place-before=0
+      
+      # API configuration
+      /ip service enable api
+      # Bind API to the WireGuard interface for secure access from EasyTech platform
+      /ip service set api address=10.30.30.0/24
+      # restrict API access to the WireGuard tunnel for security
+      /ip firewall filter
+      add chain=input protocol=tcp dst-port=8728,8291 src-address=10.30.30.0/24 action=accept comment="Allow EasyTech API from WireGuard" place-before=0
+      add chain=input protocol=tcp dst-port=8728,8291 action=drop comment="Drop API from that is not from EasyTech WireGuard"
+      #create api user with strong password
+      /user add name=apiuser password=hjdTY162JGFkas group=full
+
+        # Note: This script is auto-generated by EasyTech. Please review and modify as necessary before applying to your MikroTik device.`}
+            </pre>
+          </div>
+        )   
+      }
+      {
+        showConfigType === 'hotspot_script' && (
+          <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800">
+            <pre className="text-green-400 font-mono text-[11px] overflow-x-auto leading-relaxed">
+              {`# EasyTech Hotspot On-Login Script
+      # This script is executed when a user logs in to the hotspot.
+      # Read the variables passed from the Hotspot environment
+:global hotspotMac;
+:global hotspotUser;
+:local macVar $hotspotMac;
+:local userVar $hotspotUser;
+:local hostnameVar "Unknown Device";
+
+:delay 1s;
+
+:do {
+    :local leaseID [/ip dhcp-server lease find where mac-address=$macVar];
+    if ([:len $leaseID] > 0) do={
+        :local dhcpName [/ip dhcp-server lease get ($leaseID->0) host-name];
+        if ([:len $dhcpName] > 0) do={
+            :set hostnameVar $dhcpName;
+        }
+    }
+} on-error={
+    :set hostnameVar "Unknown Device";
+}
+
+/tool fetch url="https://aqua.easytech.africa/api/hotspot/sync-device" http-method=post check-certificate=no http-header-field="Content-Type: application/json" http-data="{\"username\":\"$userVar\",\"mac\":\"$macVar\",\"hostname\":\"$hostnameVar\"}" keep-result=no
+      `}
+            </pre>
+          </div>
+        )
+      }
+      <button onClick={onCopy} className="w-full mt-4 py-2 border border-gray-200 dark:border-slate-700 text-xs font-bold rounded-xl dark:text-gray-300">
+        Copy Script to Clipboard
+      </button>
+    </Modal>
+  )
+};

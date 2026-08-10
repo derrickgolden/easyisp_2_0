@@ -2,7 +2,7 @@ import React from "react";
 import { Modal } from "../UI";
 import { toast } from "sonner";
 import { Customer } from "../../types";
-import { transactionsApi } from "../../services/apiService";
+import { hotspotTransactionsApi, transactionsApi } from "../../services/apiService";
 
 interface DirectDepositModalProps {
     isOpen: boolean;
@@ -35,17 +35,30 @@ export const DirectDepositModal: React.FC<DirectDepositModalProps> = ({ isOpen, 
         const category = signedAmount < 0 ? 'Adjustment' : 'Deposit';
 
         try {
+            let activationNote = "";
             setIsSubmitting(true);
-            const response = await transactionsApi.create({
-                customer_id: customer.id,
-                amount: absoluteAmount,
-                type,
-                category,
-                method: 'Cash',
-                description: depositForm.reason,
-            });
+            if(customer.connectionType === 'PPPoE') {
+                const response = await transactionsApi.create({
+                    customer_id: customer.id,
+                    amount: absoluteAmount,
+                    type,
+                    category,
+                    method: 'Cash',
+                    description: depositForm.reason,
+                });
+                activationNote = response?.activation_note;
+            }else if(customer.connectionType === 'Hotspot') {
+                const response = await hotspotTransactionsApi.create({
+                    customer_id: customer.id,
+                    amount: absoluteAmount,
+                    type,
+                    category,
+                    method: 'Cash',
+                    description: depositForm.reason,
+                });
+                activationNote = response?.activation_note;
+            }
 
-            const activationNote = response?.activation_note;
             toast.success(activationNote || `${signedAmount < 0 ? 'Deduction' : 'Deposit'} of ${Math.abs(signedAmount)} applied successfully`);
             setIsDepositModalOpen(false);
             onSuccess?.();

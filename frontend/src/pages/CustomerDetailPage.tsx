@@ -4,7 +4,7 @@ import { Card, Badge, Modal } from '../components/UI';
 import { Customer, Payment, TechnicalSpec } from '../types';
 import { useNavigate, useParams } from 'react-router-dom';
 import { CustomerModal } from '../components/modals/CustomerModal';
-import { customersApi, paymentsApi } from '../services/apiService';
+import { customersApi, hotspotPaymentsApi, paymentsApi } from '../services/apiService';
 import { useCustomerActions } from '../hooks/useCustomerActions';
 import { DirectDepositModal } from '../components/modals/DirectDepositModal';
 import { TechnicalSpecCard } from '../components/cards/customerDetailsCards.tsx/TechnicalSpecsCard';
@@ -36,17 +36,9 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
   const { state, actions } = useCustomerActions();
   const { can } = usePermissions();
 
-  const customerPayments = useMemo(() => {
-    if (!customer) return [];
-    return state.payments.filter(p => 
-      p.subscriberId === customer.id || 
-      p.subscriberId === customer.radiusUsername
-    ).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [state.payments, customer]);
-
-  const totalSpent = useMemo(() => customerPayments
+  const totalSpent = useMemo(() => state.payments
     .filter(p => p.status === 'completed')
-    .reduce((sum, p) => sum + p.amount, 0), [customerPayments]);
+    .reduce((sum, p) => sum + p.amount, 0), [state.payments, customer]);
 
   const timeRemaining = useMemo(() => {
     if (!customer) return { value: 0, unit: 'Days' };
@@ -77,22 +69,6 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
     () => customer?.effectivePackagePrice ?? customer?.package?.price ?? 0,
     [customer?.effectivePackagePrice, customer?.package?.price]
   );
-
-  const extractPaymentsList = (payload: any): Payment[] => {
-    if (Array.isArray(payload?.data)) {
-      return payload.data as Payment[];
-    }
-
-    if (Array.isArray(payload?.data?.data)) {
-      return payload.data.data as Payment[];
-    }
-
-    if (Array.isArray(payload)) {
-      return payload as Payment[];
-    }
-
-    return [];
-  };
 
   // Fetch customer and related data
   useEffect(() => {
@@ -140,7 +116,8 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
 
     try {
       const response = await paymentsApi.getByCustomer(customerId);
-      const paymentsList = extractPaymentsList(response);
+      const paymentsList = Array.isArray((response as any)?.data) ? ((response as any).data as Payment[]) : [];
+      console.log('Fetched payments:', paymentsList);
       actions.setPayments(paymentsList as Payment[]);
     } catch (error) {
       console.error('Error fetching payments:', error);
@@ -493,7 +470,7 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
           {/* PAYMENT HISTORY LEDGER - AT BOTTOM */}
           <div className="hidden lg:block">
             <PaymentHistoryCard
-              customerPayments={customerPayments}
+              customerPayments={state.payments}
             />
           </div>
 
@@ -615,7 +592,7 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
            {/* PAYMENT HISTORY LEDGER - AT BOTTOM */}
           <div className="lg:hidden">
             <PaymentHistoryCard
-              customerPayments={customerPayments}
+              customerPayments={state.payments}
             />
           </div>
         </div>
@@ -644,6 +621,7 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
       <ChangeDateModal
          isChangeDateModalOpen={isChangeDateModalOpen}
          setIsChangeDateModalOpen={setIsChangeDateModalOpen}
+         customerType='pppoe'
          customer={customer}
          onSuccess={() => setCallApi(!callApi)}
       />

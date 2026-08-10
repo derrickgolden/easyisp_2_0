@@ -9,12 +9,20 @@ export enum SubscriptionTier {
   ENTERPRISE = "enterprise",
 }
 
+export enum OrgClientType {
+  PPPOE = "PPPoE",
+  HOTSPOT = "Hotspot",
+  DHCP = "DHCP",
+  BOTH = "Both",
+}
+
 export interface Organization {
   id: number;
   name: string;
   acronym: string;
   subscription_tier: SubscriptionTier;
   status: OrgStatus;
+  client_type: OrgClientType;
   settings?: Record<string, unknown> | null;
   created_at?: string;
   sites_count?: number;

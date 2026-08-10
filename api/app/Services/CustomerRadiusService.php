@@ -113,84 +113,6 @@ class CustomerRadiusService
         }
     }
 
-    // public function disconnectCustomer($username)
-    // {
-    //     $radiusConnection = DB::connection('radius');
-
-    //     $sessions = $radiusConnection
-    //         ->table('radacct')
-    //         ->where('username', $username)
-    //         ->whereNull('acctstoptime')
-    //         ->get(['acctsessionid', 'nasipaddress', 'radacctid']); 
-
-    //     Log::info("--- START DISCONNECT: {$username} ---");
-
-    //     if ($sessions->isEmpty()) {
-    //         $lastSession = $radiusConnection
-    //             ->table('radacct')
-    //             ->where('username', $username)
-    //             ->orderByDesc('radacctid')
-    //             ->first(['acctsessionid', 'nasipaddress', 'radacctid', 'acctterminatecause']);
-
-    //         if (!$lastSession) {
-    //             Log::info("No active session found, and no previous session exists for {$username}.");
-
-    //             return ['status' => false, 'message' => "⚠️ No active session found"];
-    //         }
-
-    //         $sessions = collect([$lastSession]);
-
-    //         Log::warning("No active sessions found for {$username}; attempting disconnect using latest session record.");
-    //     }
-
-    //     $responses = [];
-    //     foreach ($sessions as $session) {
-    //         $router = \App\Models\Site::where('ip_address', $session->nasipaddress)->first();
-
-    //         if (!$router) {
-    //             Log::error("Router IP {$session->nasipaddress} not found in Sites table.");
-    //             $responses[] = ['status' => false, 'message' => "❌ Router {$session->nasipaddress} not in DB."];
-    //             continue;
-    //         }
-
-    //         // 1. Prepare CoA Request (Fixed the typo here: escapeshellarg)
-    //         $coaRequest = "User-Name=$username,Acct-Session-Id={$session->acctsessionid}";
-    //         $command = sprintf(
-    //             'echo %s | radclient -x %s:%d disconnect %s 2>&1',
-    //             escapeshellarg($coaRequest),
-    //             escapeshellarg($router->ip_address),
-    //             (int)$router->radius_coa_port,
-    //             escapeshellarg($router->radius_secret)
-    //         );
-
-    //         $output = shell_exec($command);
-    //         Log::info("CoA Output for {$username}: " . str_replace("\n", " ", $output));
-            
-    //         // 2. Parse Result
-    //         if (strpos($output, 'Disconnect-ACK') !== false) {
-    //             $this->forceCloseSession($session, 'Admin-Disconnect');
-    //             $responses[] = ['status' => true, 'message' => "✅ Success."];
-    //         } 
-    //         elseif (strpos($output, 'Disconnect-NAK') !== false) {
-    //             // This is your Ghost Session case
-    //             $affected = $this->forceCloseSession($session, 'Ghost-NAK-Cleanup');
-    //             Log::warning("Ghost cleared for {$username}. Rows updated: {$affected}");
-    //             $responses[] = ['status' => true, 'message' => "👻 Ghost cleared."];
-    //         } 
-    //         else {
-    //             // Timeout or No Reply
-    //             if ($router->is_online == false) {
-    //                 $this->forceCloseSession($session, 'Router-Offline-Cleanup');
-    //                 $responses[] = ['status' => true, 'message' => "⚡ Router offline, closed locally."];
-    //             } else {
-    //                 $responses[] = ['status' => false, 'message' => "🚫 Timeout/Network Error."];
-    //             }
-    //         }
-    //     }
-
-    //     return ['status' => !collect($responses)->contains('status', false), 'details' => $responses];
-    // }
-
     public function disconnectCustomer($username, $organizationId)
     {
         $radiusConnection = DB::connection('radius');
@@ -213,7 +135,7 @@ class CustomerRadiusService
             ->whereNull('acctstoptime')
             ->get(['acctsessionid', 'nasipaddress', 'radacctid']); 
 
-        Log::info("--- START TENANT DISCONNECT: {$username} (Org: {$organizationId}) ---");
+        Log::info("--- START PPPoE TENANT DISCONNECT: {$username} (Org: {$organizationId}) ---");
 
         if ($sessions->isEmpty()) {
             $lastSession = $radiusConnection
@@ -326,11 +248,15 @@ class CustomerRadiusService
         return $query->delete();
     }
 
-    public function getTechnicalSpecs(Request $request, $id)
+    public function getTechnicalSpecs(Request $request, $id, $modelClass = null)
     {
-        $customer = Customer::where('organization_id', $request->user()->organization_id)->find($id);
+        $modelClass ??= Customer::class;
+
+        $customer = $modelClass::where('organization_id', $request->user()->organization_id)
+            ->find($id);
+
         if (!$customer) {
-            throw new Exception("Customer not found");
+            throw new Exception('Customer not found');
         }
 
         $username = $customer->radius_username;

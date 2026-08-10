@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { Organization, OrgStatus, SubscriptionTier } from '../types';
+import { Organization, OrgClientType, OrgStatus, SubscriptionTier } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { organizationsApi, ApiError } from '../services/apiService';
 
@@ -16,18 +16,23 @@ export const OrgModal: React.FC<OrgModalProps> = ({ isOpen, onClose, initialData
     name: '',
     acronym: '',
     subscription_tier: SubscriptionTier.LITE,
-    status: OrgStatus.ACTIVE
+    status: OrgStatus.ACTIVE,
+    client_type: OrgClientType.BOTH,
   });
 
   useEffect(() => {
     if (initialData) {
-      setFormData(initialData);
+      setFormData({
+        ...initialData,
+        client_type: initialData.client_type || OrgClientType.BOTH,
+      });
     } else {
       setFormData({
         name: '',
         acronym: '',
         subscription_tier: SubscriptionTier.LITE,
-        status: OrgStatus.ACTIVE
+        status: OrgStatus.ACTIVE,
+        client_type: OrgClientType.BOTH,
       });
     }
   }, [initialData, isOpen]);
@@ -40,6 +45,7 @@ export const OrgModal: React.FC<OrgModalProps> = ({ isOpen, onClose, initialData
           acronym: data.acronym || '',
           subscription_tier: (data.subscription_tier || SubscriptionTier.LITE),
           status: data.status || OrgStatus.ACTIVE,
+          client_type: data.client_type || OrgClientType.BOTH,
         });
       } else {
         await organizationsApi.create({
@@ -47,6 +53,7 @@ export const OrgModal: React.FC<OrgModalProps> = ({ isOpen, onClose, initialData
           acronym: data.acronym || '',
           subscription_tier: (data.subscription_tier || SubscriptionTier.LITE),
           status: data.status || OrgStatus.ACTIVE,
+          client_type: data.client_type || OrgClientType.BOTH,
         });
       }
       onClose();
@@ -130,6 +137,20 @@ export const OrgModal: React.FC<OrgModalProps> = ({ isOpen, onClose, initialData
               >
                 <option value={OrgStatus.ACTIVE}>Active</option>
                 <option value={OrgStatus.SUSPENDED}>Suspended</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Clients Type</label>
+              <select
+                value={formData.client_type || OrgClientType.BOTH}
+                onChange={(e) => setFormData({ ...formData, client_type: e.target.value as OrgClientType })}
+                className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+              >
+                <option value={OrgClientType.PPPOE}>PPPoE</option>
+                <option value={OrgClientType.HOTSPOT}>Hotspot</option>
+                <option value={OrgClientType.DHCP}>DHCP</option>
+                <option value={OrgClientType.BOTH}>Both</option>
               </select>
             </div>
 

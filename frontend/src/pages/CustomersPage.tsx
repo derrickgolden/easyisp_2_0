@@ -3,7 +3,7 @@ import { HotspotCustomersPage } from "./HotspotCustomerPage";
 import { PPPoECustomersPage } from "./PPPoECustomersPage";
 
 export const CustomersPage = () => {
-    const [showCustomerList, setShowCustomerList] = useState<'pppoe' | 'hotspot'>('pppoe');
+    const [showCustomerList, setShowCustomerList] = useState(() => localStorage.getItem('easy-tech-connectionType') || 'pppoe');
 
     return (
         <div className=" animate-in slide-in-from-bottom-4 duration-500 pb-20">
@@ -11,7 +11,7 @@ export const CustomersPage = () => {
             <div className="mb-3 inline-flex gap-2 rounded-xl border border-gray-200 dark:border-slate-700 p-1 bg-white dark:bg-slate-900">
                 <button
                 type="button"
-                onClick={() => setShowCustomerList('pppoe')}
+                onClick={() => {setShowCustomerList('pppoe'); localStorage.setItem('easy-tech-connectionType', 'pppoe')}}
                 className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
                     showCustomerList === 'pppoe'
                     ? 'bg-blue-600 text-white shadow'
@@ -22,7 +22,7 @@ export const CustomersPage = () => {
                 </button>
                 <button
                 type="button"
-                onClick={() => setShowCustomerList('hotspot')}
+                onClick={() => {setShowCustomerList('hotspot'); localStorage.setItem('easy-tech-connectionType', 'hotspot')}}
                 className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
                     showCustomerList === 'hotspot'
                     ? 'bg-yellow-600 text-white shadow'

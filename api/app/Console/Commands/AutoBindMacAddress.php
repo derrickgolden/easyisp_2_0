@@ -28,7 +28,7 @@ class AutoBindMacAddress extends Command
 
     public function handle()
     {
-        // 1. Get the latest callingstationid for users who don't have a 'Calling-Station-Id' attribute in radcheck
+        // 1. Get the latest callingstationid for each user session.
         $sessions = DB::connection('radius')
             ->table('radacct as a')
             ->select('a.username', 'a.callingstationid', 'a.nasipaddress')
@@ -48,6 +48,11 @@ class AutoBindMacAddress extends Command
         }
 
         foreach ($sessions as $session) {
+            if (empty($session->callingstationid)) {
+                $this->info("Skipping auto-bind for {$session->username}; session has empty MAC.");
+                continue;
+            }
+
             $organizationId = DB::table('sites')
                 ->where('ip_address', $session->nasipaddress)
                 ->value('organization_id');
@@ -57,21 +62,89 @@ class AutoBindMacAddress extends Command
                 continue;
             }
 
+            $organizationClientType = DB::table('organizations')
+                ->where('id', $organizationId)
+                ->value('client_type') ?? 'Both';
+
+            $targetClientType = null;
+
+            if ($organizationClientType === 'PPPoE') {
+                $isPppoeUser = DB::table('customers')
+                    ->where('radius_username', $session->username)
+                    ->where('organization_id', $organizationId)
+                    ->exists();
+
+                if (!$isPppoeUser) {
+                    $this->info("Skipping auto-bind for {$session->username}; not found in PPPoE customers for org {$organizationId}.");
+                    continue;
+                }
+
+                $targetClientType = 'pppoe';
+            } elseif ($organizationClientType === 'Hotspot') {
+                $isHotspotUser = DB::table('hotspot_customers')
+                    ->where('radius_username', $session->username)
+                    ->where('organization_id', $organizationId)
+                    ->exists();
+
+                if (!$isHotspotUser) {
+                    $this->info("Skipping auto-bind for {$session->username}; not found in hotspot customers for org {$organizationId}.");
+                    continue;
+                }
+
+                $targetClientType = 'hotspot';
+            } elseif ($organizationClientType === 'Both') {
+                $checkClientType = DB::connection('radius')->table('radcheck')
+                    ->where('username', $session->username)
+                    ->where('attribute', 'Cleartext-Password')
+                    ->whereIn('client_type', ['pppoe', 'hotspot'])
+                    ->value('client_type');
+
+                if (!empty($checkClientType)) {
+                    $targetClientType = $checkClientType;
+                } else {
+                    $isPppoeUser = DB::table('customers')
+                        ->where('radius_username', $session->username)
+                        ->where('organization_id', $organizationId)
+                        ->exists();
+
+                    $isHotspotUser = DB::table('hotspot_customers')
+                        ->where('radius_username', $session->username)
+                        ->where('organization_id', $organizationId)
+                        ->exists();
+
+                    if ($isPppoeUser && !$isHotspotUser) {
+                        $targetClientType = 'pppoe';
+                    } elseif ($isHotspotUser && !$isPppoeUser) {
+                        $targetClientType = 'hotspot';
+                    } else {
+                        $this->info("Skipping auto-bind for {$session->username}; unable to resolve client type in org {$organizationId}.");
+                        continue;
+                    }
+                }
+            } else {
+                // DHCP mode is currently unsupported for MAC auto-bind in radcheck.
+                $this->info("Skipping auto-bind for {$session->username}; org {$organizationId} client_type {$organizationClientType} is unsupported.");
+                continue;
+            }
+
             // Double check to prevent race conditions during loop
             $exists = DB::connection('radius')->table('radcheck')
                 ->where('username', $session->username)
                 ->where('attribute', 'Calling-Station-Id')
+                ->where('client_type', $targetClientType)
                 ->exists();
 
             if (!$exists) {
-                // Only auto-bind if the username still exists in local customers for this organization.
-                $customer = DB::table('customers')
-                    ->where('radius_username', $session->username)
+                // Only bind MAC if there is still an auth row for the same user and client type.
+                $hasAuthRecord = DB::connection('radius')->table('radcheck')
+                    ->where('username', $session->username)
                     ->where('organization_id', $organizationId)
-                    ->first();
+                    ->where('client_type', $targetClientType)
+                    ->where('attribute', 'Cleartext-Password')
+                    ->exists();
 
-                if (!$customer) {
-                    $this->info("Skipping auto-bind for deleted or unknown user {$session->username} in org {$organizationId}");
+                if (!$hasAuthRecord) {
+                    $this->info("Skipping auto-bind for {$session->username}; missing Cleartext-Password row for {$targetClientType}.");
                     continue;
                 }
 
@@ -81,10 +154,10 @@ class AutoBindMacAddress extends Command
                     'op' => '==',
                     'value' => $session->callingstationid,
                     'organization_id' => $organizationId,
-                    'client_type' => 'pppoe',
+                    'client_type' => $targetClientType,
                 ]);
 
-                $this->info("Successfully locked {$session->username} to MAC: {$session->callingstationid}");
+                $this->info("Successfully locked {$session->username} ({$targetClientType}) to MAC: {$session->callingstationid}");
             }
         }
     }

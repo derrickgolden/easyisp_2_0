@@ -1,0 +1,587 @@
+<?php
+
+namespace App\Services;
+
+use Exception;
+use App\Models\HotspotCustomer;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http; // You'll likely need this for the API call too
+use Illuminate\Support\Facades\Log;
+
+class HotspotCustomerRadiusService
+{
+    private $radiusConnection;
+
+    public function __construct()
+    {
+        $this->radiusConnection = DB::connection('radius');
+    }
+
+    /**
+     * Translates technical RADIUS reasons into human-readable labels.
+     */
+    protected function translateRadiusReason($reason, $reply, $customer = null)
+    {
+        if ($reply === 'Access-Accept') {
+            // If we have customer info, check their current database status
+            if ($customer) {
+                if ($customer->status === 'suspended') {
+                    return 'Paused';
+                }
+                if ($customer->status === 'expired') {
+                    return 'Expired';
+                }
+            }
+            return 'Auth Successful';
+        }
+
+        if (empty($reason)) {
+            return 'Denied (No reason provided)';
+        }
+
+        // Match technical strings to friendly labels
+        return match (true) {
+            str_contains($reason, 'mschap: MS-CHAP2-Response is incorrect') => 'Invalid Password',
+            str_contains($reason, 'User-Name is not found') => 'Username Not Found',
+            str_contains($reason, 'Account has expired') => 'Subscription Expired',
+            str_contains($reason, 'Multiple logins not allowed') => 'Device Limit Reached',
+            str_contains($reason, 'Cleartext-Password is incorrect') => 'Invalid Password',
+            default => $reason, // Fallback to the raw reason if no match
+        };
+    }
+
+    public function syncCustomerToRadius(HotspotCustomer $customer, $oldUsername = null)
+    {
+        try {
+            // If username changed, remove old entry
+            $usernameToClean = $oldUsername ?? $customer->radius_username;
+
+            // 1. Clean slate for this username
+            $this->removeCustomerFromRadius($usernameToClean);
+
+            // 2. Add Authentication (radcheck)
+            // Using 'Cleartext-Password' as the attribute for MS-CHAPv2 compatibility
+            // Include organization_id and client_type so the radcheck row is attributed correctly
+            $this->addCheckAttribute(
+                $customer->radius_username,
+                'Cleartext-Password',
+                ':=',
+                $customer->radius_password,
+                [
+                    'organization_id' => $customer->organization_id,
+                    'client_type' => 'hotspot',
+                ]
+            );
+            
+            if ($customer->status !== 'active') {
+                return [
+                    'success' => true, 
+                    'message' => 'User is inactive; removed from RADIUS.'
+                ];
+            }
+
+
+            // 3. Add User-Specific Overrides (radreply)
+            // ONLY add these if the customer has a specific custom override
+            if ($customer->custom_rate_limit) {
+                $this->addReplyAttribute($customer->radius_username, 'Mikrotik-Rate-Limit', ':=', $customer->custom_rate_limit);
+            }
+
+            // 4. Assign to Group (radusergroup)
+            // log all customer data for debugging
+            if ($customer->package) {
+                // Consistency: Group Name is always 'package_' + ID
+                $groupName = "package_" . $customer->package->id;
+                if ($groupName) {
+                    $this->addUserToGroup($customer->radius_username, $groupName);
+                }
+            }
+
+            return [
+                'success' => true,
+                'message' => 'Customer synced to RADIUS successfully',
+            ];
+        } catch (Exception $e) {
+            // Log the error
+            return [
+                'success' => false,
+                'message' => 'Failed to sync: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    public function disconnectCustomer($username, $organizationId)
+    {
+        $radiusConnection = DB::connection('radius');
+
+        // 1. Fetch only the NAS IPs that belong to this specific organization
+        $allowedNasIps = \App\Models\Site::where('organization_id', $organizationId)
+            ->pluck('ip_address')
+            ->toArray();
+
+        if (empty($allowedNasIps)) {
+            Log::error("Org ID {$organizationId} has no assigned NAS IPs. Aborting disconnect for {$username}.");
+            return ['status' => false, 'message' => "❌ No routers found for this organization."];
+        }
+
+        // 2. Query radacct scoped tightly to this tenant's routers
+        $sessions = $radiusConnection
+            ->table('radacct')
+            ->where('username', $username)
+            ->whereIn('nasipaddress', $allowedNasIps)
+            ->whereNull('acctstoptime')
+            ->get(['acctsessionid', 'nasipaddress', 'radacctid', 'framedipaddress']); // <-- Add framedipaddress
+
+        Log::info("--- START HOTSPOT TENANT DISCONNECT: {$username} (Org: {$organizationId}) ---");
+
+        if ($sessions->isEmpty()) {
+            $lastSession = $radiusConnection
+                ->table('radacct')
+                ->where('username', $username)
+                ->whereIn('nasipaddress', $allowedNasIps)
+                ->orderByDesc('radacctid')
+                ->first(['acctsessionid', 'nasipaddress', 'radacctid', 'acctterminatecause', 'framedipaddress']);
+
+            if (!$lastSession) {
+                Log::info("No active or historical session found for {$username} under Org {$organizationId}.");
+                return ['status' => false, 'message' => "⚠️ No active session found"];
+            }
+
+            $sessions = collect([$lastSession]);
+            Log::warning("No active sessions found for {$username}; attempting disconnect using latest tenant session record.");
+        }
+
+        $responses = [];
+        foreach ($sessions as $session) {
+            // Fetch the router—we already know it belongs to this org due to the whereIn filter
+            $router = \App\Models\Site::where('ip_address', $session->nasipaddress)
+                ->where('organization_id', $organizationId)
+                ->first();
+
+            if (!$router) {
+                Log::error("Router IP {$session->nasipaddress} mismatch or not found for Org {$organizationId}.");
+                $responses[] = ['status' => false, 'message' => "❌ Router access denied."];
+                continue;
+            }
+
+            // Prepare CoA Request
+           $coaRequest = "User-Name=$username,Acct-Session-Id={$session->acctsessionid}";
+            if (!empty($session->framedipaddress)) {
+                $coaRequest .= ",Framed-IP-Address={$session->framedipaddress}";
+            }
+            $command = sprintf(
+                'echo %s | radclient -x %s:%d disconnect %s 2>&1',
+                escapeshellarg($coaRequest),
+                escapeshellarg($router->ip_address),
+                (int)$router->radius_coa_port,
+                escapeshellarg($router->radius_secret)
+            );
+
+            $output = shell_exec($command);
+            Log::info("CoA Output for {$username} (Org {$organizationId}): " . str_replace("\n", " ", $output));
+            
+            // Parse Result
+            if (strpos($output, 'Disconnect-ACK') !== false) {
+                $this->forceCloseSession($session, 'Admin-Disconnect');
+                $responses[] = ['status' => true, 'message' => "✅ Success."];
+            } 
+            elseif (strpos($output, 'Disconnect-NAK') !== false) {
+                $affected = $this->forceCloseSession($session, 'Ghost-NAK-Cleanup');
+                Log::warning("Ghost cleared for {$username}. Rows updated: {$affected}");
+                $responses[] = ['status' => true, 'message' => "👻 Ghost cleared."];
+            } 
+            else {
+                if (!$router->is_online) {
+                    $this->forceCloseSession($session, 'Router-Offline-Cleanup');
+                    $responses[] = ['status' => true, 'message' => "⚡ Router offline, closed locally."];
+                } else {
+                    $responses[] = ['status' => false, 'message' => "🚫 Timeout/Network Error."];
+                }
+            }
+        }
+
+        return ['status' => !collect($responses)->contains('status', false), 'details' => $responses];
+    }
+
+    private function forceCloseSession($session, $cause) {
+        // We try to use radacctid first, fall back to acctsessionid if id is missing
+        $query = DB::connection('radius')->table('radacct');
+
+        if (isset($session->radacctid)) {
+            $query->where('radacctid', $session->radacctid);
+        } else {
+            $query->where('acctsessionid', $session->acctsessionid);
+        }
+
+        $affected = $query->whereNull('acctstoptime')->update([
+            'acctstoptime' => now(),
+            'acctterminatecause' => $cause,
+            'acctsessiontime' => DB::raw('UNIX_TIMESTAMP(NOW()) - UNIX_TIMESTAMP(acctstarttime)')
+        ]);
+
+        return $affected;
+    }
+
+    public function removeCustomerFromRadius($username)
+    {
+        try {
+            $this->radiusConnection->table('radcheck')->where('username', $username)->delete();
+            $this->radiusConnection->table('radreply')->where('username', $username)->delete();
+            $this->radiusConnection->table('radusergroup')->where('username', $username)->delete();
+            $this->radiusConnection->table('radpostauth')->where('username', $username)->delete();
+            $this->radiusConnection->table('radacct')->where('username', $username)->delete();
+            return true;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+
+    public function flushMacOnly($username, $organizationId = null) {
+        $query = $this->radiusConnection->table('radcheck')
+            ->where('username', $username)
+            ->where('attribute', 'Calling-Station-Id');
+
+        if ($organizationId !== null) {
+            $query->where('organization_id', $organizationId);
+        }
+
+        return $query->delete();
+    }
+
+    public function getTechnicalSpecs(Request $request, $id)
+    {
+        $customer = HotspotCustomer::where('organization_id', $request->user()->organization_id)->find($id);
+        if (!$customer) {
+            throw new Exception("Customer not found");
+        }
+
+        $username = $customer->radius_username;
+
+        // Fetch technical specs from RADIUS DB
+        // 1. Check if user exists in radcheck
+        $userCheck = DB::connection('radius')->table('radcheck')
+            ->where('username', $username)
+            ->first();  
+
+        // 1. Get current active session (if any)
+        $activeSession = DB::connection('radius')->table('radacct')
+            ->where('username', $username)
+            ->whereNull('acctstoptime') // Still connected
+            ->orderBy('acctstarttime', 'desc')
+            ->first();
+
+        $lastSession = DB::connection('radius')->table('radacct')
+            ->where('username', $username)
+            ->whereNotNull('acctstoptime') // Disconnected sessions
+            ->orderBy('acctstoptime', 'desc')
+            ->first();
+
+        $sessions = DB::connection('radius')->table('radacct')
+            ->where('username', $username)
+            ->orderBy('acctstarttime', 'desc')
+            ->take(5) // Limit the result to 5 rows
+            ->get();
+
+        $logs = DB::connection('radius')->table('radpostauth')
+            ->where('username', $username)
+            // Add 'id' here --------------------v
+            ->select('id', 'reply', 'authdate', 'reason', 'pass') 
+            ->orderBy('id', 'desc')
+            ->paginate(3)
+            ->through(function ($log) use ($customer) {
+                return [
+                    'id' => $log->id, // Now this will work!
+                    'time' => Carbon::parse($log->authdate)->diffForHumans(),
+                    'exact_time' => $log->authdate,
+                    'reply' => $log->reply,
+                    'password_attempted' => '********',
+                    'status_label' => $this->translateRadiusReason($log->reason, $log->reply, $customer),
+                    'is_success' => $log->reply === 'Access-Accept'
+                ];
+            });
+
+        $framedIp = $activeSession?->framedipaddress ?? $lastSession?->framedipaddress ?? 'N/A';
+        $callingStationId = $activeSession?->callingstationid ?? $lastSession?->callingstationid ?? 'N/A';
+        $nasIpAddress = $activeSession?->nasipaddress ?? $lastSession?->nasipaddress ?? 'N/A';
+
+        return [
+            'radius_user_exists' => !is_null($userCheck),
+            'is_online' => !is_null($activeSession),
+            'uptime' => $activeSession ? $this->formatUptime($activeSession->acctsessiontime) : 'Offline',
+            'last_uptime' => $lastSession ? $this->formatUptime($lastSession->acctsessiontime) : 'N/A',
+            'start_time' => $activeSession 
+                ? Carbon::parse($activeSession->acctstarttime)->toIso8601String() 
+                : ($lastSession ? Carbon::parse($lastSession->acctstoptime)->toIso8601String() : null),
+            'framed_ip' => $framedIp,
+            'nas_ip_address' => $nasIpAddress,
+            'calling_station_id' => $callingStationId,
+            'device_vendor' => $this->getDeviceManufacturer($callingStationId),
+            'logs' => $logs,
+            'sessions' => $sessions,
+        ];
+    }
+
+    public function syncPackageToRadius($package)
+    {
+        // Consistency: Group Name is always 'package_' + ID
+        $groupName = "package_" . $package->id;
+
+        // 1. Format the Mikrotik Rate Limit string
+        // Positional format:
+        // rx/tx [burst-rx/burst-tx [thr-rx/thr-tx [time-rx/time-tx [prio [min-rx/min-tx]]]]]
+        $rx = $package->speed_up;
+        $tx = $package->speed_down;
+        $rateLimit = "{$rx}/{$tx}";
+
+        $hasBurst = !empty($package->burst_limit_up) && !empty($package->burst_limit_down);
+        // Priority 8 is MikroTik default; do not treat it as explicit advanced QoS.
+        $hasPriority = !is_null($package->priority) && (int) $package->priority !== 8;
+        $hasMinLimit = !empty($package->min_limit_up) && !empty($package->min_limit_down);
+        $hasBurstThreshold = !empty($package->burst_threshold_up) || !empty($package->burst_threshold_down);
+        $hasBurstTime = !empty($package->burst_time);
+        $hasAdvancedQos = $hasBurst || $hasPriority || $hasMinLimit || $hasBurstThreshold || $hasBurstTime;
+
+        if ($hasAdvancedQos) {
+            $burstRx = $package->burst_limit_up ?: $rx;
+            $burstTx = $package->burst_limit_down ?: $tx;
+            $thresholdRx = $package->burst_threshold_up ?: $rx;
+            $thresholdTx = $package->burst_threshold_down ?: $tx;
+            $time = $package->burst_time ?: '30/30';
+
+            $rateLimit .= " {$burstRx}/{$burstTx} {$thresholdRx}/{$thresholdTx} {$time}";
+
+            if ($hasPriority || $hasMinLimit) {
+                $priority = $package->priority ?: 8;
+                $rateLimit .= " {$priority}";
+
+                if ($hasMinLimit) {
+                    $rateLimit .= " {$package->min_limit_up}/{$package->min_limit_down}";
+                }
+            }
+        }
+
+        try {
+            // 2. Clear old group attributes
+            DB::connection('radius')->table('radgroupreply')
+                ->where('groupname', $groupName)
+                ->where('attribute', 'Mikrotik-Rate-Limit')
+                ->delete();
+
+            // 3. Insert new rate limit
+            DB::connection('radius')->table('radgroupreply')->insert([
+                'groupname' => $groupName,
+                'attribute' => 'Mikrotik-Rate-Limit',
+                'op' => ':=',
+                'value' => $rateLimit
+            ]);
+
+            return true;
+        } catch (\Exception $e) {
+            Log::error("Package Sync Failed: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function syncHotspotPackageToRadius($package)
+    {
+        $groupName = "hotspot_package_" . $package->id;
+
+        $rx = $package->speed_up;
+        $tx = $package->speed_down;
+        $rateLimit = "{$rx}/{$tx}";
+
+        $hasBurst = !empty($package->burst_limit_up) && !empty($package->burst_limit_down);
+        // Priority 8 is MikroTik default; do not treat it as explicit advanced QoS.
+        $hasPriority = !is_null($package->priority) && (int) $package->priority !== 8;
+        $hasMinLimit = !empty($package->min_limit_up) && !empty($package->min_limit_down);
+        $hasBurstThreshold = !empty($package->burst_threshold_up) || !empty($package->burst_threshold_down);
+        $hasBurstTime = !empty($package->burst_time);
+        $hasAdvancedQos = $hasBurst || $hasPriority || $hasMinLimit || $hasBurstThreshold || $hasBurstTime;
+
+        if ($hasAdvancedQos) {
+            $burstRx = $package->burst_limit_up ?: $rx;
+            $burstTx = $package->burst_limit_down ?: $tx;
+            $thresholdRx = $package->burst_threshold_up ?: $rx;
+            $thresholdTx = $package->burst_threshold_down ?: $tx;
+            $time = $package->burst_time ?: '30/30';
+
+            $rateLimit .= " {$burstRx}/{$burstTx} {$thresholdRx}/{$thresholdTx} {$time}";
+
+            if ($hasPriority || $hasMinLimit) {
+                $priority = $package->priority ?: 8;
+                $rateLimit .= " {$priority}";
+
+                if ($hasMinLimit) {
+                    $rateLimit .= " {$package->min_limit_up}/{$package->min_limit_down}";
+                }
+            }
+        }
+
+        try {
+            DB::connection('radius')->table('radgroupreply')
+                ->where('groupname', $groupName)
+                ->where('attribute', 'Mikrotik-Rate-Limit')
+                ->delete();
+
+            DB::connection('radius')->table('radgroupreply')->insert([
+                'groupname' => $groupName,
+                'attribute' => 'Mikrotik-Rate-Limit',
+                'op' => ':=',
+                'value' => $rateLimit,
+            ]);
+
+            return true;
+        } catch (\Exception $e) {
+            Log::error("Hotspot Package Sync Failed: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    private function formatUptime($seconds) {
+        if (!$seconds) return '0s';
+        $h = floor($seconds / 3600);
+        $m = floor(($seconds % 3600) / 60);
+        return "{$h}h {$m}m";
+    }
+
+    public function getDeviceManufacturer($mac)
+    {
+        if (!$mac || $mac === 'N/A') return 'Unknown';
+
+        // Create a unique cache key based on the first 6 chars (OUI)
+        $oui = strtoupper(str_replace([':', '-'], '', substr($mac, 0, 8)));
+        $cacheKey = "mac_vendor_{$oui}";
+
+        return Cache::remember($cacheKey, now()->addMonths(3), function () use ($mac) {
+            try {
+                // We use the 3-byte prefix (OUI) for the lookup
+                $response = Http::get("https://api.macvendors.com/" . urlencode($mac));
+
+                if ($response->successful()) {
+                    return $response->body();
+                }
+
+                // If rate limited (429), don't cache "Unknown", just return it for now
+                if ($response->status() === 429) {
+                    return 'Rate Limited (Retrying later)';
+                }
+
+            } catch (\Exception $e) {
+                Log::error("MAC Vendor API Error: " . $e->getMessage());
+            }
+
+            return 'Generic Device';
+        });
+    }
+
+    /**
+     * Add User-Password to radcheck
+     */
+    private function addUserPassword($username, $password, $extra = [])
+    {
+        $insert = [
+            'username' => $username,
+            'attribute' => 'User-Password',
+            'op' => ':=',
+            'value' => $password,
+        ];
+
+        if (isset($extra['organization_id'])) {
+            $insert['organization_id'] = $extra['organization_id'];
+        }
+        if (isset($extra['client_type'])) {
+            $insert['client_type'] = $extra['client_type'];
+        }
+
+        $this->radiusConnection->table('radcheck')->insert($insert);
+    }
+
+    /**
+     * Add check attribute to radcheck
+     */
+    private function addCheckAttribute($username, $attribute, $op, $value, $extra = [])
+    {
+        $insert = [
+            'username' => $username,
+            'attribute' => $attribute,
+            'op' => $op,
+            'value' => $value,
+        ];
+
+        if (isset($extra['organization_id'])) {
+            $insert['organization_id'] = $extra['organization_id'];
+        }
+        if (isset($extra['client_type'])) {
+            $insert['client_type'] = $extra['client_type'];
+        }
+
+        $this->radiusConnection->table('radcheck')->insert($insert);
+    }
+
+    /**
+     * Add reply attribute to radreply
+     */
+    private function addReplyAttribute($username, $attribute, $op, $value)
+    {
+        $this->radiusConnection->table('radreply')->insert([
+            'username' => $username,
+            'attribute' => $attribute,
+            'op' => $op,
+            'value' => $value,
+        ]);
+    }
+
+    /**
+     * Add user to group
+     */
+    private function addUserToGroup($username, $groupname, $priority = 1)
+    {
+        Log::info("Adding user {$username} to group {$groupname} with priority {$priority}");
+        $this->radiusConnection->table('radusergroup')->insert([
+            'username' => $username,
+            'groupname' => $groupname,
+            'priority' => $priority,
+        ]);
+    }
+
+    /**
+     * Generate RADIUS username using organization acronym and customer ID
+     */
+    public static function generateRadiusUsername($customerId, $organizationAcronym = null)
+    {
+        // Base username is just the customer ID
+        $username = strval($customerId);
+        
+        // Add organization acronym prefix if available
+        if ($organizationAcronym && trim($organizationAcronym) !== '') {
+            // Clean and lowercase the acronym
+            $prefix = strtolower(trim($organizationAcronym));
+            $prefix = preg_replace('/[^a-z0-9]/', '', $prefix);
+            
+            // Only add prefix if it's not empty after cleaning
+            if ($prefix !== '') {
+                $username = $prefix . '_' . $username;
+            }
+        }
+        
+        return $username;
+    }
+
+    /**
+     * Generate RADIUS password
+     */
+    public static function generateRadiusPassword($length = 12)
+    {
+        $characters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+        $password = '';
+        
+        for ($i = 0; $i < $length; $i++) {
+            $password .= $characters[random_int(0, strlen($characters) - 1)];
+        }
+        
+        return $password;
+    }
+}

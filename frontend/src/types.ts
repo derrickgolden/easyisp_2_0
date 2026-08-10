@@ -90,13 +90,13 @@ export interface Customer {
   houseNo: string;
   apartment: string;
   location: string;
-  connectionType: 'PPPoE' | 'Static IP' | 'DHCP';
+  connectionType: 'PPPoE' | 'Static IP' | 'DHCP'| 'Hotspot';
   packageId: string;
   customPackagePrice?: number | null;
   effectivePackagePrice?: number;
   siteId?: string; // Linked network site
   installationFee: number;
-  status: 'active' | 'expired' | 'suspended';
+  status: 'active' | 'expired' | 'suspended' | 'blacklisted';
   expiryDate: string;
   extensionDate?: string;
   balance: number;
@@ -110,6 +110,7 @@ export interface Customer {
   macAddress?: string;
   deviceType?: string;
   isOnline?: boolean;
+  onlineStatus?: 'online' | 'offline' | string;
   // Connection Logs
   radiusLogs?: RadiusLog[];
   // Hierarchy
@@ -118,6 +119,14 @@ export interface Customer {
   package?: Package; // Loaded package details
   subAccounts?: Customer[]; // Loaded sub-accounts
   parent?: Customer; // Loaded parent account
+
+  // hotspot-specific fields
+  hostName?: string | null;
+  deviceName?: string | null;
+  browserName?: string | null;
+  activatedAt?: string | null;
+  lastSeenAt?: string | null;
+  site: { id: string; name: string }
 }
 
 export interface TechnicalSpec {
@@ -147,9 +156,11 @@ export interface Payment {
   phone: string;
   firstName: string;
   lastName: string;
+  customerFirstName?: string;
+  customerLastName?: string;
   senderName?: string;
   timestamp: string;
-  status: 'completed' | 'pending' | 'reversed';
+  status: 'completed' | 'pending' | 'reversed' | 'paid';
 }
 
 export interface Lead {

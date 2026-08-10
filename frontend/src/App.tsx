@@ -10,6 +10,7 @@ import { LoginPage } from './pages/LoginPage';
 import { PackagesPage } from './pages/PackagesPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { CustomerDetailPage } from './pages/CustomerDetailPage';
+import { HotspotCustomerDetailPage } from './pages/HotspotCustomerDetailPage';
 import { PaymentsPage } from './pages/PaymentsPage';
 import { TransactionsPage } from './pages/TransactionsPage';
 import { InvoicesPage } from './pages/InvoicesPage';
@@ -230,6 +231,11 @@ const App: React.FC = () => {
                 <Route path="/crm/customers/:customerId" element={
                   <RequirePermission perms={['view-customer-details']}>
                     <CustomerDetailPage />
+                  </RequirePermission>
+                } />
+                <Route path="/crm/hotspot-customers/:customerId" element={
+                  <RequirePermission perms={['view-customer-details']}>
+                    <HotspotCustomerDetailPage />
                   </RequirePermission>
                 } />
                 <Route path="/crm/leads" element={

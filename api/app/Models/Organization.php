@@ -14,6 +14,7 @@ class Organization extends Model
         'acronym',
         'subscription_tier',
         'status',
+        'client_type',
         'balance',
         'mpesa_callback_token',
         'settings',

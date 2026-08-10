@@ -62,6 +62,9 @@ Route::post('/radius/verify/{username}', [RadiusController::class, 'verify']);
 // Public hotspot package routes for Mikrotik login page
 Route::get('/hotspot/packages', [HotspotPackageController::class, 'publicIndex']);
 Route::get('/customer/resolve-portal', [PortalContextController::class, 'resolve']);
+Route::get('/customer/packages', [PortalContextController::class, 'packages']);
+Route::post('/customer/payments/initiate', [DarajaPaymentController::class, 'stkPush']);
+Route::get('/customer/{id}', [PortalContextController::class, 'customer']);
 Route::get('/portal/pppoe-payment', [SiteController::class, 'pppoePaymentPortal']);
 Route::post('/payments/hotspot/{token}/callback', [DarajaHotspotController::class, 'stkCallback']);
 Route::post('/payments/hotspot', [DarajaHotspotController::class, 'stkPush']);

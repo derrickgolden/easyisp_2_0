@@ -34,6 +34,17 @@ class Package extends Model
         'id' => 'string',
     ];
 
+    protected static function booted(): void
+    {
+        static::addGlobalScope('pppoe', function ($query) {
+            $query->where('status', 'pppoe');
+        });
+
+        static::creating(function (self $model) {
+            $model->status = 'pppoe';
+        });
+    }
+
     public function organization()
     {
         return $this->belongsTo(Organization::class);

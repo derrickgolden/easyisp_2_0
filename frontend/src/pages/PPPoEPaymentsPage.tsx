@@ -314,9 +314,10 @@ export const PPPoEPaymentsPage: React.FC = () => {
                       className="group hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-all">
                       <td onClick={() => navigate(`/crm/customers/${payment.subscriberId}`)}
                       className="py-5 px-6 cursor-pointer">
-                        <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-[11px] font-black uppercase font-mono">
-                          {payment.subscriberId}
-                        </span>
+                        <button className="w-28 px-2 pt-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-[11px] font-black uppercase font-mono text-center leading-tight">
+                          <span className="block truncate leading-tight">{payment.customerFirstName}</span>
+                          <span className="block truncate leading-tight">{payment.customerLastName}</span>
+                        </button>
                       </td>
                       <td className="py-5 px-6">
                         <span className="font-mono font-bold text-gray-900 dark:text-white tracking-tight">{payment.mpesaCode}</span>

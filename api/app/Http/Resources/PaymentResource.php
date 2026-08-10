@@ -17,6 +17,8 @@ class PaymentResource extends JsonResource
         $senderName = trim($this->sender_name ?? '');
         $firstName = '';
         $lastName = '';
+        $customerFirstName = trim((string) ($this->customer?->first_name ?? ''));
+        $customerLastName = trim((string) ($this->customer?->last_name ?? ''));
 
         if ($senderName !== '') {
             $parts = preg_split('/\s+/', $senderName) ?: [];
@@ -33,6 +35,8 @@ class PaymentResource extends JsonResource
             'phone' => $this->phone,
             'firstName' => $firstName,
             'lastName' => $lastName,
+            'customerFirstName' => $customerFirstName,
+            'customerLastName' => $customerLastName,
             'senderName' => $senderName,
             'timestamp' => $this->created_at?->toISOString(),
             'status' => $this->status,

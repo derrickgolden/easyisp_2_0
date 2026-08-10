@@ -40,6 +40,7 @@ class OrganizationController extends Controller
             'acronym' => 'required|string|max:5|unique:organizations,acronym',
             'subscription_tier' => 'required|in:lite,pro,enterprise',
             'status' => 'sometimes|in:active,suspended',
+            'client_type' => 'sometimes|in:PPPoE,Hotspot,DHCP,Both',
             'settings' => 'sometimes|array',
         ]);
 
@@ -60,6 +61,7 @@ class OrganizationController extends Controller
             'acronym' => $request->input('acronym'),
             'subscription_tier' => $request->input('subscription_tier'),
             'status' => $request->input('status', 'active'),
+            'client_type' => $request->input('client_type', 'Both'),
             'settings' => $settings,
         ]);
 
@@ -114,6 +116,7 @@ class OrganizationController extends Controller
             'acronym' => 'sometimes|required|string|max:5|unique:organizations,acronym,' . $organization->id,
             'subscription_tier' => 'sometimes|in:lite,pro,enterprise',
             'status' => 'sometimes|in:active,suspended',
+            'client_type' => 'sometimes|in:PPPoE,Hotspot,DHCP,Both',
             'settings' => 'sometimes|array',
         ]);
 
@@ -135,11 +138,12 @@ class OrganizationController extends Controller
                 'acronym' => $request->input('acronym', $organization->acronym),
                 'subscription_tier' => $request->input('subscription_tier', $organization->subscription_tier),
                 'status' => $request->input('status', $organization->status),
+                'client_type' => $request->input('client_type', $organization->client_type),
                 'settings' => $mergedSettings,
             ]);
         } else {
             // Update only non-settings fields if settings not provided
-            $organization->update($request->only('name', 'acronym', 'subscription_tier', 'status'));
+            $organization->update($request->only('name', 'acronym', 'subscription_tier', 'status', 'client_type'));
         }
 
         return response()->json([
@@ -271,6 +275,7 @@ class OrganizationController extends Controller
             'acronym' => 'sometimes|required|string|max:5|unique:organizations,acronym,' . $organization->id,
             'subscription_tier' => 'sometimes|in:lite,pro,enterprise',
             'status' => 'sometimes|in:active,suspended',
+            'client_type' => 'sometimes|in:PPPoE,Hotspot,DHCP,Both',
             'settings' => 'sometimes|array',
         ]);
 
@@ -288,10 +293,11 @@ class OrganizationController extends Controller
                 'acronym' => $request->input('acronym', $organization->acronym),
                 'subscription_tier' => $request->input('subscription_tier', $organization->subscription_tier),
                 'status' => $request->input('status', $organization->status),
+                'client_type' => $request->input('client_type', $organization->client_type),
                 'settings' => $mergedSettings,
             ]);
         } else {
-            $organization->update($request->only('name', 'acronym', 'subscription_tier', 'status'));
+            $organization->update($request->only('name', 'acronym', 'subscription_tier', 'status', 'client_type'));
         }
 
         return response()->json([

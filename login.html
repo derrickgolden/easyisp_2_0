@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avonn Connect - Hotspot Login</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #0f172a;
+            --muted: #64748b;
+            --border: #e2e8f0;
+            --success: #16a34a;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background-color: var(--bg); color: var(--text); padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { background: var(--card); width: 100%; max-width: 440px; padding: 30px; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); }
+        
+        .header { text-align: center; margin-bottom: 28px; }
+        .header h1 { font-size: 24px; color: var(--primary); margin-bottom: 6px; }
+        .header p { font-size: 14px; color: var(--muted); }
+
+        .section-title { font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 12px; font-weight: 700; }
+        
+        /* Packages Grid */
+        .packages-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 24px; }
+        .package-card { border: 2px solid var(--border); border-radius: 10px; padding: 14px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: all 0.2s ease; text-align: left; background: none; width: 100%; color: inherit; }
+        .package-card:hover { border-color: var(--primary); background-color: #f0f7ff; }
+        .package-info .name { font-weight: 600; font-size: 16px; margin-bottom: 2px; }
+        .package-info .meta { font-size: 12px; color: var(--muted); }
+        .package-price { font-weight: 700; font-size: 18px; color: var(--primary); }
+
+        /* Forms */
+        .input-group { margin-bottom: 16px; position: relative; }
+        .input-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text); }
+        .input-group input { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 15px; outline: none; transition: border 0.2s; }
+        .input-group input:focus { border-color: var(--primary); }
+        
+        .btn { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+        .btn:hover { background: var(--primary-hover); }
+
+        .tab-container { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+        .tab { flex: 1; text-align: center; padding: 10px; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; }
+        .tab.active { color: var(--primary); border-bottom: 2px solid var(--primary); }
+
+        .hidden { display: none !important; }
+        
+        /* M-Pesa Processing Overlay */
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; text-align: center; padding: 20px; }
+        .spinner { width: 50px; height: 50px; border: 5px solid var(--border); border-top-color: #22c55e; border-radius: 50%; animation: spin 1s infinite linear; margin-bottom: 16px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Standard MikroTik Hidden Login Form */
+        #mikrotik-auth-form { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1>Easytech Hotspot</h1>
+            <p>Select a package</p>
+        </div>
+
+        <div class="section-title">Select Internet Package</div>
+        <div id="packages-loading" style="color: var(--muted); font-size: 14px; margin-bottom: 20px;">Fetching dynamic packages...</div>
+        <div class="packages-grid" id="packages-container">
+            </div>
+
+        <form id="form-mpesa" class="hidden" onsubmit="handleMpesaPurchase(event)">
+            <input type="hidden" id="selected-package-id">
+            <input type="hidden" id="selected-package-price">
+            <div class="input-group">
+                <label id="mpesa-form-label" encoding="utf-8" for="mpesa-phone">Pay via M-Pesa for Selected Plan</label>
+                <input type="tel" id="mpesa-phone" placeholder="e.g., 0712345678 or 2547..." required>
+            </div>
+            <button type="submit" class="btn" id="mpesa-submit-btn" style="background-color: #22c55e; margin-bottom: 24px;">Send M-Pesa STK Push</button>
+        </form>
+
+        <div class="section-title">Already have a code?</div>
+        <form id="form-voucher" onsubmit="handleVoucherSubmit(event)">
+            <div class="input-group">
+                <label for="voucher-code">Voucher / Access Code</label>
+                <input type="text" id="voucher-code" placeholder="Enter code here" required autocomplete="off">
+            </div>
+            <button type="submit" class="btn">Activate Voucher</button>
+        </form>
+
+        <form id="form-member" onsubmit="handleMemberSubmit(event)" style="margin-top: 30px;">
+            <div class="input-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" placeholder="e.g., 0712345678" required>
+            </div>
+            <div class="input-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" placeholder="Enter password" required>
+            </div>
+            <button type="submit" class="btn">Sign In</button>
+        </form>
+    </div>
+
+    <div id="mpesa-overlay" class="overlay hidden">
+        <div class="spinner"></div>
+        <h2 style="color: #22c55e; margin-bottom: 8px;">STK Push Sent!</h2>
+        <p style="margin-bottom: 6px; font-weight: 600;">Check your phone for the M-Pesa PIN prompt.</p>
+        <p style="color: var(--muted); font-size: 14px;" id="polling-status">Waiting for transaction validation...</p>
+    </div>
+
+    <form id="mikrotik-auth-form" name="login" action="$(link-login-only)" method="post">
+        <input type="hidden" name="username" id="mt-user" value="$(username)" />
+        <input type="hidden" name="password" id="mt-pass" />
+        <input type="hidden" name="dst" value="$(link-orig)" />
+        <input type="hidden" name="popup" value="true" />
+        
+        <input type="hidden" name="chap-id" value="$(chap-id)" />
+        <input type="hidden" name="chap-challenge" value="$(chap-challenge)" />
+        <input type="hidden" name="link-login" value="$(link-login)" />
+        <input type="hidden" name="link-login-only" value="$(link-login-only)" />
+    </form>
+
+    <script>
+        // API Base URL config
+        const API_BASE_URL = "https://aqua.easytech.africa";
+
+        // Fetch packages as soon as DOM Content is parsed
+        document.addEventListener("DOMContentLoaded", fetchPackages);
+
+        /**
+         * 1. FETCH AND DISPLAY PACKAGES FROM API
+         */
+        async function fetchPackages() {
+            const container = document.getElementById("packages-container");
+            const loadingText = document.getElementById("packages-loading");
+
+            try {
+                // Usually router router setups expect an endpoint like /api/packages or /packages.json depending on setup.
+                // Assuming standard endpoint or root returns the plan objects array. Update path if it differs (e.g., `${API_BASE_URL}/api/packages`)
+                const response = await fetch(`${API_BASE_URL}/api/hotspot/packages?nas_ip=10.20.20.3`); 
+                
+                if (!response.ok) {
+                    throw new Error("Failed to fetch data from easytech server");
+                }
+
+                const packages = await response.json();
+                
+                // Clear loading indicators
+                loadingText.classList.add("hidden");
+                container.innerHTML = "";
+
+                if(packages.length === 0) {
+                    container.innerHTML = `<div style="color: var(--muted); font-size:14px;">No internet packages available at the moment.</div>`;
+                    return;
+                }
+
+                // Render each package card dynamically
+                packages.forEach(pkg => {
+                    // Normalize standard attributes (names change depending on backend schemas, fallback variables included)
+                    const id = pkg.id || pkg._id;
+                    const name = pkg.name || pkg.plan_name;
+                    const price = pkg.price || pkg.amount;
+                    const validity = pkg.validity || pkg.duration || "Access Pack";
+                    const validity_type = pkg.validity_type; // e.g., days, hours, minutes
+
+                    const buttonCard = document.createElement("button");
+                    buttonCard.className = "package-card";
+                    buttonCard.type = "button";
+                    buttonCard.onclick = () => selectPackage(id, name, price);
+
+                    buttonCard.innerHTML = `
+                        <div class="package-info">
+                            <div class="name">${name}</div>
+                            <div class="meta">${validity} ${validity_type}</div>
+                        </div>
+                        <div class="package-price">KES ${price}</div>
+                    `;
+                    container.appendChild(buttonCard);
+                });
+
+            } catch (error) {
+                console.error("Error loading packages:", error);
+                loadingText.innerText = "Error loading packages. Please use a manual Voucher or try again.";
+            }
+        }
+
+        /**
+         * 2. HANDLE SELECTION OF A PACKAGE
+         */
+        function selectPackage(id, name, price) {
+            // Fill hidden values in payment box
+            document.getElementById("selected-package-id").value = id;
+            document.getElementById("selected-package-price").value = price;
+            
+            // Highlight changes visually
+            const label = document.getElementById("mpesa-form-label");
+            label.innerText = `Pay KES ${price} via M-Pesa for: ${name}`;
+            
+            // Show phone number prompt form
+            document.getElementById("form-mpesa").classList.remove("hidden");
+            document.getElementById("mpesa-phone").focus();
+            
+            // Scroll down smoothly to input field
+            document.getElementById("form-mpesa").scrollIntoView({ behavior: 'smooth' });
+        }
+
+        /**
+         * 3. SUBMIT M-PESA STK PUSH AND INITIATE CHECKING LOOP
+         */
+        async function handleMpesaPurchase(event) {
+            event.preventDefault();
+            
+            const phoneInput = document.getElementById("mpesa-phone").value.trim();
+            const packageId = document.getElementById("selected-package-id").value;
+            const price = document.getElementById("selected-package-price").value;
+            const submitBtn = document.getElementById("mpesa-submit-btn");
+            const overlay = document.getElementById("mpesa-overlay");
+            const pollingStatus = document.getElementById("polling-status");
+
+            if (!phoneInput || !packageId) {
+                alert("Please select a package and provide a valid phone number.");
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerText = "Processing push request...";
+
+            // Capture MikroTik dynamic environment values
+            const siteId = "10.20.20.3" || "$(identity)" || "$(server-address)"; // Fallbacks onto router identity or server IP string
+            const clientMac = "$(mac)" || "";
+            const clientIp = "$(ip)" || "";
+
+            try {
+                // Trigger STK Push on Aqua Easytech API matching your Laravel validation constraints
+                const response = await fetch(`${API_BASE_URL}/api/payments/hotspot`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        phone: phoneInput,
+                        package_id: packageId,
+                        amount: price,
+                        site_id: siteId,                         // Required validation mapping
+                        mac: clientMac,                          // Nullable
+                        ip: clientIp,                            // Nullable
+                        transaction_type: "CustomerPayBillOnline" // Nullable, matches enum constraint rules
+                    })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    // Handle validation error dumps cleanly if Laravel drops a 422 or similar back
+                    throw new Error(result.message || "STK Request failed to initiate.");
+                }
+
+                // Show waiting layout overlay screen
+                overlay.classList.remove("hidden");
+                
+                // Collect reference/Request ID from response to track payment status
+                const transactionRef = result.checkout_request_id || result.reference;
+                
+                // Begin live status polling to automatically login once PIN entered
+                pollTransactionStatus(transactionRef);
+
+            } catch (error) {
+                alert(error.message || "Network error. Failed to dispatch STK Push.");
+                submitBtn.disabled = false;
+                submitBtn.innerText = "Send M-Pesa STK Push";
+            }
+        }
+
+        /**
+         * 4. POLL TRANSACTION STATUS OVER TIME & FIRE MIKROTIK AUTH UPON SUCCESS
+         */
+        function pollTransactionStatus(reference) {
+            const pollingStatus = document.getElementById("polling-status");
+            let attempts = 0;
+            const maxAttempts = 20; // 20 attempts * 3 seconds = 1 Minute timeout windows
+
+            const interval = setInterval(async () => {
+                attempts++;
+                pollingStatus.innerText = `Validating with Safaricom M-Pesa... (${attempts})`;
+
+                try {
+                    const checkResponse = await fetch(`${API_BASE_URL}/api/payments/hotspot/check-status?reference=${reference}`);
+                    const checkResult = await checkResponse.json();
+                    if (checkResponse.ok && checkResult.status === "completed") {
+                        clearInterval(interval);
+                        pollingStatus.innerText = "Payment verified! Connecting to internet...";
+                        
+                        // Extract username/password voucher code derived on success via backend 
+                        const codeGenerated = checkResult.code || checkResult.voucher_code;
+                        
+                        // Run integration logic straight to Router
+                        executeMikrotikLogin(codeGenerated, codeGenerated);
+                    } else if (checkResult.status === "failed") {
+                        clearInterval(interval);
+                        alert("Failed. If paid, contact support.");
+                        document.getElementById("mpesa-overlay").classList.add("hidden");
+                        document.getElementById("mpesa-submit-btn").disabled = false;
+                    }
+                } catch (err) {
+                    console.warn("Status loop warning: ", err);
+                }
+
+                if (attempts >= maxAttempts) {
+                    clearInterval(interval);
+                    alert("Verification timed out. If you already completed payment, please try using your generated voucher code in the manually box below.");
+                    document.getElementById("mpesa-overlay").classList.add("hidden");
+                    document.getElementById("mpesa-submit-btn").disabled = false;
+                }
+            }, 3000);
+        }
+        /**
+         * 5. VOUCHER SEPARATE MANUAL FORM ENTRY
+         */
+        function handleVoucherSubmit(event) {
+            event.preventDefault();
+            const codeInput = document.getElementById('voucher-code').value.trim();
+            if (!codeInput) return;
+
+            // Typically MikroTik uses code as username and blank password (or identical password)
+            executeMikrotikLogin(codeInput, codeInput);
+        }
+
+        /**
+         * 6. NATIVE ACCOUNT LOGINS (EXISTING FUNCTION)
+         */
+        function handleMemberSubmit(event) {
+            event.preventDefault();
+            const usernameInput = document.getElementById('username').value.trim();
+            const passwordInput = document.getElementById('password').value;
+
+            if (!usernameInput || !passwordInput) {
+                alert('Please fill in both username and password.');
+                return;
+            }
+            executeMikrotikLogin(usernameInput, passwordInput);
+        }
+
+ 

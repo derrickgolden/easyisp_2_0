@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Customer, Payment } from "../types";
 import Swal from "sweetalert2";
-import { customersApi, paymentsApi, smsApi } from "../services/apiService";
+import { customersApi, hotspotCustomersApi, paymentsApi, smsApi } from "../services/apiService";
 import { toast } from "sonner";
 import { STORAGE_KEYS } from "../constants/storage";
 
@@ -15,7 +15,7 @@ export function useCustomerActions() {
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
     const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
     const [isReconcileModalOpen, setIsReconcileModalOpen] = useState(false);
-    const [payments, setPayments] = useState<Payment[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.PAYMENTS) || '[]'));
+    const [payments, setPayments] = useState<Payment[]>([]);
 
     const navigate = useNavigate();
   
@@ -43,7 +43,11 @@ export function useCustomerActions() {
       try {
         Swal.showLoading();
         // Pass a query param to tell the backend we are okay with deleting children
-        await customersApi.delete(`${customer.id}?cascade=true`);
+        if (customer.connectionType === 'Hotspot') {
+          await hotspotCustomersApi.delete(customer.id);
+        } else {
+          await customersApi.delete(`${customer.id}?cascade=true`);
+        }
         
         toast.success('All accounts deleted successfully');
         navigate('/crm/customers');
@@ -95,14 +99,22 @@ export function useCustomerActions() {
         
         if (isPaused) {
           // Resume service
-          await customersApi.resumeSubscription(customer.id);
+          if (customer.connectionType === 'PPPoE' ){
+            await customersApi.resumeSubscription(customer.id);
+          } else if (customer.connectionType === 'Hotspot') {
+            await hotspotCustomersApi.resumeSubscription(customer.id);
+          }
           toast.success('Service resumed successfully');
         } else {
           // Pause service
-          await customersApi.pauseSubscription(customer.id);
+          if (customer.connectionType === 'PPPoE' ){
+            await customersApi.pauseSubscription(customer.id);
+          } else if (customer.connectionType === 'Hotspot') {
+            await hotspotCustomersApi.pauseSubscription(customer.id);
+          }
           toast.success('Service paused successfully');
         }
-
+          
         // Refresh the page or parent component data
         window.location.reload();
         

@@ -1,4 +1,4 @@
-import { paymentsApi } from "@/src/services/apiService";
+import { hotspotPaymentsApi, paymentsApi } from "@/src/services/apiService";
 import React, { useEffect, useMemo } from "react";
 import { Modal } from "../UI";
 import { Customer, Payment } from "@/src/types";
@@ -54,10 +54,18 @@ export const ReconcileMpesaModal: React.FC<ReconcileMpesaModalProps> = ({
       setTargetCustomerId(customer?.id || "");
 
       try {
-        const res = await paymentsApi.getPending();
-        const rawPayments = Array.isArray(res?.data) ? res.data : res?.data?.data || [];
-        if (isActive) {
-          setPayments(rawPayments.map(normalizePayment));
+        if (customer?.connectionType == 'PPPoE') {
+          const res = await paymentsApi.getPending();
+          const rawPayments = Array.isArray(res?.data) ? res.data : res?.data?.data || [];
+          if (isActive) {
+            setPayments(rawPayments.map(normalizePayment));
+          }
+        } else if (customer?.connectionType == 'Hotspot') {
+          const res = await hotspotPaymentsApi.getPending();
+          const rawPayments = Array.isArray(res?.data) ? res.data : res?.data?.data || [];
+          if (isActive) {
+            setPayments(rawPayments.map(normalizePayment));
+          }
         }
       } catch (err: any) {
         console.error("Error fetching pending payments:", err);
@@ -100,8 +108,13 @@ export const ReconcileMpesaModal: React.FC<ReconcileMpesaModalProps> = ({
     setError("");
 
     try {
-      await paymentsApi.resolvePending(payment.id, targetCustomerId);
-      setPayments((prev) => prev.filter((p) => p.id !== payment.id));
+      if (customer?.connectionType == 'PPPoE') {
+        await paymentsApi.resolvePending(payment.id, targetCustomerId);
+        setPayments((prev) => prev.filter((p) => p.id !== payment.id));
+      } else if (customer?.connectionType == 'Hotspot') {
+        await hotspotPaymentsApi.resolvePending(payment.id, targetCustomerId);
+        setPayments((prev) => prev.filter((p) => p.id !== payment.id));
+      }
       if (onSuccess) {
         onSuccess();
       }
