@@ -85,6 +85,13 @@ Callback URL: /payments/c2b/gDfe1cLVv91bPeSys9J6/validation
 Callback URL: /payments/c2b/gDfe1cLVv91bPeSys9J6/confirmation
 Callback URL: /payments/payhero/gDfe1cLVv91bPeSys9J6/stk/callback
 
+Generated token for organization 7 (BRU-TECH FIBRE SOLUTIONS).
+Callback URL: /payments/c2b/hNnF5iJJPR71uYGRtgt6/validation
+Callback URL: /payments/c2b/hNnF5iJJPR71uYGRtgt6/confirmation
+Callback URL: /payments/payhero/hNnF5iJJPR71uYGRtgt6/stk/callback
+Callback URL: /payments/daraja/hNnF5iJJPR71uYGRtgt6/stk/callback
+
+
 
 #reversing wrongly closed sessions
 

@@ -15,10 +15,44 @@ class DarajaPaymentController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:stk-push')->only(['stkPush']);
+        $this->middleware('permission:stk-push')->only(['adminStkPush']);
     }
 
-    public function stkPush(Request $request)
+    public function customerStkPush(Request $request)
+    {
+
+        $validated = $request->validate([
+            'customer_id' => 'required|integer|exists:customers,id',
+            'phone' => 'required|string',
+            'package_id' => 'nullable|integer',
+            'amount' => 'required|numeric|min:1',
+            'account_reference' => 'nullable|string|max:255',
+            'transaction_desc' => 'nullable|string|max:255',
+            'transaction_type' => 'nullable|in:CustomerPayBillOnline,CustomerBuyGoodsOnline',
+        ]);
+
+        $customer = Customer::with('organization')->find($request->input('customer_id'));
+        if (!$customer) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Customer not found.',
+            ], 404);
+        }
+
+        $organization = $customer->organization;
+        if (!$organization) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Organization not found for customer.',
+            ], 404);
+        }
+
+        $request->merge(['organization' => $organization->id]);
+
+        return $this->adminStkPush($request);
+    }
+
+    public function adminStkPush(Request $request)
     {
         $request->validate([
             'phone' => 'required|string',
@@ -26,13 +60,16 @@ class DarajaPaymentController extends Controller
             'account_reference' => 'nullable|string|max:255',
             'transaction_desc' => 'nullable|string|max:255',
             'transaction_type' => 'nullable|in:CustomerPayBillOnline,CustomerBuyGoodsOnline',
+            'organization' => 'nullable|exists:organizations,id',
+        ]);
+        Log::info('Daraja STK push request received', [
+            'request_data' => $request->all(),
+            'request_ip' => $request->ip(),
         ]);
 
-
-        $organization = $request->user()->organization;
+        $organization = $request->input('organization') ? Organization::find($request->input('organization')) : $request->user()->organization;
         if (!$organization) {
             Log::error('Daraja STK: Organization not found for authenticated user', [
-                'user_id' => $request->user()?->id,
                 'request_ip' => $request->ip(),
             ]);
             return response()->json([
@@ -44,7 +81,6 @@ class DarajaPaymentController extends Controller
         if (empty($organization->mpesa_callback_token)) {
             Log::error('Daraja STK: Organization callback token missing', [
                 'organization_id' => $organization->id,
-                'user_id' => $request->user()?->id,
             ]);
             return response()->json([
                 'success' => false,
@@ -79,7 +115,6 @@ class DarajaPaymentController extends Controller
             Log::warning('Daraja STK: Invalid phone format', [
                 'organization_id' => $organization->id,
                 'input_phone' => $request->input('phone'),
-                'user_id' => $request->user()?->id,
             ]);
             return response()->json([
                 'success' => false,

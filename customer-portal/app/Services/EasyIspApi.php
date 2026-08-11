@@ -43,7 +43,7 @@ class EasyIspApi
         $response = $this->client()
             ->get('/api/customer/resolve-portal', [
                 'client_ip' => $ip,
-                'nas_ip' => '10.20.20.10',
+                'nas_ip' => '0.0.0.0',
             ]);
 
         $this->throwIfFailed($response);
@@ -80,13 +80,17 @@ class EasyIspApi
     public function initiatePayment(
         int $customerId,
         int $packageId,
-        string $phone
+        string $phone,
+        float $amount,
+        string $accountReference
     ): array {
         $response = $this->client()
             ->post('/api/customer/payments/initiate', [
                 'customer_id' => $customerId,
                 'package_id' => $packageId,
                 'phone' => $phone,
+                'amount' => $amount,
+                'account_reference' => $accountReference,
             ]);
 
         $this->throwIfFailed($response);

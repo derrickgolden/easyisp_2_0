@@ -16,7 +16,7 @@ class PortalContextResolverService
     public function resolve(array $input): array
     {
         $clientIp = trim((string) ($input['client_ip'] ?? ''));
-        $nasIp = trim((string) ($input['nas_ip'] ?? ''));
+        // $nasIp = trim((string) ($input['nas_ip'] ?? ''));
         $siteInput = trim((string) ($input['site_id'] ?? ''));
         $identity = trim((string) ($input['identity'] ?? ''));
         $mac = $this->normalizeMacAddress((string) ($input['mac'] ?? ''));
@@ -25,37 +25,39 @@ class PortalContextResolverService
             throw new InvalidArgumentException('client_ip is required.');
         }
 
-        if ($nasIp === '' && $siteInput === '' && $identity === '') {
-            throw new InvalidArgumentException('At least one of nas_ip, site_id, or identity is required.');
-        }
+        // if ($nasIp === '' && $siteInput === '' && $identity === '') {
+        //     throw new InvalidArgumentException('At least one of nas_ip, site_id, or identity is required.');
+        // }
 
-        $site = $this->resolveSite($siteInput, $nasIp, $identity);
-        if (!$site) {
-            throw new InvalidArgumentException('Site could not be resolved from provided context.');
-        }
+        // $site = $this->resolveSite($siteInput, $nasIp, $identity);
+        // if (!$site) {
+        //     throw new InvalidArgumentException('Site could not be resolved from provided context.');
+        // }
 
-        $organization = Organization::query()->find($site->organization_id);
-        if (!$organization) {
-            throw new InvalidArgumentException('Organization not found for resolved site.');
-        }
+        // $organization = Organization::query()->find($site->organization_id);
+        // if (!$organization) {
+        //     throw new InvalidArgumentException('Organization not found for resolved site.');
+        // }
 
-        $effectiveNasIp = trim((string) ($site->ip_address ?? $nasIp));
-        $session = $this->resolveRadiusSession($clientIp, $effectiveNasIp, $mac);
+        // $effectiveNasIp = trim((string) ($site->ip_address ?? $nasIp));
+        // $session = $this->resolveRadiusSession($clientIp, $effectiveNasIp, $mac);
+        $session = $this->resolveRadiusSession($clientIp, '', $mac);
 
         $subscriber = $this->resolveSubscriber(
-            organizationId: (int) $organization->id,
+            // organizationId: (int) $organization->id,
             radiusUsername: (string) ($session?->username ?? ''),
-            mac: $mac
+            mac: $mac,
+            nasIp: $session?->nasipaddress, // $effectiveNasIp,
         );
 
         $contextToken = $this->issueContextToken([
-            'organization_id' => (int) $organization->id,
-            'site_id' => (int) $site->id,
+            'organization_id' => (int) $subscriber['organization']->id,
+            // 'site_id' => (int) $site->id,
             'subscriber_type' => $subscriber['type'],
             'subscriber_id' => $subscriber['id'],
             'radius_username' => (string) ($session?->username ?? ''),
             'client_ip' => $clientIp,
-            'nas_ip' => $effectiveNasIp,
+            'nas_ip' => $session?->nasipaddress, // $effectiveNasIp,
             'mac' => $mac,
             'issued_at' => now()->timestamp,
             'expires_at' => now()->addMinutes(15)->timestamp,
@@ -64,16 +66,16 @@ class PortalContextResolverService
         return [
             'context_token' => $contextToken,
             'tenant' => [
-                'id' => (int) $organization->id,
-                'name' => (string) $organization->name,
-                'acronym' => (string) ($organization->acronym ?? ''),
+                'id' => (int) $subscriber['organization']->id,
+                'name' => (string) $subscriber['organization']->name,
+                'acronym' => (string) ($subscriber['organization']->acronym ?? ''),
             ],
-            'site' => [
-                'id' => (int) $site->id,
-                'name' => (string) $site->name,
-                'location' => (string) ($site->location ?? ''),
-                'ip_address' => (string) ($site->ip_address ?? ''),
-            ],
+            // 'site' => [
+            //     'id' => (int) $site->id,
+            //     'name' => (string) $site->name,
+            //     'location' => (string) ($site->location ?? ''),
+            //     'ip_address' => (string) ($site->ip_address ?? ''),
+            // ],
             'session' => [
                 'username' => $session?->username,
                 'framed_ip' => $session?->framedipaddress,
@@ -91,8 +93,8 @@ class PortalContextResolverService
                 'radius_username' => $subscriber['radius_username'],
             ],
             'payment' => [
-                'has_callback_token' => !empty($organization->mpesa_callback_token),
-                'gateway' => $this->extractSafePaymentGatewayConfig($organization->settings),
+                'has_callback_token' => !empty($subscriber['organization']->mpesa_callback_token),
+                'gateway' => $this->extractSafePaymentGatewayConfig($subscriber['organization']->settings),
             ],
         ];
     }
@@ -199,7 +201,7 @@ class PortalContextResolverService
             $query = DB::connection('radius')
                 ->table('radacct')
                 ->where('framedipaddress', $clientIp)
-                ->where('nasipaddress', $nasIp)
+                // ->where('nasipaddress', $nasIp)
                 ->orderByDesc('radacctid');
 
             $activeQuery = (clone $query)->whereNull('acctstoptime');
@@ -269,79 +271,58 @@ class PortalContextResolverService
         return null;
     }
 
-    private function resolveSubscriber(int $organizationId, string $radiusUsername, ?string $mac): array
-    {
+    private function resolveSubscriber(
+        string $radiusUsername,
+        ?string $mac,
+        string $nasIp,
+    ): array {
         $radiusUsername = trim($radiusUsername);
+        $organization = Site::query()
+            ->where('ip_address', $nasIp)
+            ->with('organization')
+            ->first()?->organization;
 
-        if ($radiusUsername !== '') {
-            $pppoe = Customer::query()
-                ->where('organization_id', $organizationId)
-                ->where('radius_username', $radiusUsername)
-                ->first();
+        if ($organization !== null) {
+            $organizationId = (int) $organization->id;
 
-            if ($pppoe) {
-                return [
-                    'type' => 'pppoe',
-                    'id' => (int) $pppoe->id,
-                    'status' => $pppoe->status,
-                    'phone' => $pppoe->phone,
-                    'expiry_date' => $pppoe->expiry_date,
-                    'radius_username' => $pppoe->radius_username,
-                    'model' => $pppoe,
-                ];
+            if ($radiusUsername !== '') {
+                $pppoe = Customer::query()
+                    ->where('organization_id', $organizationId)
+                    ->where('radius_username', $radiusUsername)
+                    ->first();
+
+                if ($pppoe) {
+                    return [
+                        'type' => 'pppoe',
+                        'id' => (int) $pppoe->id,
+                        'status' => $pppoe->status,
+                        'phone' => $pppoe->phone,
+                        'expiry_date' => $pppoe->expiry_date,
+                        'radius_username' => $pppoe->radius_username,
+                        'model' => $pppoe,
+                        'organization' => $organization,
+                    ];
+                }
             }
 
-            $hotspot = HotspotCustomer::query()
-                ->where('organization_id', $organizationId)
-                ->where('radius_username', $radiusUsername)
-                ->first();
+            if ($mac) {
+                $pppoe = Customer::query()
+                    ->where('organization_id', $organizationId)
+                    ->where('mac_address', $mac)
+                    ->first();
 
-            if ($hotspot) {
-                return [
-                    'type' => 'hotspot',
-                    'id' => (int) $hotspot->id,
-                    'status' => $hotspot->status,
-                    'phone' => $hotspot->phone,
-                    'expiry_date' => $hotspot->expiry_date,
-                    'radius_username' => $hotspot->radius_username,
-                    'model' => $hotspot,
-                ];
-            }
-        }
-
-        if ($mac) {
-            $hotspot = HotspotCustomer::query()
-                ->where('organization_id', $organizationId)
-                ->where('mac_address', $mac)
-                ->first();
-
-            if ($hotspot) {
-                return [
-                    'type' => 'hotspot',
-                    'id' => (int) $hotspot->id,
-                    'status' => $hotspot->status,
-                    'phone' => $hotspot->phone,
-                    'expiry_date' => $hotspot->expiry_date,
-                    'radius_username' => $hotspot->radius_username,
-                    'model' => $hotspot,
-                ];
-            }
-
-            $pppoe = Customer::query()
-                ->where('organization_id', $organizationId)
-                ->where('mac_address', $mac)
-                ->first();
-
-            if ($pppoe) {
-                return [
-                    'type' => 'pppoe',
-                    'id' => (int) $pppoe->id,
-                    'status' => $pppoe->status,
-                    'phone' => $pppoe->phone,
-                    'expiry_date' => $pppoe->expiry_date,
-                    'radius_username' => $pppoe->radius_username,
-                    'model' => $pppoe,
-                ];
+                if ($pppoe) {
+                    return [
+                        'type' => 'pppoe',
+                        'id' => (int) $pppoe->id,
+                        'status' => $pppoe->status,
+                        'phone' => $pppoe->phone,
+                        'expiry_date' => $pppoe->expiry_date,
+                        'radius_username' => $pppoe->radius_username,
+                        'model' => $pppoe,
+                        'organization' => $organization,
+                    ];
+                }
             }
         }
 
@@ -353,6 +334,7 @@ class PortalContextResolverService
             'expiry_date' => null,
             'radius_username' => $radiusUsername !== '' ? $radiusUsername : null,
             'model' => null,
+            'organization' => null,
         ];
     }
 

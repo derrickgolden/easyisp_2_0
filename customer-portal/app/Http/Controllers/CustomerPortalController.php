@@ -153,6 +153,13 @@ class CustomerPortalController extends Controller
                 $siteId ? (int) $siteId : null
             );
 
+            Log::info('CustomerPortalController: Retrieved packages', [
+                'customer_id' => $customerId,
+                'site_id' => $siteId,
+                'packages' => $packages,
+                'customer' => $customerData,
+            ]);
+
             return view('customer.packages', [
                 'customer' => $customerData,
                 'packages' => $packages['packages'] ?? [],
@@ -173,11 +180,6 @@ class CustomerPortalController extends Controller
     {
         $customerId = session('customer_id');
 
-        Log::info('CustomerPortalController: Payment initiation request', [
-            'customer_id' => $customerId,
-            'request_data' => $request->all(),
-        ]);
-
         if (!$customerId) {
             return redirect('/');
         }
@@ -187,7 +189,16 @@ class CustomerPortalController extends Controller
                 'required',
                 'integer',
             ],
-
+            'account_reference' => [
+                'required',
+                'string',
+                'max:100',
+            ],
+            'amount' => [
+                'required',
+                'numeric',
+                'min:0',
+            ],
             'phone' => [
                 'required',
                 'string',
@@ -196,11 +207,17 @@ class CustomerPortalController extends Controller
         ]);
 
         try {
+            Log::info('CustomerPortalController: Payment initiation request', [
+            'customer_id' => $customerId,
+            'request_data' => $validated,
+            ]); 
 
             $result = $this->api->initiatePayment(
                 (int) $customerId,
                 (int) $validated['package_id'],
-                $validated['phone']
+                $validated['phone'],
+                $validated['amount'],
+                $validated['account_reference']
             );
 
             return back()->with(

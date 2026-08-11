@@ -172,6 +172,18 @@
                         >
 
                         <input
+                            type="hidden"
+                            name="amount"
+                            value="{{ $package['price'] ?? 0 }}"
+                        >
+
+                        <input
+                            type="hidden"
+                            name="radius_username"
+                            value="{{ $customer['radius_username'] ?? '' }}"
+                        >
+
+                        <input
                             type="tel"
                             name="phone"
                             placeholder="M-Pesa phone number"
@@ -198,6 +210,22 @@
                             type="hidden"
                             name="package_id"
                             value="{{ $package['id'] }}"
+                        >
+                        <input
+                            type="hidden"
+                            name="amount"
+                            value="{{ $package['price'] ?? 0 }}"
+                        >
+
+                        <input
+                            type="hidden"
+                            name="radius_username"
+                            value="{{ $customer['radius_username'] ?? '' }}"
+                        >
+                        <input
+                            type="hidden"
+                            name="account_reference"
+                            value="{{ $customer['radius_username'] ?? '' }}"
                         >
 
                         <input

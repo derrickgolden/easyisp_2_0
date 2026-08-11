@@ -63,7 +63,7 @@ Route::post('/radius/verify/{username}', [RadiusController::class, 'verify']);
 Route::get('/hotspot/packages', [HotspotPackageController::class, 'publicIndex']);
 Route::get('/customer/resolve-portal', [PortalContextController::class, 'resolve']);
 Route::get('/customer/packages', [PortalContextController::class, 'packages']);
-Route::post('/customer/payments/initiate', [DarajaPaymentController::class, 'stkPush']);
+Route::post('/customer/payments/initiate', [DarajaPaymentController::class, 'customerStkPush']);
 Route::get('/customer/{id}', [PortalContextController::class, 'customer']);
 Route::get('/portal/pppoe-payment', [SiteController::class, 'pppoePaymentPortal']);
 Route::post('/payments/hotspot/{token}/callback', [DarajaHotspotController::class, 'stkCallback']);
@@ -211,7 +211,7 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     
     // Payment management
     Route::post('/payments/payhero/stkpush', [PayheroPaymentController::class, 'stkPush']);
-    Route::post('/payments/daraja/stkpush', [DarajaPaymentController::class, 'stkPush']);
+    Route::post('/payments/daraja/stkpush', [DarajaPaymentController::class, 'adminStkPush']);
     Route::get('/payments/payhero/check-status', [PaymentController::class, 'checkPaymentStatus']);
     Route::get('/payments/pending', [PaymentController::class, 'pending']);
     Route::get('/payments/customer/{customerId}', [PaymentController::class, 'getByCustomer']);
