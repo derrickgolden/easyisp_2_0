@@ -44,9 +44,10 @@ class CustomerPortalController extends Controller
 
         try {
             $portalContext = $this->api->customerByIp($ip);
-            Log::info('CustomerPortalController: Retrieved customer data', [
+
+            Log::info('Customer portal context resolved', [
                 'ip' => $ip,
-                'customer' => $portalContext,
+                'portal_context' => $portalContext,
             ]);
 
             if (
@@ -74,6 +75,7 @@ class CustomerPortalController extends Controller
                 'customer_id' => (int) $subscriber['id'],
                 'customer_ip' => $ip,
                 'customer_type' => $subscriber['type'] ?? null,
+                'payment_gateway' => $data['payment']['gateway'] ?? null,
             ]);
 
             return redirect()->route('customer.dashboard');
@@ -113,6 +115,7 @@ class CustomerPortalController extends Controller
             return view('customer.dashboard', [
                 'customer' => $customerData,
                 'ip' => session('customer_ip'),
+                'payment_gateway' => session('payment_gateway'),
             ]);
 
         } catch (Throwable $e) {
@@ -163,6 +166,7 @@ class CustomerPortalController extends Controller
             return view('customer.packages', [
                 'customer' => $customerData,
                 'packages' => $packages['packages'] ?? [],
+                'payment_gateway' => session('payment_gateway'),
             ]);
 
         } catch (Throwable $e) {
@@ -207,10 +211,6 @@ class CustomerPortalController extends Controller
         ]);
 
         try {
-            Log::info('CustomerPortalController: Payment initiation request', [
-            'customer_id' => $customerId,
-            'request_data' => $validated,
-            ]); 
 
             $result = $this->api->initiatePayment(
                 (int) $customerId,

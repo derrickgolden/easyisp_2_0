@@ -31,6 +31,14 @@ class PortalContextController extends Controller
 
         try {
             $resolved = $resolver->resolve($data);
+            Log::info('PortalContextController: Resolved portal context', [
+                'client_ip' => $data['client_ip'],
+                'nas_ip' => $data['nas_ip'] ?? null,
+                'site_id' => $data['site_id'] ?? null,
+                'identity' => $data['identity'] ?? null,
+                'mac' => $data['mac'] ?? null,
+                'resolved' => $resolved,
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -66,8 +74,14 @@ class PortalContextController extends Controller
             ], 404);
         }
 
-        $customer->loadMissing(['package', 'site']);
+        
 
+        $customer->loadMissing(['package', 'site']);
+Log::info('Customer data retrieved', [
+            'customer_id' => $customer->id,
+            'package_id' => $customer->package_id,
+            'site_id' => $customer->site_id,
+        ]);
         return response()->json([
             'success' => true,
             'customer' => $this->formatCustomer($customer),
