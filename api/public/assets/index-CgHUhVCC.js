@@ -51,11 +51,11 @@ Please change the parent <Route path="${R}"> to <Route path="${R==="/"?"*":`${R}
       /radius incoming set accept=yes
 
       # WireGuard Configuration
-      /interface wireguard add name=wg-client listen-port=13231
-      /interface wireguard peers add interface=wg-client public-key="${Fx}"       endpoint-address=${Xx} endpoint-port=51820 allowed-address=${Vx} persistent-keepalive=25s
+      /interface wireguard add name=easytech-wg-client listen-port=13231
+      /interface wireguard peers add interface=easytech-wg-client public-key="${Fx}"       endpoint-address=${Xx} endpoint-port=51820 allowed-address=${Vx} persistent-keepalive=25s
 
       # WireGuard IP Address Configuration
-      /ip address add address=${l?.ip_address}/24 interface=wg-client       comment="Wireguard Primary Gateway IP for ${l?.name}"
+      /ip address add address=${l?.ip_address}/24 interface=easytech-wg-client       comment="Easytech Wireguard Primary Gateway IP for ${l?.name}"
 
       # Firewall Rules
       # Allow RADIUS and COA from the WireGuard Tunnel only
@@ -80,11 +80,11 @@ Please change the parent <Route path="${R}"> to <Route path="${R==="/"?"*":`${R}
       ###############################################################################
 
       /ip firewall filter
-      add chain=forward action=accept src-address=10.0.0.0/24 dst-address=10.20.20.1 protocol=tcp dst-port=80 comment="Expired users -> Aqua HTTP"
-      add chain=forward action=accept src-address=10.0.0.0/24 dst-address=10.20.20.1 protocol=tcp dst-port=443 comment="Expired users -> Aqua HTTPS"
+      add chain=forward action=accept src-address=10.0.0.0/24 dst-address=${l?.ip_address} protocol=tcp dst-port=80 comment="Expired users -> Aqua HTTP"
+      add chain=forward action=accept src-address=10.0.0.0/24 dst-address=${l?.ip_address} protocol=tcp dst-port=443 comment="Expired users -> Aqua HTTPS"
 
-      /ip firewall filter
-      add chain=forward src-address=10.0.0.0/24 dst-address=10.20.20.1 action=accept comment="Expired users -> Caddy"
+      #/ip firewall filter
+      #add chain=forward src-address=10.0.0.0/24 dst-address=${l?.ip_address} action=accept comment="Expired users -> Caddy"
 
       /ip firewall filter 
       add chain=forward src-address=10.0.0.0/24 protocol=udp  dst-port=53  action=accept  comment="Expired users -> DNS UDP"
@@ -99,15 +99,17 @@ Please change the parent <Route path="${R}"> to <Route path="${R==="/"?"*":`${R}
       /ip firewall filter
       add chain=forward src-address=10.0.0.0/24 action=drop comment="Block Internet for expired users"
 
+      /ip firewall nat
+      add action=dst-nat chain=dstnat comment="Expired users HTTP to Caddy" dst-port=80 protocol=tcp src-address=10.0.0.0/24 to-addresses=10.30.30.1 to-ports=80
+
       /interface wireguard peers
-      set [find name="peer1"] allowed-address=10.20.20.0/24,10.0.0.0/24
+      set [find name="peer1"] allowed-address=10.30.30.0/24,10.0.0.0/24
 
       /ppp profile
       set [find name="Expired_Redirect"] dns-server=10.0.0.1
 
       /ip dns static
-      add name=aqua.easytech.africa address=10.20.20.1
-      
+      add name=customer-portal.easytech.africa address=${l?.ip_address} ttl=1m comment="Expired users customer portal"
       
       # System Clock
       /system clock set time-zone-name=Africa/Nairobi
@@ -124,11 +126,11 @@ Please change the parent <Route path="${R}"> to <Route path="${R==="/"?"*":`${R}
       /ip dns set servers=8.8.8.8,1.1.1.1 allow-remote-requests=no
 
       # WireGuard Configuration
-      /interface wireguard add name=wg-client listen-port=13231
-      /interface wireguard peers add interface=wg-client public-key="${Fx}"       endpoint-address=${Xx} endpoint-port=51820 allowed-address=${Vx} persistent-keepalive=25s
+      /interface wireguard add name=easytech-wg-client listen-port=13231
+      /interface wireguard peers add interface=easytech-wg-client public-key="${Fx}"       endpoint-address=${Xx} endpoint-port=51820 allowed-address=${Vx} persistent-keepalive=25s
 
       # WireGuard IP Address Configuration
-      /ip address add address=${l?.ip_address}/24 interface=wg-client       comment="Wireguard Primary Gateway IP for ${l?.name}"
+      /ip address add address=${l?.ip_address}/24 interface=easytech-wg-client       comment="EasyTech Wireguard Primary Gateway IP for ${l?.name}"
 
       # Hotspot Server Configuration
       # 1. Create the Bridge if not already created.
