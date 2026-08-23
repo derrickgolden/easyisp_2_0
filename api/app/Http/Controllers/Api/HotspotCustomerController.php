@@ -226,7 +226,7 @@ class HotspotCustomerController extends Controller
             ],
             'is_independent' => 'sometimes|boolean',
         ]);
-        Log::info('HotspotCustomerController@store validation errors: ', $validator->errors()->toArray());
+
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
@@ -664,6 +664,32 @@ class HotspotCustomerController extends Controller
         return response()->json([
             'customer' => new HotspotCustomerResource($customer)
         ]);
+    }
+
+    public function resetMacBinding(Request $request, $id)
+    {
+        $customer = HotspotCustomer::where('organization_id', $request->user()->organization_id)->find($id);
+        if (!$customer) {
+            return response()->json(['message' => 'Customer not found'], 404);
+        }
+
+        try {
+            // Remove MAC lock only for this organization
+            // $this->radiusService->flushMacOnly($customer->radius_username, $customer->organization_id);
+            // Disconnect any active sessions for this username
+            $this->radiusService->disconnectCustomer($customer->radius_username, $customer->organization_id);
+                        
+            return response()->json([
+                'message' => 'MAC binding reset.',
+                'customer_id' => $customer->id,
+                'status' => 're-syncing'
+            ], 200);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => 'Failed to reset MAC binding',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function syncDevice(Request $request)

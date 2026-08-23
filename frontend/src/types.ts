@@ -71,6 +71,7 @@ export interface Package {
   priority?: number; // 1-8
   min_limit_up?: string;
   min_limit_down?: string;
+  max_connections?: number;
 }
 
 export interface RadiusLog {

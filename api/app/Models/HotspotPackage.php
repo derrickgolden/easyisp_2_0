@@ -22,6 +22,7 @@ class HotspotPackage extends Model
         'validity',
         'validity_type',
         'type',
+        'max_connections',
         'data_limit_mb',
         'session_timeout',
         'idle_timeout',
@@ -46,6 +47,7 @@ class HotspotPackage extends Model
         'attributes' => 'array',
         'expires_at' => 'datetime',
         'is_voucher' => 'boolean',
+        'max_connections' => 'integer',
     ];
 
     protected static function booted(): void

@@ -95,6 +95,23 @@ class HotspotSubscriptionService
         );
 
         $package = $this->resolveEffectivePackage($customer);
+        $simultaneousUse = (int) data_get($package, 'max_connections', 0);
+
+        DB::connection('radius')->table('radcheck')
+            ->where('username', $customer->radius_username)
+            ->where('attribute', 'Simultaneous-Use')
+            ->delete();
+
+        if ($simultaneousUse > 0) {
+            DB::connection('radius')->table('radcheck')->insert([
+                'username' => $customer->radius_username,
+                'attribute' => 'Simultaneous-Use',
+                'op' => ':=',
+                'value' => $simultaneousUse,
+                'organization_id' => $customer->organization_id,
+                'client_type' => 'hotspot',
+            ]);
+        }
 
         $downloadSpeed = data_get($package, 'download_speed') ?? data_get($package, 'speed_down');
         $uploadSpeed = data_get($package, 'upload_speed') ?? data_get($package, 'speed_up');
@@ -113,7 +130,7 @@ class HotspotSubscriptionService
             );
         }
 
-        $seconds = $this->resolveSessionTimeoutSeconds($package);
+        $seconds = $this->resolveSessionTimeoutSeconds($customer);
 
         if ($seconds > 0) {
             DB::connection('radius')->table('radreply')->updateOrInsert(
@@ -268,28 +285,32 @@ class HotspotSubscriptionService
         return $customer->package()->first();
     }
 
-    private function resolveSessionTimeoutSeconds(?HotspotPackage $package): int
+    private function resolveSessionTimeoutSeconds(HotspotCustomer|HotspotPackage|null $subject): int
     {
-        if ($package === null) {
+        if ($subject instanceof HotspotCustomer) {
+            return max(0, Carbon::now()->diffInSeconds(Carbon::parse($subject->expiry_date), false));
+        }
+
+        if ($subject === null) {
             return 0;
         }
 
-        $sessionTimeout = (int) data_get($package, 'session_timeout', 0);
+        $sessionTimeout = (int) data_get($subject, 'session_timeout', 0);
         if ($sessionTimeout > 0) {
             return $sessionTimeout;
         }
 
-        $durationHours = (int) data_get($package, 'duration_hours', 0);
+        $durationHours = (int) data_get($subject, 'duration_hours', 0);
         if ($durationHours > 0) {
             return $durationHours * 3600;
         }
 
-        $validity = (int) data_get($package, 'validity', 0);
+        $validity = (int) data_get($subject, 'validity', 0);
         if ($validity <= 0) {
             return 0;
         }
 
-        $validityType = strtolower((string) data_get($package, 'validity_type', 'days'));
+        $validityType = strtolower((string) data_get($subject, 'validity_type', 'days'));
 
         return match ($validityType) {
             'minutes' => $validity * 60,

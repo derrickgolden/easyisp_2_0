@@ -18,6 +18,7 @@ class Package extends Model
         'validity',
         'validity_type',
         'type',
+        'max_connections',
         'status',
         'burst_limit_up',
         'burst_limit_down',
@@ -32,6 +33,7 @@ class Package extends Model
     protected $casts = [
         'price' => 'decimal:2',
         'id' => 'string',
+        'max_connections' => 'integer',
     ];
 
     protected static function booted(): void

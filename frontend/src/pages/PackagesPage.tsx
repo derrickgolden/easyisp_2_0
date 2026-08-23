@@ -286,6 +286,7 @@ export const PackagesPage: React.FC = () => {
         editingPackage={editingPackage} 
         setEditingPackage={setEditingPackage} 
         onSave={handleSavePackage}
+        isHotspot={showPackageList === 'hotspot'}
         isSaving={isSaving}
         saveError={saveError}
       />  

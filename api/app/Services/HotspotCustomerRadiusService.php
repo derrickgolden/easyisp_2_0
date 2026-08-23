@@ -75,6 +75,19 @@ class HotspotCustomerRadiusService
                     'client_type' => 'hotspot',
                 ]
             );
+
+            if ($customer->package && (int) $customer->package->max_connections > 0) {
+                $this->addCheckAttribute(
+                    $customer->radius_username,
+                    'Simultaneous-Use',
+                    ':=',
+                    (int) $customer->package->max_connections,
+                    [
+                        'organization_id' => $customer->organization_id,
+                        'client_type' => 'hotspot',
+                    ]
+                );
+            }
             
             if ($customer->status !== 'active') {
                 return [
@@ -134,8 +147,6 @@ class HotspotCustomerRadiusService
             ->whereIn('nasipaddress', $allowedNasIps)
             ->whereNull('acctstoptime')
             ->get(['acctsessionid', 'nasipaddress', 'radacctid', 'framedipaddress']); // <-- Add framedipaddress
-
-        Log::info("--- START HOTSPOT TENANT DISCONNECT: {$username} (Org: {$organizationId}) ---");
 
         if ($sessions->isEmpty()) {
             $lastSession = $radiusConnection

@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card, Modal } from "../../UI";
-import { customersApi } from '../../../services/apiService';
+import { customersApi, hotspotCustomersApi } from '../../../services/apiService';
 import { toast } from 'sonner';
 import { usePermissions } from '@/src/hooks/usePermissions';
+import { Customer } from '@/src/types';
 
 export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
     const [uptime, setUptime] = useState<string>('Offline');
@@ -137,14 +138,20 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
     //   };
     // }, [isOnline, onRefresh]);
 
-    const onResetMAC = async (customerId: string) => {
+    const onResetMAC = async (customer: Customer) => {
       if (isResettingMac) return;
       setIsResettingMac(true);
 
       try {
-        const response = await customersApi.resetMacBinding(customerId);
-        onRefresh();
-        toast.success(response.message);
+        if (customer.connectionType === "PPPoE") {
+          const response = await customersApi.resetMacBinding(customer.id);
+          onRefresh();
+          toast.success(response.message);
+        }else if (customer.connectionType === "Hotspot") {
+          const response = await hotspotCustomersApi.resetMacBinding(customer.id);
+          onRefresh();
+          toast.success(response.message);
+        }
       } catch (error) {
         console.error("Error resetting MAC binding:", error);
         toast.error("Failed to reset MAC binding.");
@@ -261,7 +268,7 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
                       {
                         can('flash-mac-binding') && (
                           <button
-                            onClick={() => onResetMAC(customer.id)}
+                            onClick={() => onResetMAC(customer)}
                             disabled={isResettingMac}
                             className={`w-1/2 py-2 text-yellow-800 border border-yellow-300 rounded-xl text-[12px] font-black uppercase tracking-widest transition-all ${
                               isResettingMac
@@ -269,7 +276,7 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
                                 : 'bg-yellow-100 hover:bg-yellow-200'
                             }`}
                           >
-                              {isResettingMac ? 'Flushing...' : 'Flush MAC'}
+                              {isResettingMac ? 'Refreshing...' : 'REFRESH'}
                           </button>
                         )
                       }

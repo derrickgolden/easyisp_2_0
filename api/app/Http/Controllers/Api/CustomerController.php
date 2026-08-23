@@ -15,6 +15,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class CustomerController extends Controller
 {
@@ -637,8 +638,8 @@ class CustomerController extends Controller
 
         try {
             // Remove MAC lock only for this organization
+            Log::info("MAC binding reset for customer {$customer->id} ({$customer->radius_username}) in organization {$customer->organization_id}");            
             $this->radiusService->flushMacOnly($customer->radius_username, $customer->organization_id);
-            
             // Disconnect any active sessions for this username
             $this->radiusService->disconnectCustomer($customer->radius_username, $customer->organization_id);
                         

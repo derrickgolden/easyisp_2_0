@@ -449,7 +449,12 @@ export const hotspotCustomersApi = {
   getTechnicalSpecs: async (id: string) => {
     const response = await axiosInstance.get(`/hotspot-customers/${id}/technical-specs`);
     return response.data;
-  }
+  },
+
+  resetMacBinding: async (id: string) => {
+    const response = await axiosInstance.post(`/hotspot-customers/${id}/reset-mac-binding`);
+    return response.data;
+  },
 };
 
 // Sites Endpoints

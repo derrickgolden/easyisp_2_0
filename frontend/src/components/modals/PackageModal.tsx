@@ -10,10 +10,11 @@ interface PackageModalProps {
   setEditingPackage: (pkg: Partial<Package> | null) => void;
   isSaving?: boolean;
   saveError?: string | null;
+  isHotspot: boolean;
 }
 
 export const PackageModal: React.FC<PackageModalProps> = ({
-  isOpen, onClose, onSave, editingPackage, setEditingPackage, isSaving = false
+  isOpen, onClose, onSave, editingPackage, setEditingPackage, isHotspot, isSaving = false
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -95,6 +96,20 @@ export const PackageModal: React.FC<PackageModalProps> = ({
               placeholder="e.g. Fiber Home 10Mbps"
             />
           </div>
+          {isHotspot && (
+            <div>
+              <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Max Connections(Devices)</label>
+              <input 
+                required
+                type="number" 
+                min="0"
+                value={editingPackage?.max_connections || ''} 
+                onChange={e => setEditingPackage({...editingPackage, max_connections: Number(e.target.value)})}
+                className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3.5 mt-1 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-black" 
+                placeholder="1"
+              />
+            </div>
+          )}
           <div>
             <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Price (KSH)</label>
             <input 

@@ -494,11 +494,11 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, onClose, selec
       ###############################################################################
 
       /ip firewall filter
-      add chain=forward action=accept src-address=10.0.0.0/24 dst-address=${selectedSite?.ip_address} protocol=tcp dst-port=80 comment="Expired users -> Aqua HTTP"
-      add chain=forward action=accept src-address=10.0.0.0/24 dst-address=${selectedSite?.ip_address} protocol=tcp dst-port=443 comment="Expired users -> Aqua HTTPS"
+      add chain=forward action=accept src-address=10.0.0.0/24 dst-address=${SERVER_IP_ADDRESS} protocol=tcp dst-port=80 comment="Expired users -> Aqua HTTP"
+      add chain=forward action=accept src-address=10.0.0.0/24 dst-address=${SERVER_IP_ADDRESS} protocol=tcp dst-port=443 comment="Expired users -> Aqua HTTPS"
 
       #/ip firewall filter
-      #add chain=forward src-address=10.0.0.0/24 dst-address=${selectedSite?.ip_address} action=accept comment="Expired users -> Caddy"
+    #add chain=forward src-address=10.0.0.0/24 dst-address=${selectedSite?.ip_address} action=accept comment="Expired users -> Caddy"
 
       /ip firewall filter 
       add chain=forward src-address=10.0.0.0/24 protocol=udp  dst-port=53  action=accept  comment="Expired users -> DNS UDP"
@@ -523,7 +523,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, onClose, selec
       set [find name="Expired_Redirect"] dns-server=10.0.0.1
 
       /ip dns static
-      add name=customer-portal.easytech.africa address=${selectedSite?.ip_address} ttl=1m comment="Expired users customer portal"
+      add name=customer-portal.easytech.africa address=${SERVER_IP_ADDRESS} ttl=1m comment="Expired users customer portal"
       
       # System Clock
       /system clock set time-zone-name=Africa/Nairobi
@@ -582,7 +582,11 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, onClose, selec
       /ip hotspot profile set hsprof1 use-radius=yes
       /ip hotspot profile set hsprof1 radius-interim-update=00:02:00
 
-      /ip hotspot walled-garden ip add dst-host=${DST_HOST} action=accept
+      /ip hotspot user profile set [find name="default"] shared-users=100
+
+      /ip hotspot walled-garden ip
+      add dst-host=${DST_HOST} protocol=tcp action=accept comment="Allow TCP HTTPS API"
+      add dst-host=${DST_HOST} protocol=udp action=accept comment="Allow UDP QUIC API"
 
       # Create the Hotspot On-Login Script
       /system script add name=hotspot_sync_script

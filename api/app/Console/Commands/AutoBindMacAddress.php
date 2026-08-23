@@ -19,146 +19,112 @@ class AutoBindMacAddress extends Command
      *
      * @var string
      */
-    protected $description = 'Command description';
+    protected $description = 'Automatically bind MAC addresses (Calling-Station-Id) for PPPoE customers.';
 
     /**
      * Execute the console command.
      */
-    // app/Console/Commands/AutoBindMacAddress.php
-
     public function handle()
     {
-        // 1. Get the latest callingstationid for each user session.
-        $sessions = DB::connection('radius')
-            ->table('radacct as a')
-            ->select('a.username', 'a.callingstationid', 'a.nasipaddress')
-            // Only look at the latest session for each user
-            ->whereIn('a.radacctid', function ($query) {
-                $query->select(DB::raw('MAX(radacctid)'))
-                    ->from('radacct')
-                    ->groupBy('username');
-            })
-            ->whereNotNull('a.callingstationid')
-            ->where('a.callingstationid', '!=', '')
-            ->get();
+        // 1. Fetch PPPoE customers mapping from application DB (easyisp_2_0)
+        $pppoeCustomers = DB::table('customers')
+            ->whereNotNull('radius_username')
+            ->where('radius_username', '!=', '')
+            ->pluck('organization_id', 'radius_username')
+            ->toArray();
 
-        if ($sessions->isEmpty()) {
-            $this->info("No new users to bind.");
+        if (empty($pppoeCustomers)) {
+            $this->info("No PPPoE customers found.");
             return;
         }
 
+        $pppoeUsernames = array_keys($pppoeCustomers);
+
+        // 2. Fetch site organization map from application DB
+        $siteOrgMap = DB::table('sites')
+            ->whereNotNull('ip_address')
+            ->pluck('organization_id', 'ip_address')
+            ->toArray();
+
+        // 3. Query RADIUS database purely internally for candidate PPPoE sessions
+        $sessions = DB::connection('radius')
+            ->table('radacct')
+            ->select('username', 'callingstationid', 'nasipaddress')
+            ->whereIn('username', $pppoeUsernames)
+            ->whereNull('acctstoptime')
+            ->whereNotNull('callingstationid')
+            ->where('callingstationid', '!=', '')
+            ->orderBy('radacctid', 'desc')
+            ->get()
+            ->unique('username');
+
+        if ($sessions->isEmpty()) {
+            $this->info("No active PPPoE sessions to evaluate.");
+            return;
+        }
+
+        // 4. Pre-fetch existing radcheck rules to avoid queries inside the loop
+        $boundUsers = DB::connection('radius')
+            ->table('radcheck')
+            ->whereIn('username', $sessions->pluck('username'))
+            ->where('attribute', 'Calling-Station-Id')
+            ->where('client_type', 'pppoe')
+            ->pluck('username')
+            ->flip()
+            ->toArray();
+
+        $authenticatedUsers = DB::connection('radius')
+            ->table('radcheck')
+            ->whereIn('username', $sessions->pluck('username'))
+            ->where('attribute', 'Cleartext-Password')
+            ->where('client_type', 'pppoe')
+            ->pluck('username')
+            ->flip()
+            ->toArray();
+
+        $recordsToInsert = [];
+
+        // 5. Process in-memory
         foreach ($sessions as $session) {
-            if (empty($session->callingstationid)) {
-                $this->info("Skipping auto-bind for {$session->username}; session has empty MAC.");
+            $username = $session->username;
+
+            // Skip if user already has a bound MAC
+            if (isset($boundUsers[$username])) {
                 continue;
             }
 
-            $organizationId = DB::table('sites')
-                ->where('ip_address', $session->nasipaddress)
-                ->value('organization_id');
+            // Skip if user lacks a valid PPPoE Cleartext-Password row in radcheck
+            if (!isset($authenticatedUsers[$username])) {
+                $this->info("Skipping {$username}; missing Cleartext-Password row for pppoe.");
+                continue;
+            }
+
+            // Resolve organization ID (Site NAS IP first, fallback to customer table)
+            $organizationId = $siteOrgMap[$session->nasipaddress] ?? $pppoeCustomers[$username] ?? null;
 
             if (empty($organizationId)) {
-                $this->info("Skipping auto-bind for {$session->username}; no matching site organization found.");
+                $this->info("Skipping {$username}; unable to resolve organization.");
                 continue;
             }
 
-            $organizationClientType = DB::table('organizations')
-                ->where('id', $organizationId)
-                ->value('client_type') ?? 'Both';
+            $recordsToInsert[] = [
+                'username'        => $username,
+                'attribute'       => 'Calling-Station-Id',
+                'op'              => '==',
+                'value'           => $session->callingstationid,
+                'organization_id' => $organizationId,
+                'client_type'     => 'pppoe',
+            ];
 
-            $targetClientType = null;
+            $this->info("Successfully locked PPPoE user {$username} to MAC: {$session->callingstationid}");
+        }
 
-            if ($organizationClientType === 'PPPoE') {
-                $isPppoeUser = DB::table('customers')
-                    ->where('radius_username', $session->username)
-                    ->where('organization_id', $organizationId)
-                    ->exists();
-
-                if (!$isPppoeUser) {
-                    $this->info("Skipping auto-bind for {$session->username}; not found in PPPoE customers for org {$organizationId}.");
-                    continue;
-                }
-
-                $targetClientType = 'pppoe';
-            } elseif ($organizationClientType === 'Hotspot') {
-                $isHotspotUser = DB::table('hotspot_customers')
-                    ->where('radius_username', $session->username)
-                    ->where('organization_id', $organizationId)
-                    ->exists();
-
-                if (!$isHotspotUser) {
-                    $this->info("Skipping auto-bind for {$session->username}; not found in hotspot customers for org {$organizationId}.");
-                    continue;
-                }
-
-                $targetClientType = 'hotspot';
-            } elseif ($organizationClientType === 'Both') {
-                $checkClientType = DB::connection('radius')->table('radcheck')
-                    ->where('username', $session->username)
-                    ->where('attribute', 'Cleartext-Password')
-                    ->whereIn('client_type', ['pppoe', 'hotspot'])
-                    ->value('client_type');
-
-                if (!empty($checkClientType)) {
-                    $targetClientType = $checkClientType;
-                } else {
-                    $isPppoeUser = DB::table('customers')
-                        ->where('radius_username', $session->username)
-                        ->where('organization_id', $organizationId)
-                        ->exists();
-
-                    $isHotspotUser = DB::table('hotspot_customers')
-                        ->where('radius_username', $session->username)
-                        ->where('organization_id', $organizationId)
-                        ->exists();
-
-                    if ($isPppoeUser && !$isHotspotUser) {
-                        $targetClientType = 'pppoe';
-                    } elseif ($isHotspotUser && !$isPppoeUser) {
-                        $targetClientType = 'hotspot';
-                    } else {
-                        $this->info("Skipping auto-bind for {$session->username}; unable to resolve client type in org {$organizationId}.");
-                        continue;
-                    }
-                }
-            } else {
-                // DHCP mode is currently unsupported for MAC auto-bind in radcheck.
-                $this->info("Skipping auto-bind for {$session->username}; org {$organizationId} client_type {$organizationClientType} is unsupported.");
-                continue;
-            }
-
-            // Double check to prevent race conditions during loop
-            $exists = DB::connection('radius')->table('radcheck')
-                ->where('username', $session->username)
-                ->where('attribute', 'Calling-Station-Id')
-                ->where('client_type', $targetClientType)
-                ->exists();
-
-            if (!$exists) {
-                // Only bind MAC if there is still an auth row for the same user and client type.
-                $hasAuthRecord = DB::connection('radius')->table('radcheck')
-                    ->where('username', $session->username)
-                    ->where('organization_id', $organizationId)
-                    ->where('client_type', $targetClientType)
-                    ->where('attribute', 'Cleartext-Password')
-                    ->exists();
-
-                if (!$hasAuthRecord) {
-                    $this->info("Skipping auto-bind for {$session->username}; missing Cleartext-Password row for {$targetClientType}.");
-                    continue;
-                }
-
-                DB::connection('radius')->table('radcheck')->insert([
-                    'username' => $session->username,
-                    'attribute' => 'Calling-Station-Id',
-                    'op' => '==',
-                    'value' => $session->callingstationid,
-                    'organization_id' => $organizationId,
-                    'client_type' => $targetClientType,
-                ]);
-
-                $this->info("Successfully locked {$session->username} ({$targetClientType}) to MAC: {$session->callingstationid}");
-            }
+        // 6. Batch insert missing MAC bindings
+        if (!empty($recordsToInsert)) {
+            DB::connection('radius')->table('radcheck')->insert($recordsToInsert);
+            $this->info("Bulk bound " . count($recordsToInsert) . " PPPoE MAC address(es).");
+        } else {
+            $this->info("No new PPPoE MAC addresses needed binding.");
         }
     }
 }

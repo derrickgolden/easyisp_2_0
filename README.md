@@ -92,6 +92,12 @@ Callback URL: /payments/payhero/hNnF5iJJPR71uYGRtgt6/stk/callback
 Callback URL: /payments/daraja/hNnF5iJJPR71uYGRtgt6/stk/callback
 
 
+Generated token for organization 2 (Shinetech Networks).
+Callback URL: /payments/c2b/ENNXfWa8JwrjLcvfg42x/validation
+Callback URL: /payments/c2b/ENNXfWa8JwrjLcvfg42x/confirmation
+Callback URL: /payments/payhero/ENNXfWa8JwrjLcvfg42x/stk/callback
+Callback URL: /payments/daraja/ENNXfWa8JwrjLcvfg42x/stk/callback
+
 
 #reversing wrongly closed sessions
 

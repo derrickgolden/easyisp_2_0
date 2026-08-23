@@ -22,7 +22,7 @@ class Kernel extends ConsoleKernel
         // Use the $schedule variable provided in the function arguments
         $schedule->command('router:sync-status')->everyMinute();
 
-        $schedule->command('radius:auto-bind')->everyFiveMinutes()->withoutOverlapping();
+        $schedule->command('radius:auto-bind')->everyTenMinutes()->withoutOverlapping();
 
         $schedule->command('radius:close-stale-sessions')->everyFiveMinutes()->withoutOverlapping();
 
