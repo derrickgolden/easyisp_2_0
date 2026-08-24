@@ -263,8 +263,8 @@ class SiteController extends Controller
         }
 
         // 1. Get the domain/URL from configuration or app defaults
-        // $apiUrl = config('app.url') ?? 'https://aqua.easytech.africa';
-        $apiUrl = 'https://aqua.easytech.africa';
+        $apiUrl = config('app.url') ?? 'https://isp.easytech.africa';
+        // $apiUrl = 'https://isp.easytech.africa';
         $nasIp = $site->ip_address ?? '10.20.20.3';
         $siteNameHtml = e($site->name);
 
@@ -709,6 +709,27 @@ class SiteController extends Controller
             border-color: #20ba5a;
         }
 
+        .login-error {
+            margin: 16px 0;
+            padding: 16px;
+            border-radius: 12px;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            color: #9a3412;
+        }
+
+        .error-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .error-message {
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
@@ -772,6 +793,54 @@ class SiteController extends Controller
                 Send M-Pesa STK Push
             </button>
         </form>
+
+        <div id="mikrotik-error" style="display:none;">$(error)</div>
+
+        <div id="customer-error" class="login-error" style="display:none;">
+            <div class="error-title"></div>
+            <div class="error-message"></div>
+        </div>
+
+        <script>
+        (function () {
+            var mikrotikError = document.getElementById("mikrotik-error");
+            var customerError = document.getElementById("customer-error");
+            var errorTitle = customerError.querySelector(".error-title");
+            var errorMessage = customerError.querySelector(".error-message");
+
+            if (!mikrotikError) return;
+
+            var message = mikrotikError.textContent.trim();
+
+            // Check if MikroTik populated an error message
+            console.log("message", message, "and", message !== "$(error)", "and error " + "$(error)");
+            var UNPARSED_VAR = "$(" + "error)";
+            if (message && message !== UNPARSED_VAR) {
+                console.log("Excuting...");
+                // Handle specific MikroTik error cases
+                if (message.indexOf("already logged in") !== -1) {
+                    errorTitle.textContent = "Voucher Already In Use";
+                    errorMessage.textContent = "This voucher is connected on another device. Please disconnect the other device before trying again.";
+                } else if (message.indexOf("invalid username") !== -1 || message.indexOf("not found") !== -1) {
+                    errorTitle.textContent = "Invalid Code or Password";
+                    errorMessage.textContent = "The voucher or credentials entered are incorrect. Please double-check and try again.";
+                } 
+                
+                // Display error banner
+                customerError.style.display = "block";
+
+                // Smooth scroll error banner into view automatically
+                setTimeout(function () {
+                    requestAnimationFrame(function () {
+                        customerError.scrollIntoView({ 
+                            behavior: "smooth", 
+                            block: "center" 
+                        });
+                    });
+                }, 100);
+            }
+        })();
+</script>
 
         <!-- Voucher Form -->
         <div class="section-title">Already Have A Code?</div>
