@@ -32,7 +32,7 @@ class DarajaHotspotController extends Controller
     {
         $request->validate([
             'phone'            => 'required|string',
-            'site_id'          => 'required',
+            'site_ip'          => 'required',
             'package_id'       => 'required',
             'mac'              => 'nullable|string|max:20',
             'ip'               => 'nullable|string|max:45',
@@ -44,14 +44,13 @@ class DarajaHotspotController extends Controller
             'ip' => $request->ip(),
         ]);
         // Resolve organization from site (guest portal — no authenticated user)
-        $siteInput = (string) $request->input('site_id');
+        $siteIp= (string) $request->input('site_ip');
         $site = Site::query()
-            ->where('id', $siteInput)
-            ->orWhere('ip_address', $siteInput)
+            ->where('ip_address', $siteIp)
             ->first();
 
             Log::info('Daraja STK (hotspot) payment request site resolved', [
-                'site_input' => $siteInput,
+                'site_input' => $siteIp,
                 'site_id' => $site?->id,
                 'site_ip' => $site?->ip_address,
             ]);
