@@ -39,6 +39,10 @@ class DarajaHotspotController extends Controller
             'transaction_type' => 'nullable|in:CustomerPayBillOnline,CustomerBuyGoodsOnline',
         ]);
 
+        Log::info('Daraja STK (hotspot) payment request received', [
+            'request' => $request->all(),
+            'ip' => $request->ip(),
+        ]);
         // Resolve organization from site (guest portal — no authenticated user)
         $siteInput = (string) $request->input('site_id');
         $site = Site::query()
@@ -46,6 +50,11 @@ class DarajaHotspotController extends Controller
             ->orWhere('ip_address', $siteInput)
             ->first();
 
+            Log::info('Daraja STK (hotspot) payment request site resolved', [
+                'site_input' => $siteInput,
+                'site_id' => $site?->id,
+                'site_ip' => $site?->ip_address,
+            ]);
         if (!$site) {
             return response()->json([
                 'success' => false,
@@ -65,12 +74,28 @@ class DarajaHotspotController extends Controller
             ], 422);
         }
 
+
+        Log::info('Daraja STK (hotspot) payment request organization resolved', [
+            'organization_id' => $organization->id,
+            'organization_name' => $organization->name,
+        ]);
+
         $package = HotspotPackage::query()
             ->where('id', $request->input('package_id'))
             ->where('organization_id', $organization->id)
             ->first();
 
+            Log::info('Daraja STK (hotspot) payment request package resolved', [
+                'package_id' => $package?->id,
+                'package_name' => $package?->name,
+                'organization_id' => $organization->id,
+            ]);
+
         if (!$package) {
+            Log::warning('Daraja STK (hotspot): Invalid package selected', [
+                'package_id' => $request->input('package_id'),
+                'organization_id' => $organization->id,
+            ]);     
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid package selected.'
