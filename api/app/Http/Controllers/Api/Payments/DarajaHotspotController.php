@@ -154,7 +154,8 @@ class DarajaHotspotController extends Controller
         // Build the hotspot callback URL from this portal's own app URL + the org token.
         // The route is: POST /api/payments/hotspot/{token}/callback
         // $appUrl = rtrim((string) config('app.url'), '/');
-        $appUrl = 'https://c204-102-210-173-182.ngrok-free.app';
+        $appUrl = 'https://isp.easytech.africa';
+        // $appUrl = 'https://c204-102-210-173-182.ngrok-free.app';
         $callbackUrl = $appUrl . '/api/payments/hotspot/' . urlencode((string) $organization->mpesa_callback_token) . '/callback';
 
         $timestamp = now()->format('YmdHis');
