@@ -19,7 +19,13 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    'allowed_origins' => [
+        'https://isp.easytech.africa',
+        'http://hotspot.brutechfibresolutions.com',
+        'http://*.brutechfibresolutions.com',
+        'http://10.5.50.*',        # Covers local MikroTik IP origins
+        'http://192.168.*',   # Covers local MikroTik IP origins
+    ],
 
     'allowed_origins_patterns' => [],
 
