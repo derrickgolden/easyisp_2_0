@@ -69,6 +69,15 @@ class HotspotSubscriptionService
 
     public function applyActiveStatus(HotspotCustomer $customer)
     {
+        $package = $this->resolveEffectivePackage($customer);
+        if ($customer->expiry_date === null) {
+            $packageSeconds = $this->resolveSessionTimeoutSeconds($package);
+            if ($packageSeconds > 0) {
+                $customer->expiry_date = Carbon::now()->addSeconds($packageSeconds);
+                $customer->save();
+            }
+        }
+
         $updates = ['status' => 'active'];
         if ($customer->status !== 'active') {
             $updates['activated_at'] = now();
@@ -94,7 +103,6 @@ class HotspotSubscriptionService
             ]
         );
 
-        $package = $this->resolveEffectivePackage($customer);
         $simultaneousUse = (int) data_get($package, 'max_connections', 0);
 
         DB::connection('radius')->table('radcheck')
