@@ -293,7 +293,7 @@ class HotspotSubscriptionService
         return $customer->package()->first();
     }
 
-    private function resolveSessionTimeoutSeconds(HotspotCustomer|HotspotPackage|null $subject): int
+    public function resolveSessionTimeoutSeconds(HotspotCustomer|HotspotPackage|null $subject): int
     {
         if ($subject instanceof HotspotCustomer) {
             return max(0, Carbon::now()->diffInSeconds(Carbon::parse($subject->expiry_date), false));
