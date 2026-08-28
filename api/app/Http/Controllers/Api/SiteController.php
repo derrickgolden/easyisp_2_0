@@ -263,8 +263,7 @@ class SiteController extends Controller
         }
 
         // 1. Get the domain/URL from configuration or app defaults
-        // $apiUrl = config('app.url') ?? 'https://isp.easytech.africa';
-        $apiUrl = 'https://isp.easytech.africa';
+        $apiUrl = config('app.url') ?? 'https://isp.easytech.africa';
         $nasIp = $site->ip_address ?? '10.20.20.3';
         $siteNameHtml = e($site->name);
 
@@ -813,10 +812,8 @@ class SiteController extends Controller
             var message = mikrotikError.textContent.trim();
 
             // Check if MikroTik populated an error message
-            console.log("message", message, "and", message !== "$(error)", "and error " + "$(error)");
             var UNPARSED_VAR = "$(" + "error)";
             if (message && message !== UNPARSED_VAR) {
-                console.log("Excuting...");
                 // Handle specific MikroTik error cases
                 if (message.indexOf("already logged in") !== -1) {
                     errorTitle.textContent = "Voucher Already In Use";
@@ -847,7 +844,7 @@ class SiteController extends Controller
         <form id="form-voucher" onsubmit="handleVoucherSubmit(event)">
             <div class="input-group">
                 <div class="input-wrapper">
-                    <input type="text" id="voucher-code" placeholder="Enter Voucher or Access Code" required autocomplete="off">
+                    <input type="text" id="voucher-code" placeholder="Enter Voucher or Access Code" required autocomplete="off" oninput="this.value = this.value.toUpperCase()">
                 </div>
             </div>
             <button type="submit" class="btn">Activate Voucher</button>

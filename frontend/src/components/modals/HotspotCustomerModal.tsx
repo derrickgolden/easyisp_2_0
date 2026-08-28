@@ -285,7 +285,17 @@ export const HotspotCustomerModal: React.FC<HotspotCustomerModalProps> = ({
               <input 
                 type="text" 
                 value={editingHotspotCustomer?.radiusUsername || ''} 
-                onChange={e => setEditingHotspotCustomer({...editingHotspotCustomer, radiusUsername: e.target.value, radiusPassword: e.target.value})}
+                // onChange={e => setEditingHotspotCustomer({...editingHotspotCustomer, radiusUsername: e.target.value, radiusPassword: e.target.value})}
+                onChange={e => {
+                  // Sanitize: Strip out @ symbols and optional casing transformation
+                  const sanitizedVal = e.target.value.replace(/@/g, '').toUpperCase();
+                  
+                  setEditingHotspotCustomer({
+                    ...editingHotspotCustomer, 
+                    radiusUsername: sanitizedVal, 
+                    radiusPassword: sanitizedVal // Syncs password to username dynamically
+                  });
+                }}
                 className={inputClassName}
               />
             </div>

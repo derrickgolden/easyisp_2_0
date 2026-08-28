@@ -568,10 +568,13 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, onClose, selec
 
       # RADIUS Configuration
       /ppp aaa set use-radius=yes
-      /radius add address=${SERVER_IP_ADDRESS} service=login,hotspot secret=${RADIUS_SECRET}
+      /radius add address=${SERVER_IP_ADDRESS} service=login,hotspot secret=${RADIUS_SECRET} timeout=1000ms
       /radius incoming set accept=yes
+      # If radius is already setup
+      /radius set [find address=${SERVER_IP_ADDRESS}] timeout=1000ms
 
       # 3. Hotspot Configuration
+      /system/device-mode/update hotspot=yes
       /ip hotspot setup
 
       # Disable Cookies and Enable MAC Authentication

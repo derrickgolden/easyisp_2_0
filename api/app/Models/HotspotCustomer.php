@@ -11,6 +11,16 @@ class HotspotCustomer extends Model
 
     protected $table = 'hotspot_customers';
 
+    public function setRadiusUsernameAttribute($value)
+    {
+        $this->attributes['radius_username'] = $value === null ? null : strtoupper($value);
+    }
+
+    public function setRadiusPasswordAttribute($value)
+    {
+        $this->attributes['radius_password'] = $value === null ? null : strtoupper($value);
+    }
+
     protected $fillable = [
         'organization_id',
         'parent_id',
