@@ -263,8 +263,8 @@ class SiteController extends Controller
         }
 
         // 1. Get the domain/URL from configuration or app defaults
-        $apiUrl = config('app.url') ?? 'https://isp.easytech.africa';
-        // $apiUrl = 'https://isp.easytech.africa';
+        // $apiUrl = config('app.url') ?? 'https://isp.easytech.africa';
+        $apiUrl = 'https://isp.easytech.africa';
         $nasIp = $site->ip_address ?? '10.20.20.3';
         $siteNameHtml = e($site->name);
 
@@ -774,7 +774,7 @@ class SiteController extends Controller
         <!-- Packages Section -->
         <div style="margin-top: auto;" class="section-title">Select Internet Package</div>
         <div id="packages-loading">
-            <span style="color: var(--text-muted);">Fetching dynamic packages...</span>
+            <span style="color: var(--text-muted);">Getting packages...</span>
         </div>
         <div class="packages-grid" id="packages-container"></div>
 
@@ -976,7 +976,7 @@ class SiteController extends Controller
             submitBtn.disabled = true;
             submitBtn.innerText = "Processing...";
 
-            const siteId = "{$nasIp}" || "\$(identity)" || "\$(server-address)";
+            const siteIp = "{$nasIp}" || "\$(identity)" || "\$(server-address)";
             const clientMac = "\$(mac)" || "";
             const clientIp = "\$(ip)" || "";
 
@@ -988,7 +988,7 @@ class SiteController extends Controller
                         phone: phoneInput,
                         package_id: parseInt(packageId, 10),
                         amount: parseFloat(price),
-                        site_id: siteId,
+                        site_ip: siteIp,
                         mac: clientMac,
                         ip: clientIp,
                         transaction_type: "CustomerPayBillOnline"

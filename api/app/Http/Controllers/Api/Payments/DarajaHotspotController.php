@@ -180,6 +180,7 @@ class DarajaHotspotController extends Controller
                     'status' => 'expired',
                     'ip_address' => (string) ($request->input('ip') ?? ''),
                     'password' => hash('sha256', $normalizedPhone),
+                    'expiry_date' => now()
                 ]
             );
         }
@@ -204,12 +205,6 @@ class DarajaHotspotController extends Controller
         $browser = $agent->browser();
 
         $friendlyDeviceName = $device . ' (' . $platform . ')';
-
-        Log::info('Daraja STK (hotspot) payment initiated', [
-            'device_name' => $friendlyDeviceName,
-            'browser_name' => $browser,
-            'os_platform' => $platform,
-        ]);
 
         if ($normalizedMac !== null && $hotspotCustomer !== null) {
             $hotspotCustomer->update([
@@ -246,7 +241,7 @@ class DarajaHotspotController extends Controller
             }
 
             $accessToken = $tokenResponse->json('access_token') ?? $tokenResponse->json('accessToken');
-            Log::info('Daraja STK access token', ['access_token' => $accessToken]);
+
             if (!$accessToken) {
                 return response()->json([
                     'success' => false,
@@ -288,22 +283,6 @@ class DarajaHotspotController extends Controller
                 ?? $stkPayload['message']
                 ?? ''
             );
-
-            Log::info('Daraja STK push response (hotspot)', [
-                'organization_id' => $organization->id,
-                'site_id' => $site->id,
-                'status' => $stkResponse->status(),
-                'accepted' => $isAccepted,
-                'response_code' => $responseCode,
-                'response_message' => $responseMessage,
-                'merchant_request_id' => $stkPayload['MerchantRequestID'] ?? null,
-                'checkout_request_id' => $stkPayload['CheckoutRequestID'] ?? null,
-                'phone' => $normalizedPhone,
-                'amount' => $amount,
-                'callback_url' => $callbackUrl,
-                'account_reference' => $accountReference,
-                'response_body_preview' => mb_substr($stkResponseBody, 0, 600),
-            ]);
 
             if (!$isAccepted) {
                 $errorMsg = $stkPayload['errorMessage']
@@ -538,19 +517,11 @@ class DarajaHotspotController extends Controller
             ], 422);
         }
 
-        Log::info('Daraja STK (hotspot) callback payment successful', [
-            'organization_id' => $organization->id,
-            'amount' => $amount,
-            'mpesa_receipt_number' => $mpesaReceiptNumber,
-            'account_reference' => $accountReference,
-            'phone' => $phone,
-            'package_id' => $package->id,
-            'mac' => $payment->mac_address,
-        ]);
-
         $customer = $payment->customer_id
             ? HotspotCustomer::query()->find($payment->customer_id)
             : null;
+
+        $seconds = app(HotspotSubscriptionService::class)->resolveSessionTimeoutSeconds($package);
 
         if (!$customer) {
             $customer = $this->upsertHotspotCustomer(
@@ -561,32 +532,22 @@ class DarajaHotspotController extends Controller
                 macAddress: $macAddress,
                 attributes: [
                     'status' => 'expired',
+                    'activated_at' => now(),
                     'ip_address' => (string) ($payment->ip_address ?? ''),
+                    'expiry_date' => $seconds > 0 ? now()->addSeconds($seconds) : null,
                 ]
             );
 
             $payment->update(['customer_id' => $customer->id]);
         }
 
-        [, $seconds] = app(HotspotSubscriptionService::class)->applyActiveStatus($customer);
+        app(HotspotSubscriptionService::class)->applyActiveStatus($customer);
         
         $payment->update([
             'status' => 'paid',
             'mpesa_receipt' => $mpesaReceiptNumber,
             'expires_at' => $seconds > 0 ? now()->addSeconds($seconds) : null,
         ]);
-
-        $this->upsertHotspotCustomer(
-            organizationId: $organization->id,
-            siteId: $payment->site_id,
-            phone: $payment->phone,
-            packageId: $payment->package_id,
-            macAddress: $macAddress,
-            attributes: [
-                'activated_at' => now(),
-                'expiry_date' => $seconds > 0 ? now()->addSeconds($seconds) : null,
-            ]
-        );
 
         return response()->json(['success' => true], 200);
     }
