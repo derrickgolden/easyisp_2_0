@@ -152,12 +152,8 @@ class DarajaHotspotController extends Controller
             : 'https://api.safaricom.co.ke';
 
         // Build the hotspot callback URL from this portal's own app URL + the org token.
-        // The route is: POST /api/payments/hotspot/{token}/callback
-        // $appUrl = rtrim((string) config('app.url'), '/');
-        $appUrl = 'https://isp.easytech.africa';
-        // $appUrl = 'https://800f-102-210-173-182.ngrok-free.app';
+        $appUrl = rtrim((string) config('app.url'), '/');
         $callbackUrl = $appUrl . '/api/payments/hotspot/' . urlencode((string) $organization->mpesa_callback_token) . '/callback';
-
         $timestamp = now()->format('YmdHis');
         $password = base64_encode($shortCode . $passkey . $timestamp);
 
@@ -523,6 +519,8 @@ class DarajaHotspotController extends Controller
 
         $seconds = app(HotspotSubscriptionService::class)->resolveSessionTimeoutSeconds($package);
 
+        $expiresAt = $seconds > 0 ? now()->addSeconds($seconds) : null;
+
         if (!$customer) {
             $customer = $this->upsertHotspotCustomer(
                 organizationId: $organization->id,
@@ -534,19 +532,21 @@ class DarajaHotspotController extends Controller
                     'status' => 'expired',
                     'activated_at' => now(),
                     'ip_address' => (string) ($payment->ip_address ?? ''),
-                    'expiry_date' => $seconds > 0 ? now()->addSeconds($seconds) : null,
+                    'expiry_date' => $expiresAt,
                 ]
             );
 
             $payment->update(['customer_id' => $customer->id]);
         }
 
+        $customer->update(['expiry_date' => $expiresAt]);
+
         app(HotspotSubscriptionService::class)->applyActiveStatus($customer);
         
         $payment->update([
             'status' => 'paid',
             'mpesa_receipt' => $mpesaReceiptNumber,
-            'expires_at' => $seconds > 0 ? now()->addSeconds($seconds) : null,
+            'expires_at' => $expiresAt,
         ]);
 
         return response()->json(['success' => true], 200);
