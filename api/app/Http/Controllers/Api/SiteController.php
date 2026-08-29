@@ -684,7 +684,7 @@ class SiteController extends Controller
         }
 
         .hotline-card {
-            padding: 18px;
+            padding: 18px 2px;
             margin: 0 0 24px;
             border: 1px solid #bfdbfe;
             border-radius: var(--radius-md);
@@ -696,6 +696,7 @@ class SiteController extends Controller
             align-items: center;
             gap: 10px;
             margin-bottom: 14px;
+            padding: 0 10px;
         }
 
         .hotline-icon {
@@ -758,12 +759,12 @@ class SiteController extends Controller
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            padding: 10px 12px;
+            padding: 5px 6px;
             border: 1px solid #93c5fd;
             border-radius: var(--radius-sm);
             background: #ffffff;
             color: var(--primary);
-            font-size: 13px;
+            font-size: 8px;
             font-weight: 800;
             text-decoration: none;
             cursor: pointer;
