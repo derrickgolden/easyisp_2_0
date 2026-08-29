@@ -275,6 +275,12 @@ class SiteController extends Controller
         if (str_starts_with($whatsappNumber, '0')) {
             $whatsappNumber = '254' . substr($whatsappNumber, 1);
         }
+        $businessLogo = trim((string) data_get($site->organization?->settings, 'general.business_logo', ''));
+
+        // Generate business logo HTML (image if available, otherwise SVG fallback)
+        $businessLogoHtml = $businessLogo !== '' 
+            ? '<img src="' . e($businessLogo) . '" alt="Business Logo" style="width: 56px; height: 56px; object-fit: contain; border-radius: 50%;">'
+            : '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>';
 
         // 2. Define your clean Mikrotik login boilerplate template
         $htmlContent = <<<HTML
@@ -858,7 +864,7 @@ class SiteController extends Controller
         <!-- Header -->
         <div class="header">
             <div class="brand-badge">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+                {$businessLogoHtml}
             </div>
             <h1>{$companyNameHtml}</h1>
             <p>Select a pack to get connected</p>
