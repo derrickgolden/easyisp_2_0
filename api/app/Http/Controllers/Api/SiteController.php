@@ -266,6 +266,15 @@ class SiteController extends Controller
         $apiUrl = config('app.url') ?? 'https://isp.easytech.africa';
         $nasIp = $site->ip_address ?? '10.20.20.3';
         $siteNameHtml = e($site->name);
+        $companyName = trim((string) data_get($site->organization?->settings, 'general.isp_legal_name', ''));
+        $companyNameHtml = e($companyName !== '' ? $companyName : ($site->organization?->name . ' Hotspot' ?? 'Easy Tech Hotspot'));
+        $supportHotline = trim((string) data_get($site->organization?->settings, 'general.support_hotline', ''));
+        $supportHotline = $supportHotline !== '' ? $supportHotline : '+254714475702';
+        $supportPhone = preg_replace('/[^\d+]/', '', $supportHotline);
+        $whatsappNumber = preg_replace('/\D+/', '', $supportHotline);
+        if (str_starts_with($whatsappNumber, '0')) {
+            $whatsappNumber = '254' . substr($whatsappNumber, 1);
+        }
 
         // 2. Define your clean Mikrotik login boilerplate template
         $htmlContent = <<<HTML
@@ -668,6 +677,113 @@ class SiteController extends Controller
             line-height: 1.4;
         }
 
+        .hotline-card {
+            padding: 18px;
+            margin: 0 0 24px;
+            border: 1px solid #bfdbfe;
+            border-radius: var(--radius-md);
+            background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+        }
+
+        .hotline-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .hotline-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: #dbeafe;
+            color: var(--primary);
+            flex-shrink: 0;
+        }
+
+        .hotline-heading {
+            display: block;
+            color: var(--text-main);
+            font-size: 15px;
+            font-weight: 900;
+        }
+
+        .hotline-label {
+            display: block;
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-top: 3px;
+        }
+
+        .hotline-contacts {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .hotline-contact {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            min-width: 0;
+            padding: 12px;
+            border: 1px solid #dbeafe;
+            border-radius: var(--radius-sm);
+            background: #ffffff;
+        }
+
+        .hotline-number {
+            display: block;
+            color: var(--primary);
+            font-size: 17px;
+            font-weight: 900;
+            overflow-wrap: anywhere;
+        }
+
+        .call-hotline {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 12px;
+            border: 1px solid #93c5fd;
+            border-radius: var(--radius-sm);
+            background: #ffffff;
+            color: var(--primary);
+            font-size: 13px;
+            font-weight: 800;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .call-hotline:hover {
+            background: #dbeafe;
+            border-color: var(--primary);
+        }
+
+        .call-hotline:focus-visible {
+            outline: 3px solid var(--ring);
+            outline-offset: 2px;
+        }
+
+        @media (max-width: 360px) {
+            .hotline-contacts {
+                grid-template-columns: 1fr;
+            }
+
+            .call-hotline {
+                justify-content: center;
+            }
+        }
+
         .support-actions {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -738,15 +854,45 @@ class SiteController extends Controller
     </style>
 </head>
 <body>
-
     <div class="container">
         <!-- Header -->
         <div class="header">
             <div class="brand-badge">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
             </div>
-            <h1>Easy Tech Hotspot</h1>
+            <h1>{$companyNameHtml}</h1>
             <p>Select a pack to get connected</p>
+        </div>
+
+        <!-- Hotline Support phone numbers -->
+        <div class="hotline-card">
+            <div class="hotline-header">
+                <span class="hotline-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 1 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 1 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                </span>
+                <div>
+                    <strong class="hotline-heading">Need help? Call support</strong>
+                    <span class="hotline-label">Our support team is ready to help</span>
+                </div>
+            </div>
+            <div class="hotline-contacts">
+                <div class="hotline-contact">
+                <div class="hotline-copy">
+                    <strong class="hotline-number">{$supportPhone}</strong>
+                </div>
+                <a href="tel:{$supportPhone}" class="call-hotline" aria-label="Call support on {$supportPhone}">
+                    <span>Call</span>
+                </a>
+            </div>
+                <div class="hotline-contact">
+                <div class="hotline-copy">
+                    <strong class="hotline-number">0789824337</strong>
+                </div>
+                <a href="tel:0789824337" class="call-hotline" aria-label="Call support on 0789824337">
+                    <span>Call</span>
+                </a>
+                </div>
+            </div>
         </div>
 
         <!-- ULTRA-SHORT HOW TO PAY INSTRUCTIONS -->
@@ -870,13 +1016,9 @@ class SiteController extends Controller
         <div class="support-card">
             <p class="support-text">Having trouble connecting? Contact our team for quick support.</p>
             <div class="support-actions">
-                <a href="tel:+254714475702" class="support-btn btn-call">
+                <a href="tel:{$supportPhone}" class="support-btn btn-call">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                     Call Support
-                </a>
-                <a href="https://wa.me/254714475702" class="support-btn btn-whatsapp">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-                    WhatsApp
                 </a>
             </div>
         </div>
@@ -1052,6 +1194,7 @@ class SiteController extends Controller
             document.getElementById('mt-pass').value = password;
             document.getElementById('mikrotik-auth-form').submit();
         }
+
     </script>
 </body>
 </html>
