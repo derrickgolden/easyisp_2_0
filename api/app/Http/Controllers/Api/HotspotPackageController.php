@@ -64,8 +64,9 @@ class HotspotPackageController extends Controller
 
         $packages = HotspotPackage::where('organization_id', $site->organization_id)
             ->get(['id', 'name', 'price', 'validity', 'validity_type'])
-            ->sortBy('price');
-Log::info("Public index request for NAS IP: {$nasIp}, Site ID: {$site->id}, Packages: " . $packages->pluck('id')->implode(', ') . ", Prices: " . $packages->pluck('price')->implode(', '));
+            ->sortBy('price', SORT_REGULAR)
+            ->values();
+
         $formatted = $packages->map(function ($package) {
             return [
                 'id' => $package->id,
@@ -74,7 +75,7 @@ Log::info("Public index request for NAS IP: {$nasIp}, Site ID: {$site->id}, Pack
                 'validity' => $package->validity,
                 'validity_type' => $package->validity_type,
             ];
-        });
+        })->values()->all();
 
         return response()->json($formatted);
     }
