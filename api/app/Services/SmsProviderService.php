@@ -10,7 +10,7 @@ class SmsProviderService
     /**
      * Send SMS via the specified provider
      */
-    public function send($phone, $message, $provider, $apiKey, $senderId = 'EASYTECH', $apiUsername = null, array $context = [])
+    public function send($phone, $message, $provider, $apiKey, $senderId, $apiUsername = null, array $context = [])
     {
         $context = array_merge([
             'organization_id' => $context['organization_id'] ?? null,
@@ -28,6 +28,7 @@ class SmsProviderService
                 'Twilio' => $this->sendViaTwilio($phone, $message, $senderId, $apiKey),
                 'Infobip' => $this->sendViaInfobip($phone, $message, $senderId, $apiKey),
                 'BulkSMS.com' => $this->sendViaBulkSMS($phone, $message, $senderId, $apiKey),
+                'Onfon' => $this->sendViaOnfon($phone, $message, $senderId, $apiKey, $apiUsername),
                 default => throw new \Exception("Unsupported SMS provider: {$provider}")
             };
 
@@ -228,6 +229,71 @@ class SmsProviderService
         return json_decode($response, true);
     }
 
+    /**
+     * Send SMS via Onfon
+     */
+    public function sendViaOnfon($phone, $message, $senderId, $apiKey, $apiUsername = null)
+    {
+        $apiKey = trim((string) $apiKey);
+        $clientId = trim((string) ($apiUsername ?? $senderId ?? ''));
+        $normalizedPhone = preg_replace('/\D+/', '', (string) $phone);
+
+        $payload = [
+            'SenderId' => $senderId ?: null,
+            'IsUnicode' => true,
+            'IsFlash' => false,
+            'ScheduleDateTime' => null,
+            'MessageParameters' => [
+                [
+                    'Number' => $normalizedPhone,
+                    'Text' => $message,
+                ],
+            ],
+            'ApiKey' => $apiKey,
+            'ClientId' => $clientId ?: null,
+        ];
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => 'https://api.onfonmedia.co.ke/v1/sms/SendBulkSMS',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_CONNECTTIMEOUT => 15,
+            CURLOPT_POSTFIELDS => json_encode($payload),
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'Accept: application/json',
+            ],
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError !== '') {
+            throw new \Exception('Onfon cURL Error: ' . $curlError);
+        }
+
+        $decoded = json_decode($response, true);
+
+        if (!is_array($decoded)) {
+            throw new \Exception('Onfon API Error: Invalid JSON response: ' . $response . ' (Status: ' . $httpCode . ')');
+        }
+
+        if (($decoded['ErrorCode'] ?? null) !== 0) {
+            $messageErrorDescription = $decoded['Data'][0]['MessageErrorDescription'] ?? $decoded['ErrorDescription'] ?? 'Unknown Onfon error';
+            throw new \Exception((string) $messageErrorDescription);
+        }
+
+        if ($httpCode < 200 || $httpCode >= 300) {
+            throw new \Exception('Onfon API Error: ' . $response . ' (Status: ' . $httpCode . ')');
+        }
+
+        return $decoded;
+    }
+
     private function logSms(array $data): void
     {
         try {
@@ -260,6 +326,7 @@ class SmsProviderService
             'Twilio' => $result['sid'] ?? null,
             'Infobip' => $result['messages'][0]['messageId'] ?? null,
             'BulkSMS.com' => $result['messageId'] ?? null,
+            'Onfon' => $result['Data'][0]['MessageId'] ?? $result['messageId'] ?? $result['id'] ?? $result['data']['messageId'] ?? $result['data']['id'] ?? null,
             default => null,
         };
     }

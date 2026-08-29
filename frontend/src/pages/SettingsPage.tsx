@@ -460,10 +460,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
                     onChange={e => setSmsForm({ ...smsForm, provider: e.target.value })}
                     className="w-full bg-white dark:bg-slate-900 border-none rounded-xl p-3 mt-1 focus:ring-2 focus:ring-blue-500 appearance-none text-gray-900 dark:text-white font-bold">
                     <option value="" disabled>Select provider</option>
-                    <option>Africa's Talking</option>
-                    <option>Twilio</option>
-                    <option>Infobip</option>
-                    <option>BulkSMS.com</option>
+                    <option value="Africa's Talking">Africa's Talking</option>
+                    <option value="Twilio">Twilio</option>
+                    <option value="Infobip">Infobip</option>
+                    <option value="BulkSMS.com">BulkSMS.com</option>
+                    <option value="Onfon">Onfon</option>
                   </select>
                 </div>
                 <div className="space-y-2">
