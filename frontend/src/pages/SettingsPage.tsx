@@ -228,21 +228,34 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
-                          const reader = new FileReader();
-                          reader.onload = () => {
+                          
+                          try {
+                            setIsLoading(true);
+                            const formData = new FormData();
+                            formData.append('logo', file);
+                            
+                            const response = await organizationApi.uploadLogo(formData);
+                            
                             setGeneralForm({
                               ...generalForm,
-                              business_logo: typeof reader.result === 'string' ? reader.result : ''
+                              business_logo: response.url
                             });
-                          };
-                          reader.readAsDataURL(file);
+                            
+                            onSave('Logo uploaded successfully');
+                          } catch (err: any) {
+                            const errorMsg = err.message || 'Failed to upload logo';
+                            setError(errorMsg);
+                            onSave(`Error: ${errorMsg}`);
+                          } finally {
+                            setIsLoading(false);
+                          }
                         }}
                         className="block w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100"
                       />
-                      <p className="text-[10px] text-gray-400 mt-1">PNG/JPG recommended. Stored in settings.</p>
+                      <p className="text-[10px] text-gray-400 mt-1">PNG/JPG recommended. Uploaded to server storage.</p>
                     </div>
                   </div>
                 </div>

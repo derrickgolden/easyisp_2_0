@@ -822,6 +822,15 @@ export const organizationApi = {
     const response = await axiosInstance.put('/organization', data);
     return response.data;
   },
+
+  uploadLogo: async (formData: FormData) => {
+    const response = await axiosInstance.post('/organization/upload-logo', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
 };
 
 // SMS Endpoints

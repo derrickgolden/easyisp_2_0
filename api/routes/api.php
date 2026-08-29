@@ -155,6 +155,7 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     Route::get('/organization', [OrganizationController::class, 'index']);
     Route::get('/organization/license-billing', [OrganizationController::class, 'licenseBilling']);
     Route::put('/organization', [OrganizationController::class, 'update']);
+    Route::post('/organization/upload-logo', [OrganizationController::class, 'uploadLogo']);
     Route::get('/organization/{id}', [OrganizationController::class, 'show']);
     
     

@@ -317,4 +317,36 @@ class OrganizationController extends Controller
 
         return response()->json(['message' => 'Organization deleted successfully']);
     }
+
+    public function uploadLogo(Request $request)
+    {
+        if (!$request->user()->can('system-settings')) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'logo' => 'required|image|mimes:jpeg,png,gif,webp|max:5120',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        try {
+            $file = $request->file('logo');
+            $filename = 'logo_' . time() . '.' . $file->getClientOriginalExtension();
+            $path = $file->storePublicly('logos', 'public');
+
+            $url = asset('storage/' . $path);
+
+            return response()->json([
+                'message' => 'Logo uploaded successfully',
+                'url' => $url,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to upload logo: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 }
