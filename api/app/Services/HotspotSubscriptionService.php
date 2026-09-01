@@ -67,7 +67,7 @@ class HotspotSubscriptionService
         return $expiry;
     }
 
-    public function applyActiveStatus(HotspotCustomer $customer)
+    public function applyActiveStatus(HotspotCustomer $customer, string|array|null $alternativeUsernames = null)
     {
         $package = $this->resolveEffectivePackage($customer);
         if ($customer->expiry_date === null) {
@@ -99,6 +99,7 @@ class HotspotSubscriptionService
                 'op' => ':=',
                 'value' => $customer->radius_password,
                 'organization_id' => $customer->organization_id,
+                'sub_group_id' => $customer->id,
                 'client_type' => 'hotspot',
             ]
         );
@@ -117,6 +118,7 @@ class HotspotSubscriptionService
                 'op' => ':=',
                 'value' => $simultaneousUse,
                 'organization_id' => $customer->organization_id,
+                'sub_group_id' => $customer->id,
                 'client_type' => 'hotspot',
             ]);
         }
@@ -134,6 +136,7 @@ class HotspotSubscriptionService
                 [
                     'op' => ':=',
                     'value' => $rateLimit,
+                    'sub_group_id' => $customer->id,
                 ]
             );
         }
@@ -149,8 +152,88 @@ class HotspotSubscriptionService
                 [
                     'op' => ':=',
                     'value' => (string) $seconds,
+                    'sub_group_id' => $customer->id,
                 ]
             );
+        }
+
+        // Add alternative authentication usernames (e.g., M-Pesa code, voucher)
+        $alts = [];
+        if (is_array($alternativeUsernames)) {
+            $alts = array_values(array_filter($alternativeUsernames, fn($v) => !empty($v)));
+        } elseif (is_string($alternativeUsernames) && $alternativeUsernames !== '') {
+            $alts = [$alternativeUsernames];
+        }
+
+        foreach ($alts as $alt) {
+            // Remove any explicit Auth-Type deny for this alternative username
+            DB::connection('radius')->table('radcheck')
+                ->where('username', $alt)
+                ->where('attribute', 'Auth-Type')
+                ->delete();
+
+            // Upsert Cleartext-Password for alternative username
+            DB::connection('radius')->table('radcheck')->updateOrInsert(
+                [
+                    'username' => $alt,
+                    'attribute' => 'Cleartext-Password',
+                ],
+                [
+                    'op' => ':=',
+                    'value' => $alt,
+                    'organization_id' => $customer->organization_id,
+                    'sub_group_id' => $customer->id,
+                    'client_type' => 'hotspot',
+                ]
+            );
+
+            // Copy same simultaneous use settings for alternative username
+            if ($simultaneousUse > 0) {
+                DB::connection('radius')->table('radcheck')
+                    ->where('username', $alt)
+                    ->where('attribute', 'Simultaneous-Use')
+                    ->delete();
+
+                DB::connection('radius')->table('radcheck')->insert([
+                    'username' => $alt,
+                    'attribute' => 'Simultaneous-Use',
+                    'op' => ':=',
+                    'value' => $simultaneousUse,
+                    'organization_id' => $customer->organization_id,
+                    'sub_group_id' => $customer->id,
+                    'client_type' => 'hotspot',
+                ]);
+            }
+
+            // Copy rate limit settings for alternative username
+            if ($rateLimit !== null) {
+                DB::connection('radius')->table('radreply')->updateOrInsert(
+                    [
+                        'username' => $alt,
+                        'attribute' => 'Mikrotik-Rate-Limit',
+                    ],
+                    [
+                        'op' => ':=',
+                        'value' => $rateLimit,
+                        'sub_group_id' => $customer->id,
+                    ]
+                );
+            }
+
+            // Copy session timeout settings for alternative username
+            if ($seconds > 0) {
+                DB::connection('radius')->table('radreply')->updateOrInsert(
+                    [
+                        'username' => $alt,
+                        'attribute' => 'Session-Timeout',
+                    ],
+                    [
+                        'op' => ':=',
+                        'value' => (string) $seconds,
+                        'sub_group_id' => $customer->id,
+                    ]
+                );
+            }
         }
 
         return [$customer, $seconds];
@@ -167,8 +250,43 @@ class HotspotSubscriptionService
         }
 
         $customer->update(['status' => 'suspended']);
+ 
+        // Gather all usernames associated with this sub_group_id (covers voucher, mpesa codes, MACs)
+        $usernames = DB::connection('radius')->table('radcheck')
+            ->where('sub_group_id', $customer->id)
+            ->pluck('username')
+            ->toArray();
+        $usernames[] = $customer->radius_username;
+        $usernames = array_values(array_filter(array_unique($usernames)));
 
-        // Keep credentials but enforce explicit authentication rejection.
+        // Attempt to disconnect each username before removing RADIUS rows
+        $radiusService = app(HotspotCustomerRadiusService::class);
+        foreach ($usernames as $u) {
+            if (empty($u)) continue;
+            // Prevent immediate re-auth by applying an explicit deny
+            try {
+                DB::connection('radius')->table('radcheck')->updateOrInsert(
+                    ['username' => $u, 'attribute' => 'Auth-Type'],
+                    ['op' => ':=', 'value' => 'Reject', 'sub_group_id' => $customer->id]
+                );
+            } catch (\Throwable $e) {
+                Log::warning('Failed to set Auth-Type Reject for user during suspend: ' . $u, ['error' => $e->getMessage()]);
+            }
+
+            try {
+                $radiusService->disconnectCustomer($u, $customer->organization_id);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to disconnect user during suspend: ' . $u, ['error' => $e->getMessage()]);
+            }
+        }
+
+        // Delete all RADIUS records for this customer by sub_group_id (includes MAC and M-Pesa codes)
+        DB::connection('radius')->table('radcheck')
+            ->where('sub_group_id', $customer->id)
+            ->where('client_type', 'hotspot')
+            ->delete();
+
+        // Add explicit deny flag only on primary username
         DB::connection('radius')->table('radcheck')->updateOrInsert(
             [
                 'username' => $customer->radius_username,
@@ -178,23 +296,19 @@ class HotspotSubscriptionService
                 'op' => ':=',
                 'value' => 'Reject',
                 'organization_id' => $customer->organization_id,
+                'sub_group_id' => $customer->id,
                 'client_type' => 'hotspot',
             ]
         );
 
         // Remove policy grants so the suspended state is deterministic after reactivation.
         DB::connection('radius')->table('radreply')
-            ->where('username', $customer->radius_username)
+            ->where('sub_group_id', $customer->id)
             ->delete();
 
         DB::connection('radius')->table('radusergroup')
-            ->where('username', $customer->radius_username)
+            ->where('sub_group_id', $customer->id)
             ->delete();
-
-        app(HotspotCustomerRadiusService::class)->disconnectCustomer(
-            $customer->radius_username,
-            $customer->organization_id
-        );
 
         Log::warning("User {$customer->radius_username} has been SUSPENDED.");
     }
@@ -212,19 +326,72 @@ class HotspotSubscriptionService
         //     ['{Expiry}' => $expiryDate->format('M d, Y h:i A')]
         // );
 
-        // 3. delete the user from the RADIUS table to force re-auth into redirect group
+        // 3. Gather usernames tied to this sub_group (covers voucher, mpesa receipts, MACs)
+        $usernames = DB::connection('radius')->table('radcheck')
+            ->where('sub_group_id', $customer->id)
+            ->pluck('username')
+            ->toArray();
+
+        // Include primary username and dependent child usernames
+        $usernames[] = $customer->radius_username;
+        $childUsernames = $customer->subAccounts()->pluck('radius_username')->toArray();
+        $usernames = array_values(array_filter(array_unique(array_merge($usernames, $childUsernames))));
+
+        // Disconnect each username first so active sessions are closed via CoA
+        $radiusService = app(HotspotCustomerRadiusService::class);
+        foreach ($usernames as $u) {
+            if (empty($u)) continue;
+            // Prevent immediate re-auth by applying an explicit deny
+            try {
+                DB::connection('radius')->table('radcheck')->updateOrInsert(
+                    ['username' => $u, 'attribute' => 'Auth-Type'],
+                    ['op' => ':=', 'value' => 'Reject', 'sub_group_id' => $customer->id]
+                );
+            } catch (\Throwable $e) {
+                Log::warning('Failed to set Auth-Type Reject for user during expiry: ' . $u, ['error' => $e->getMessage()]);
+            }
+
+            try {
+                $radiusService->disconnectCustomer($u, $customer->organization_id);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to disconnect user during expiry: ' . $u, ['error' => $e->getMessage()]);
+            }
+        }
+
+        // 4. Delete all RADIUS records for this customer by sub_group_id (includes MAC and M-Pesa codes)
         DB::connection('radius')->table('radcheck')
-            ->where('username', $customer->radius_username)
-            ->delete();
-        DB::connection('radius')->table('radusergroup')
-            ->where('username', $customer->radius_username)
-            ->delete();
-        DB::connection('radius')->table('radreply')
-            ->where('username', $customer->radius_username)
+            ->where('sub_group_id', $customer->id)
+            ->where('client_type', 'hotspot')
             ->delete();
 
-        // Disconnect user to force re-auth into redirect group
-        app(HotspotCustomerRadiusService::class)->disconnectCustomer($customer->radius_username, $customer->organization_id);
+        DB::connection('radius')->table('radreply')
+            ->where('sub_group_id', $customer->id)
+            ->delete();
+
+        // Cascade expiry to dependent (non-independent) sub-accounts and remove their RADIUS rows
+        $customer->subAccounts()->where('is_independent', false)->get()->each(function ($child) use ($radiusService) {
+            $child->status = 'expired';
+            $child->save();
+
+            DB::connection('radius')->table('radcheck')
+                ->where('sub_group_id', $child->id)
+                ->where('client_type', 'hotspot')
+                ->delete();
+
+            DB::connection('radius')->table('radusergroup')
+                ->where('sub_group_id', $child->id)
+                ->delete();
+
+            DB::connection('radius')->table('radreply')
+                ->where('sub_group_id', $child->id)
+                ->delete();
+
+            try {
+                $radiusService->disconnectCustomer($child->radius_username, $child->organization_id);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to disconnect child during expiry: ' . $child->radius_username, ['error' => $e->getMessage()]);
+            }
+        });
         
     }
 
@@ -367,4 +534,46 @@ class HotspotSubscriptionService
         return null;
     }
 
+    public function generateVoucher(HotspotCustomer $customer): string
+    {
+        $maxAttempts = 5;
+
+        for ($attempt = 0; $attempt < $maxAttempts; $attempt++) {
+            // Pick two random words
+            $words = DB::table('voucher_words')
+                ->where('active', true)
+                ->inRandomOrder()
+                ->limit(2)
+                ->pluck('word')
+                ->toArray();
+
+            if (count($words) < 2) {
+                Log::error('Not enough voucher words available', [
+                    'available_words' => count($words),
+                    'customer_id' => $customer->id,
+                ]);
+                throw new \Exception('Not enough voucher words available');
+            }
+
+            // Last 4 digits of phone
+            $phoneDigits = preg_replace('/\D+/', '', $customer->phone ?? '');
+            $last4Digits = substr($phoneDigits, -4) ?: '0000';
+
+            $voucher = strtoupper($words[0]) . '-' . strtoupper($words[1]) . '-' . $last4Digits;
+
+            // Check existence only in hotspot_customers (voucher belongs to customers)
+            $exists = DB::table('hotspot_customers')->where('voucher', $voucher)->exists();
+
+            if (!$exists) {
+                return $voucher;
+            }
+        }
+
+        Log::error('Failed to generate unique voucher after attempts', [
+            'customer_id' => $customer->id,
+            'attempts' => $maxAttempts,
+        ]);
+
+        throw new \Exception('Failed to generate unique voucher');
+    }
 }

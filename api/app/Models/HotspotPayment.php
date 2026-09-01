@@ -23,6 +23,8 @@ class HotspotPayment extends Model
         'account_reference',
         'checkout_request_id',
         'mpesa_receipt',
+        'mpesa_code',
+        'voucher',
         'status',
         'expires_at',
     ];

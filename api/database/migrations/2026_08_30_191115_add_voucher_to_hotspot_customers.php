@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('organizations', function (Blueprint $table) {
-            //
+        Schema::table('hotspot_customers', function (Blueprint $table) {
+            $table->string('voucher')->nullable()->unique()->index()->after('status');
         });
     }
 
@@ -21,8 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('organizations', function (Blueprint $table) {
-            //
+        Schema::table('hotspot_customers', function (Blueprint $table) {
+            $table->dropColumn('voucher');
         });
     }
 };

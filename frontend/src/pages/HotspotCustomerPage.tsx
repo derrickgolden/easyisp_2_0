@@ -159,6 +159,8 @@ export const HotspotCustomersPage: React.FC = () => {
         setIsCustomerModalOpen(true); 
     }
 
+    // use server-provided `customers` directly; server-side search includes `voucher`
+
     return (
         <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -303,7 +305,7 @@ export const HotspotCustomersPage: React.FC = () => {
                         </span>
                         <input
                             type="text"
-                            placeholder="Search by MAC, phone, package, site or IP..."
+                            placeholder="Search by voucher, MAC, phone, package, site or IP..."
                             value={filters.searchTerm}
                             onChange={e => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
                             className="w-full pl-10 pr-4 py-2.5 bg-gray-200 dark:bg-slate-700 border border-gray-500 dark:border-transparent rounded-xl text-sm focus:border-none focus:ring-2 focus:ring-yellow-500 transition-all text-gray-900 dark:text-white"
@@ -319,6 +321,7 @@ export const HotspotCustomersPage: React.FC = () => {
                                 <th className="pb-3 px-6">Device / Contact</th>
                                 <th className="pb-3 px-6">Status</th>
                                 <th className="pb-3 px-6">Connectivity</th>
+                                <th className="pb-3 px-6">Voucher</th>
                                 <th className="pb-3 px-6">Site</th>
                                 <th className="pb-3 px-6">Package</th>
                                 <th className="pb-3 px-6">Activated</th>
@@ -360,6 +363,7 @@ export const HotspotCustomersPage: React.FC = () => {
                                             )}
                                         </div>
                                     </td>
+                                    <td className="py-4 px-6 text-xs text-gray-700 dark:text-gray-300 font-mono">{customer?.voucher || '-'}</td>
                                     <td className="py-4 px-6 text-xs text-gray-700 dark:text-gray-300">{customer?.site?.name || '-'}</td>
                                     <td className="py-4 px-6 text-xs text-gray-700 dark:text-gray-300">{customer?.package?.name || '-'}</td>
                                     <td className="py-4 px-6 text-xs text-gray-500">{formatDateTime(customer.activatedAt)}</td>
@@ -367,7 +371,7 @@ export const HotspotCustomersPage: React.FC = () => {
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan={9} className="py-16 text-center text-gray-400 italic">
+                                    <td colSpan={8} className="py-16 text-center text-gray-400 italic">
                                         No hotspot customers found.
                                     </td>
                                 </tr>

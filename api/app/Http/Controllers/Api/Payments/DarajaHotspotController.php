@@ -187,7 +187,7 @@ class DarajaHotspotController extends Controller
             'site_id' => $site->id,
             'package_id' => $package->id,
             'phone' => $normalizedPhone,
-            'mac_address' => $request->mac,
+            'mac_address' => $normalizedMac ?? $request->mac,
             'ip_address' => $request->ip,
             'amount' => $amount,
             'status' => 'pending',
@@ -539,10 +539,32 @@ class DarajaHotspotController extends Controller
             $payment->update(['customer_id' => $customer->id]);
         }
 
-        $customer->update(['expiry_date' => $expiresAt]);
+        $customer->update([
+            'expiry_date' => $expiresAt,
+        ]);
 
-        app(HotspotSubscriptionService::class)->applyActiveStatus($customer);
-        
+        // Ensure the customer has a voucher if possible, but do not block activation if generation fails.
+        $voucher = $customer->voucher;
+        if (empty($voucher)) {
+            try {
+                $voucher = app(HotspotSubscriptionService::class)->generateVoucher($customer);
+                $customer->update(['voucher' => $voucher]);
+            } catch (\Throwable $e) {
+                Log::warning('Voucher generation failed during hotspot activation; continuing with M-Pesa receipt fallback', [
+                    'customer_id' => $customer->id,
+                    'organization_id' => $organization->id,
+                    'mpesa_receipt' => $mpesaReceiptNumber,
+                    'error' => $e->getMessage(),
+                ]);
+                $voucher = null;
+            }
+        }
+
+        // Call applyActiveStatus once, passing both M-Pesa code and voucher (if present).
+        // Voucher generation failure must not block successful callback completion.
+        $altUsernames = array_filter([$mpesaReceiptNumber, $voucher]);
+        app(HotspotSubscriptionService::class)->applyActiveStatus($customer, $altUsernames);
+
         $payment->update([
             'status' => 'paid',
             'mpesa_receipt' => $mpesaReceiptNumber,

@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
+use App\Services\HotspotCustomerRadiusService;
 
 class HotspotCustomer extends Model
 {
@@ -38,6 +40,7 @@ class HotspotCustomer extends Model
         'package_id',
         'custom_package_price',
         'status',
+        'voucher',
         'expiry_date',
         'extension_date',
         'activated_at',
@@ -103,6 +106,56 @@ class HotspotCustomer extends Model
     public function subAccounts()
     {
         return $this->children();
+    }
+
+    protected static function booted()
+    {
+        static::deleting(function (HotspotCustomer $customer) {
+            // Gather usernames tied to this sub_group (covers voucher, mpesa receipts, MACs)
+            $usernames = DB::connection('radius')->table('radcheck')
+                ->where('sub_group_id', $customer->id)
+                ->pluck('username')
+                ->toArray();
+
+            // Include primary username and child usernames
+            $usernames[] = $customer->radius_username;
+            $childUsernames = $customer->subAccounts()->pluck('radius_username')->toArray();
+            $usernames = array_values(array_filter(array_unique(array_merge($usernames, $childUsernames))));
+
+            $radiusService = app(HotspotCustomerRadiusService::class);
+
+            // Apply explicit deny and disconnect each username, then remove per-username rows
+            foreach ($usernames as $username) {
+                if (empty($username)) continue;
+
+                try {
+                    DB::connection('radius')->table('radcheck')->updateOrInsert(
+                        ['username' => $username, 'attribute' => 'Auth-Type'],
+                        ['op' => ':=', 'value' => 'Reject', 'sub_group_id' => $customer->id]
+                    );
+                } catch (\Throwable $e) {
+                    // ignore
+                }
+
+                try {
+                    $radiusService->disconnectCustomer($username, $customer->organization_id);
+                } catch (\Throwable $e) {
+                    // ignore
+                }
+
+                DB::connection('radius')->table('radpostauth')->where('username', $username)->delete();
+                DB::connection('radius')->table('radacct')->where('username', $username)->delete();
+            }
+
+            // Finally remove group/policy rows for the sub_group
+            DB::connection('radius')->table('radcheck')
+                ->where('sub_group_id', $customer->id)
+                ->delete();
+
+            DB::connection('radius')->table('radreply')
+                ->where('sub_group_id', $customer->id)
+                ->delete();
+        });
     }
 
     public function getEffectivePackageAttribute()

@@ -247,7 +247,7 @@ export const HotspotCustomerDetailPage: React.FC<CustomerDetailPageProps> = () =
                 </h3>
                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-6">
                    <p className="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-lg font-bold text-xs">ID: {customer.id}</p>
-                   <p className="px-3 py-1 bg-slate-50 dark:bg-slate-800 text-slate-500 rounded-lg font-mono text-xs uppercase tracking-tighter">{customer.deviceName || 'Unknown Device'}</p>
+                   <p className="px-3 py-1 bg-slate-50 dark:bg-blue-800 text-blue-500 rounded-lg font-bold text-xs uppercase tracking-wider">{customer?.voucher || customer?.deviceName || 'Unknown Device'}</p>
                 </div>
                 
                 <div className="grid grid-cols-2 sm:grid-cols-2 gap-x-8 gap-y-4 text-left">

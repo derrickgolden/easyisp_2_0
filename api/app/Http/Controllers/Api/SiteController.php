@@ -450,6 +450,16 @@ class SiteController extends Controller
             /* margin-top: 2rem; */
         }
 
+        /* Form Subtitle */
+        .form-subtitle {
+            display: block;
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+            margin: 6px 0 6px 0;
+            font-style: italic;
+        }
+
         /* SQUARE PACKAGE CARDS GRID */
         .packages-grid {
             display: grid;
@@ -992,8 +1002,23 @@ class SiteController extends Controller
         })();
 </script>
 
+        <!-- Mpesa Recconect Form -->
+        <div class="section-title">Reconnect Using Mpesa Code?</div>
+        <span class="form-subtitle">Enter Mpesa Message Code from the payment you made. EG. 
+            <span style="color: #15803d;">UHU864H44P</span>
+        </span>
+        <form id="form-mpesa-code" onsubmit="handleMpesaCodeSubmit(event)">
+            <div class="input-group">
+                <div class="input-wrapper">
+                    <input type="text" id="mpesa-code" placeholder="Enter mpesa code or message" required autocomplete="off">
+                </div>
+            </div>
+            <button type="submit" class="btn">Connect With Mpesa Code</button>
+        </form>
+
         <!-- Voucher Form -->
         <div class="section-title">Already Have A Code?</div>
+        <span class="form-subtitle">Call support for one if you have already paid.</span>
         <form id="form-voucher" onsubmit="handleVoucherSubmit(event)">
             <div class="input-group">
                 <div class="input-wrapper">
@@ -1194,6 +1219,27 @@ class SiteController extends Controller
             const user = document.getElementById('username').value.trim();
             const pass = document.getElementById('password').value;
             if (user && pass) executeMikrotikLogin(user, pass);
+        }
+
+        function handleMpesaCodeSubmit(event) {
+            event.preventDefault();
+            let input = document.getElementById('mpesa-code').value.trim();
+            
+            if (!input) return;
+            
+            // Try to extract M-Pesa transaction code from input
+            // Matches 6-10 alphanumeric characters at the start (e.g., UHS864BLGG)
+            const codeMatch = input.match(/^([A-Z0-9]{6,10})\b/i);
+            
+            if (codeMatch && codeMatch[1]) {
+                const code = codeMatch[1].toUpperCase();
+                // Use the extracted code for login
+                executeMikrotikLogin(code, code);
+            } else {
+                // Show error if no valid code found
+                alert('Invalid M-Pesa code. Please paste the transaction code (e.g., UHS864BLGG) or the full M-Pesa confirmation message starting with the code.');
+                document.getElementById('mpesa-code').focus();
+            }
         }
 
         function executeMikrotikLogin(username, password) {

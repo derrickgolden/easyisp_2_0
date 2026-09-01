@@ -108,6 +108,7 @@ export interface Customer {
   radiusPassword?: string;
   // Network Status Details
   ipAddress?: string;
+  voucher?: string; // Hotspot voucher code
   macAddress?: string;
   deviceType?: string;
   isOnline?: boolean;

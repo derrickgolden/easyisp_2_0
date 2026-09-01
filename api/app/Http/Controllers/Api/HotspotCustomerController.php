@@ -99,6 +99,7 @@ class HotspotCustomerController extends Controller
             $query->where(function ($searchQuery) use ($search) {
                 $searchQuery->where('mac_address', 'like', "%{$search}%")
                     ->orWhere('phone', 'like', "%{$search}%")
+                        ->orWhere('voucher', 'like', "%{$search}%")
                     ->orWhere('host_name', 'like', "%{$search}%")
                     ->orWhereHas('package', function ($packageQuery) use ($search) {
                         $packageQuery->where('name', 'like', "%{$search}%");

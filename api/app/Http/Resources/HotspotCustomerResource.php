@@ -37,6 +37,7 @@ class HotspotCustomerResource extends JsonResource
             'connectedSites' => $this->connected_sites,
             'balance' => (float) $this->balance,
             'createdAt' => $this->created_at->toISOString(),
+            'voucher' => $this->voucher,
             // Radius Credentials
             'radiusUsername' => $this->radius_username,
             'radiusPassword' => $this->radius_password,
