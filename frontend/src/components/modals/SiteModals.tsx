@@ -596,6 +596,9 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, onClose, selec
       # Set the Hotspot User Profile to use the on-login script
       /ip hotspot user profile set [ find default=yes ] on-login=":global hotspotMac \$\"mac-address\"; :global hotspotUser \$user; /system script run hotspot_sync_script"
 
+      # Block hotspot tethering
+      /ip firewall mangle add chain=postrouting action=change-ttl new-ttl=set:1 passthrough=yes out-interface=bridge-hotspot
+
        # Firewall Rules
       # Allow RADIUS and COA from the WireGuard Tunnel only
       /ip firewall filter

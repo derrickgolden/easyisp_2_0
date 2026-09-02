@@ -769,7 +769,7 @@ class SiteController extends Controller
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            padding: 5px 6px;
+            padding: 9px 10px;
             border: 1px solid #93c5fd;
             border-radius: var(--radius-sm);
             background: #ffffff;
@@ -898,6 +898,7 @@ class SiteController extends Controller
                     <strong class="hotline-number">{$supportPhone}</strong>
                 </div>
                 <a href="tel:{$supportPhone}" class="call-hotline" aria-label="Call support on {$supportPhone}">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 1 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 1 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                     <span>Call</span>
                 </a>
             </div>
@@ -906,6 +907,7 @@ class SiteController extends Controller
                     <strong class="hotline-number">0789824337</strong>
                 </div>
                 <a href="tel:0789824337" class="call-hotline" aria-label="Call support on 0789824337">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 1 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 1 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                     <span>Call</span>
                 </a>
                 </div>
@@ -1080,7 +1082,38 @@ class SiteController extends Controller
 
     <script>
         const API_BASE_URL = "{$apiUrl}";
-        document.addEventListener("DOMContentLoaded", fetchPackages);
+        document.addEventListener("DOMContentLoaded", fetchPackages, claimTokenAndLogin);
+
+        async function claimTokenAndLogin() {
+            const mac = "\$(mac)" || "";
+            const token = localStorage.getItem('hotspot_device_token');
+            try {
+
+                const res = await fetch(`\${API_BASE_URL}/api/hotspot/claim-token`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, mac })
+                });
+                const data = await res.json();
+
+                if (res.ok && data.success) {
+                    const login = data.mac || data.username || mac;
+                    executeMikrotikLogin(login, login);
+                    return true;
+                } else {
+                    console.warn('Claim token failed', data);
+                    try {
+                        localStorage.removeItem('hotspot_device_token');
+                    } catch (e) {
+                        // ignore storage errors
+                    }
+                    return false;
+                }
+            } catch (err) {
+                console.error('Claim token error', err);
+                return false;
+            }
+        }        
 
         async function fetchPackages() {
             const container = document.getElementById("packages-container");
@@ -1186,7 +1219,15 @@ class SiteController extends Controller
                     const data = await res.json();
                     if (res.ok && data.status === "completed") {
                         clearInterval(interval);
+                        // If server returned a device_token, persist it and use it for login
                         executeMikrotikLogin(data.code || data.voucher_code, data.code || data.voucher_code);
+                        if (data.device_token) {
+                            try {
+                                localStorage.setItem('hotspot_device_token', data.device_token);
+                            } catch (e) {
+                                // ignore storage errors
+                            }
+                        }
                     } else if (data.status === "failed") {
                         clearInterval(interval);
                         alert("Transaction failed.");

@@ -315,7 +315,12 @@ class HotspotSubscriptionService
 
     private function applyExpiredStatus(HotspotCustomer $customer, Carbon $expiryDate)
     {
-        // 1. Update Laravel Database
+        // 1. delete hotspot_devices entries for this customer
+        DB::table('hotspot_devices')
+            ->where('customer_id', $customer->id)
+            ->delete();
+    
+        // 2. Update Laravel Database
         $customer->update(['status' => 'expired']);
 
         // 2. Send expiry notification (account expired) SMS

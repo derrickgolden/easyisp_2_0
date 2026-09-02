@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Payments;
 use App\Http\Controllers\Controller;
 use App\Models\HotspotCustomer;
 use App\Models\HotspotPayment;
+use App\Models\HotspotDevice;
 use App\Models\Organization;
 use App\Models\HotspotPackage;
 use App\Models\Site;
@@ -14,6 +15,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Jenssegers\Agent\Agent;
+use App\Services\HotspotCustomerRadiusService;
+use Illuminate\Support\Str;
 
 class DarajaHotspotController extends Controller
 {
@@ -373,7 +376,20 @@ class DarajaHotspotController extends Controller
                 'mac' => $macAddress,
             ]);
 
-            return response()->json([
+            // Attempt to return the device token if present on the payment (encrypted in DB).
+            $deviceTokenPlain = null;
+            if (!empty($payment->device_token)) {
+                try {
+                    $deviceTokenPlain = decrypt($payment->device_token);
+                } catch (\Throwable $e) {
+                    Log::warning('Failed to decrypt device token for payment', [
+                        'payment_id' => $payment->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            $response = [
                 'status' => 'completed',
                 'message' => 'Payment verified! Connecting to internet...',
                 'code' => $voucherCode,
@@ -381,7 +397,13 @@ class DarajaHotspotController extends Controller
                 'mac' => $macAddress,
                 'username' => $macAddress,
                 'password' => $macAddress,
-            ], 200);
+            ];
+
+            if ($deviceTokenPlain !== null) {
+                $response['device_token'] = $deviceTokenPlain;
+            }
+
+            return response()->json($response, 200);
         }
 
         return response()->json([
@@ -571,6 +593,58 @@ class DarajaHotspotController extends Controller
             'expires_at' => $expiresAt,
         ]);
 
+        // Generate a device token (secure random), store its SHA-256 hash in hotspot_devices
+        // and store the encrypted raw token on the payment for the client to retrieve via checkStatus.
+        try {
+            $rawToken = bin2hex(random_bytes(32));
+            $tokenHash = hash('sha256', $rawToken);
+
+            // Persist encrypted raw token on the payment (temporary storage)
+            try {
+                $payment->device_token = encrypt($rawToken);
+                $payment->save();
+            } catch (\Throwable $e) {
+                Log::warning('Failed to encrypt/store device token on payment', [
+                    'payment_id' => $payment->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            // Find existing device by current_mac or previous_mac
+            $device = HotspotDevice::query()
+                ->where('current_mac', $macAddress)
+                ->orWhere('previous_mac', $macAddress)
+                ->first();
+
+            if ($device) {
+                // If MAC changed, move current to previous
+                if ($device->current_mac && $device->current_mac !== $macAddress) {
+                    $device->previous_mac = $device->current_mac;
+                }
+
+                $device->current_mac = $macAddress;
+                $device->device_token_hash = $tokenHash;
+                $device->customer_id = $customer->id ?? $device->customer_id;
+                $device->last_seen_at = now();
+                $device->save();
+            } else {
+                HotspotDevice::create([
+                    'device_token_hash' => $tokenHash,
+                    'current_mac' => $macAddress,
+                    'previous_mac' => null,
+                    'customer_id' => $customer->id ?? null,
+                    'last_seen_at' => now(),
+                ]);
+            }
+
+            // Do NOT log the raw token.
+        } catch (\Throwable $e) {
+            Log::warning('Failed to generate/store hotspot device token', [
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         return response()->json(['success' => true], 200);
     }
 
@@ -660,4 +734,77 @@ class DarajaHotspotController extends Controller
         );
     }
 
-}
+    /**
+     * Claim a device token and bind a new MAC to the associated hotspot customer.
+     * Expects JSON: { token: string, mac: string }
+     */
+    public function claimToken(Request $request)
+    {
+        Log::info('Hotspot claim token request received', [
+            'request' => $request->all(),
+            'ip' => $request->ip(),
+        ]);
+        $data = $request->validate([
+            'token' => 'required|string',
+            'mac' => 'required|string',
+        ]);
+
+        $token = $data['token'];
+        $macRaw = $data['mac'];
+        $mac = $this->normalizeMacAddress($macRaw);
+        if ($mac === null) {
+            return response()->json(['success' => false, 'message' => 'Invalid MAC address'], 422);
+        }
+
+        $tokenHash = hash('sha256', $token);
+
+        $device = \App\Models\HotspotDevice::where('device_token_hash', $tokenHash)->first();
+        if (!$device) {
+            return response()->json(['success' => false, 'message' => 'Invalid or expired token'], 404);
+        }
+
+        // Ensure the device has an associated customer
+        if (empty($device->customer_id)) {
+            return response()->json(['success' => false, 'message' => 'No customer linked to this token'], 400);
+        }
+
+        $customer = HotspotCustomer::find($device->customer_id);
+        if (!$customer) {
+            return response()->json(['success' => false, 'message' => 'Customer not found'], 404);
+        }
+
+        // Update device record
+        try {
+            if ($device->current_mac && $device->current_mac !== $mac) {
+                $device->previous_mac = $device->current_mac;
+            }
+            $device->current_mac = $mac;
+            $device->last_seen_at = now();
+            $device->customer_id = $customer->id;
+            $device->save();
+        } catch (\Throwable $e) {
+            Log::error('Failed to update hotspot_devices: ' . $e->getMessage());
+        }
+
+        // Bind the MAC in RADIUS
+        app(HotspotSubscriptionService::class)->applyActiveStatus($customer, $mac);
+
+        // Clear any device_token entries on payments for this token (optional cleanup)
+        try {
+            \App\Models\HotspotPayment::whereNotNull('device_token')
+                ->get()
+                ->filter(fn($p) => @decrypt($p->device_token) === $token)
+                ->each(fn($p) => $p->update(['device_token' => null]));
+        } catch (\Throwable $e) {
+            Log::warning('Failed to clear device_token from payments: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'MAC bound and RADIUS updated',
+            'username' => $customer->radius_username,
+            'mac' => $mac,
+        ]);
+    }
+
+    }
