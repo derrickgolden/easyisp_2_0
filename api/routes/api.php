@@ -70,7 +70,7 @@ Route::post('/payments/hotspot/{token}/callback', [DarajaHotspotController::clas
 Route::post('/payments/hotspot', [DarajaHotspotController::class, 'stkPush']);
 Route::get('/payments/hotspot/check-status', [DarajaHotspotController::class, 'checkStatus']);
 Route::post('/hotspot/sync-device', [HotspotCustomerController::class, 'syncDevice']);
-Route::post('/hotspot/claim-token', [DarajaHotspotController::class, 'claimToken']);
+Route::post('/hotspot/claim-code', [DarajaHotspotController::class, 'claimCode']);
 
 // Public M-Pesa C2B routes
 Route::post('/payments/c2b/{token}/validation', [PaymentController::class, 'c2bValidation']);

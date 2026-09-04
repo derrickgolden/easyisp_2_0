@@ -1082,22 +1082,36 @@ class SiteController extends Controller
 
     <script>
         const API_BASE_URL = "{$apiUrl}";
-        document.addEventListener("DOMContentLoaded", fetchPackages, claimTokenAndLogin);
+        document.addEventListener("DOMContentLoaded", fetchPackages);
+        document.addEventListener("DOMContentLoaded", claimTokenAndLogin);
 
         async function claimTokenAndLogin() {
-            const mac = "\$(mac)" || "";
+            const code_type = "token";
             const token = localStorage.getItem('hotspot_device_token');
-            try {
+            const mac = "\$(mac)" || "";
+            if (!token || !mac) return false;
+            claimCode(token, mac, code_type);
+        }
 
-                const res = await fetch(`\${API_BASE_URL}/api/hotspot/claim-token`, {
+        async function claimCode(code, mac, code_type) {
+            
+            try {
+                const res = await fetch(`\${API_BASE_URL}/api/hotspot/claim-code`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token, mac })
+                    body: JSON.stringify({ code, mac, code_type })
                 });
                 const data = await res.json();
 
                 if (res.ok && data.success) {
-                    const login = data.mac || data.username || mac;
+                    if (data.device_token) {
+                        try {
+                            localStorage.setItem('hotspot_device_token', data.device_token);
+                        } catch (e) {
+                            // ignore storage errors
+                        }
+                    }
+                    const login = data.username || mac;
                     executeMikrotikLogin(login, login);
                     return true;
                 } else {
@@ -1252,7 +1266,7 @@ class SiteController extends Controller
         function handleVoucherSubmit(event) {
             event.preventDefault();
             const code = document.getElementById('voucher-code').value.trim();
-            if (code) executeMikrotikLogin(code, code);
+            if (code) claimCode(code, "\$(mac)" || "", "voucher_code");
         }
 
         function handleMemberSubmit(event) {
@@ -1275,7 +1289,7 @@ class SiteController extends Controller
             if (codeMatch && codeMatch[1]) {
                 const code = codeMatch[1].toUpperCase();
                 // Use the extracted code for login
-                executeMikrotikLogin(code, code);
+                claimCode(code, "\$(mac)" || "", "mpesa_code");
             } else {
                 // Show error if no valid code found
                 alert('Invalid M-Pesa code. Please paste the transaction code (e.g., UHS864BLGG) or the full M-Pesa confirmation message starting with the code.');

@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 use Jenssegers\Agent\Agent;
 use App\Services\HotspotCustomerRadiusService;
 use Illuminate\Support\Str;
@@ -738,25 +739,65 @@ class DarajaHotspotController extends Controller
      * Claim a device token and bind a new MAC to the associated hotspot customer.
      * Expects JSON: { token: string, mac: string }
      */
-    public function claimToken(Request $request)
+    public function claimCode(Request $request)
     {
-        Log::info('Hotspot claim token request received', [
+        Log::info('Hotspot claim code request received', [
             'request' => $request->all(),
             'ip' => $request->ip(),
         ]);
+
+        $validator = Validator::make($request->all(), [
+            'code' => 'required|string',
+            'mac' => 'required|string',
+            'code_type' => 'required|string|in:token,mpesa_receipt,mpesa_code,voucher,voucher_code',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The claim code request is invalid.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $data = $validator->validated();
+        $codeType = match ($data['code_type']) {
+            'mpesa_code' => 'mpesa_receipt',
+            'voucher_code' => 'voucher',
+            default => $data['code_type'],
+        };
+
+        if ($codeType === 'token') {
+            return $this->claimToken($request);
+        }
+
+        if ($codeType === 'mpesa_receipt') {
+            return $this->claimMpesaReceipt($request);
+        }
+
+        if ($codeType === 'voucher') {
+            return $this->claimVoucher($request);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Unsupported code type.',
+        ], 422);
+    }
+
+    private function claimToken(Request $request)
+    {
         $data = $request->validate([
-            'token' => 'required|string',
+            'code' => 'required|string',
             'mac' => 'required|string',
         ]);
 
-        $token = $data['token'];
+        $tokenHash = hash('sha256', $data['code']);
         $macRaw = $data['mac'];
         $mac = $this->normalizeMacAddress($macRaw);
         if ($mac === null) {
             return response()->json(['success' => false, 'message' => 'Invalid MAC address'], 422);
         }
-
-        $tokenHash = hash('sha256', $token);
 
         $device = \App\Models\HotspotDevice::where('device_token_hash', $tokenHash)->first();
         if (!$device) {
@@ -789,22 +830,175 @@ class DarajaHotspotController extends Controller
         // Bind the MAC in RADIUS
         app(HotspotSubscriptionService::class)->applyActiveStatus($customer, $mac);
 
-        // Clear any device_token entries on payments for this token (optional cleanup)
-        try {
-            \App\Models\HotspotPayment::whereNotNull('device_token')
-                ->get()
-                ->filter(fn($p) => @decrypt($p->device_token) === $token)
-                ->each(fn($p) => $p->update(['device_token' => null]));
-        } catch (\Throwable $e) {
-            Log::warning('Failed to clear device_token from payments: ' . $e->getMessage());
-        }
-
         return response()->json([
             'success' => true,
-            'message' => 'MAC bound and RADIUS updated',
-            'username' => $customer->radius_username,
+            'message' => 'Token claimed and MAC bound successfully',
+            'username' => $mac,
             'mac' => $mac,
         ]);
-    }
 
     }
+
+    private function claimMpesaReceipt(Request $request)
+    {
+        $data = $request->validate([
+            'code' => 'required|string',
+            'mac' => 'required|string',
+        ]);
+
+        $mpesaReceipt = $data['code'];
+        $macRaw = $data['mac'];
+        $mac = $this->normalizeMacAddress($macRaw);
+        if ($mac === null) {
+            return response()->json(['success' => false, 'message' => 'Invalid MAC address'], 422);
+        }
+
+        // Find the payment by M-Pesa receipt
+        $payment = HotspotPayment::where('mpesa_receipt', $mpesaReceipt)->first();
+        if (!$payment) {
+            return response()->json(['success' => false, 'message' => 'Payment not found for this M-Pesa receipt'], 404);
+        }
+
+        // Ensure the payment is completed
+        if ($payment->status !== 'paid') {
+            return response()->json(['success' => false, 'message' => 'Payment is not completed'], 400);
+        }
+
+        // Ensure the payment has an associated customer
+        if (empty($payment->customer_id)) {
+            return response()->json(['success' => false, 'message' => 'No customer linked to this payment'], 400);
+        }
+
+        $customer = HotspotCustomer::find($payment->customer_id);
+        if (!$customer) {
+            return response()->json(['success' => false, 'message' => 'Customer not found'], 404);
+        }   
+
+
+
+        // Update device record
+        try {
+            $device = HotspotDevice::where('current_mac', $mac)->orWhere('previous_mac', $mac)->first();
+            if (!$device) {
+                // Create a new device record if none exists
+                $rawToken = null;
+                $tokenHash = null;
+                if ($customer->status === 'active' && $customer->expiry_date && $customer->expiry_date->isFuture()) {
+                    // generate a new device token for the customer
+                    $rawToken = bin2hex(random_bytes(32));
+                    $tokenHash = hash('sha256', $rawToken);
+                }
+
+                $device = new HotspotDevice();
+                $device->current_mac = $mac;
+                $device->customer_id = $customer->id;
+                $device->device_token_hash = $tokenHash;
+                $device->last_seen_at = now();
+                $device->save();
+
+                app(HotspotSubscriptionService::class)->applyActiveStatus($customer, $mac);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'M-Pesa receipt claimed and MAC bound successfully',
+                    'username' => $mpesaReceipt,
+                    'mac' => $mac,
+                    'device_token' => $rawToken ?? null,
+                ]);
+            } else {
+                // Update existing device record
+                if ($device->current_mac && $device->current_mac !== $mac) {
+                    $device->previous_mac = $device->current_mac;
+                }
+                $device->current_mac = $mac;
+                $device->last_seen_at = now();
+                $device->customer_id = $customer->id;
+                $device->save();
+
+                app(HotspotSubscriptionService::class)->applyActiveStatus($customer, $mac);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'M-Pesa receipt claimed and MAC bound successfully',
+                    'username' => $mpesaReceipt,
+                    'mac' => $mac,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::error('Failed to update hotspot_devices for M-Pesa receipt claim: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to bind MAC address'], 500);
+        }
+    }
+
+    public function claimVoucher(Request $request)
+    {
+        $data = $request->validate([
+            'code' => 'required|string',
+            'mac' => 'required|string',
+        ]);
+
+        $voucherCode = $data['code'];
+        $macRaw = $data['mac'];
+        $mac = $this->normalizeMacAddress($macRaw);
+        if ($mac === null) {
+            return response()->json(['success' => false, 'message' => 'Invalid MAC address'], 422);
+        }
+
+        // Find the customer by voucher code
+        $customer = HotspotCustomer::where('voucher', $voucherCode)->first();
+        if (!$customer) {
+            return response()->json(['success' => false, 'message' => 'Customer not found for this voucher'], 404);
+        }
+
+        // Update device record
+        try {
+            $device = HotspotDevice::where('current_mac', $mac)->orWhere('previous_mac', $mac)->first();
+            if (!$device) {
+                // Create a new device record if none exists
+                $rawToken = null;
+                $tokenHash = null;
+                if ($customer->status === 'active' && $customer->expiry_date && $customer->expiry_date->isFuture()) {
+                    // generate a new device token for the customer
+                    $rawToken = bin2hex(random_bytes(32));
+                    $tokenHash = hash('sha256', $rawToken);
+                }
+
+                $device = new HotspotDevice();
+                $device->current_mac = $mac;
+                $device->customer_id = $customer->id;
+                $device->device_token_hash = $tokenHash;
+                $device->last_seen_at = now();
+                $device->save();
+
+                app(HotspotSubscriptionService::class)->applyActiveStatus($customer, $mac);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Voucher claimed and MAC bound successfully',
+                    'username' => $voucherCode,
+                    'mac' => $mac,
+                    'device_token' => $rawToken ?? null,
+                ]);
+            } else {
+                // Update existing device record
+                if ($device->current_mac && $device->current_mac !== $mac) {
+                    $device->previous_mac = $device->current_mac;
+                }
+                $device->current_mac = $mac;
+                $device->last_seen_at = now();
+                $device->customer_id = $customer->id;
+                $device->save();
+                app(HotspotSubscriptionService::class)->applyActiveStatus($customer, $mac);
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Voucher claimed and MAC bound successfully',
+                    'username' => $voucherCode,
+                    'mac' => $mac,
+                ]);
+            }
+        } catch (\Throwable $e) {   
+            Log::error('Failed to update hotspot_devices for voucher claim: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to bind MAC address'], 500);
+        }
+    }
+}
