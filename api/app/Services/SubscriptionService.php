@@ -21,6 +21,12 @@ class SubscriptionService
             return; 
         }
 
+        // Temporary workaround: do not force active users back into a RADIUS group.
+        // This prevents the cron from re-inserting radusergroup rows after a manual delete.
+        if ($customer->status === 'active') {
+            return;
+        }
+
         $effectiveDate = $this->getEffectiveExpiryDate($customer);
 
         // Check and send pre-expiry warnings (48-hour and 1-hour)
@@ -164,6 +170,11 @@ class SubscriptionService
         
     public function applyActiveStatus(Customer $customer)
     {
+        // Temporary workaround: avoid re-inserting active users into RADIUS group.
+        if ($customer->status === 'active') {
+            return;
+        }
+
         $customer->update(['status' => 'active']);
 
         // 2. Check RADIUS group
