@@ -5,6 +5,7 @@ import { Customer, Package } from '../types';
 import { hotspotPackagesApi, packagesApi } from '../services/apiService';
 import { STORAGE_KEYS } from '../constants/storage';
 import { PackageModal } from '../components/modals/PackageModal';
+import { PCQConfigModal } from '../components/modals/PCQConfigModal';
 import { toast } from 'sonner';
 import { confirmAction } from '../utils/alerts';
 import { usePermissions } from '../hooks/usePermissions';
@@ -14,6 +15,7 @@ export const PackagesPage: React.FC = () => {
   const [hotspotPackages, setHotspotPackages] = useState<Package[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.HOTSPOT_PACKAGES) || '[]'));
   const [editingPackage, setEditingPackage] = useState<Partial<Package> | null>(null);
   const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
+  const [pcqPackage, setPcqPackage] = useState<Partial<Package> | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showPackageList, setShowPackageList] = useState(() => localStorage.getItem('easy-tech-connectionType') || 'pppoe');
@@ -194,6 +196,16 @@ export const PackagesPage: React.FC = () => {
             {
               can('manage-packages') && (
                 <div className="absolute top-4 right-4 flex space-x-1 z-10">
+                  {pkg.queue_type === 'pcq' && (
+                    <button 
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setPcqPackage(pkg); }}
+                      className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                      title="PCQ Configuration"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7h16M4 12h16M4 17h16M8 5v4M16 10v4M10 15v4" /></svg>
+                    </button>
+                  )}
                   <button 
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setEditingPackage(pkg); setIsPackageModalOpen(true); }}
@@ -290,6 +302,11 @@ export const PackagesPage: React.FC = () => {
         isSaving={isSaving}
         saveError={saveError}
       />  
+      <PCQConfigModal
+        isOpen={Boolean(pcqPackage)}
+        onClose={() => setPcqPackage(null)}
+        package={pcqPackage}
+      />
     </div>
   );
 };

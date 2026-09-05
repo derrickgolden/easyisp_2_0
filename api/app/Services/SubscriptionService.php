@@ -142,32 +142,80 @@ class SubscriptionService
         return $this->applyActiveStatus($customer);
     }
 
-    private function applyExpiredStatus(Customer $customer)
+    private function applyExpiredStatus(Customer $customer, bool $sendNotification = true)
     {
         // 1. Update Laravel Database
         $customer->update(['status' => 'expired']);
 
         // 2. Send expiry notification (account expired) SMS
-        $expiryDate = $this->getEffectiveExpiryDate($customer);
-        $messagingService = new CustomerMessagingService();
-        $messagingService->send(
-            $customer,
-            CustomerMessagingService::TYPE_EXPIRY_NOTIFICATION,
-            ['{Expiry}' => $expiryDate->format('M d, Y h:i A')]
-        );
+        if ($sendNotification) {
+            $expiryDate = $this->getEffectiveExpiryDate($customer);
+            $messagingService = new CustomerMessagingService();
+            $messagingService->send(
+                $customer,
+                CustomerMessagingService::TYPE_EXPIRY_NOTIFICATION,
+                ['{Expiry}' => $expiryDate->format('M d, Y h:i A')]
+            );
+        }
 
-        // 3. Update RADIUS to "Expired" group for redirection
-        DB::connection('radius')->table('radusergroup')
-            ->updateOrInsert(
-                ['username' => $customer->radius_username],
-                ['groupname' => 'Expired_Redirect', 'priority' => 1] // ensure record exists and has priority
-            ); // Match your MikroTik/Radius profile
+        $radius = DB::connection('radius');
+
+        if ($customer->package?->queue_type === 'pcq') {
+            // PCQ users receive the redirect group as a reply attribute.
+            $radius->table('radreply')->updateOrInsert(
+                [
+                    'username' => $customer->radius_username,
+                    'attribute' => 'Mikrotik-Group',
+                ],
+                [
+                    'op' => ':=',
+                    'value' => 'Expired_Redirect',
+                ]
+            );
+
+            // Do not leave the active PCQ address list attached to an expired user.
+            $radius->table('radreply')
+                ->where('username', $customer->radius_username)
+                ->where('attribute', 'Mikrotik-Address-List')
+                ->delete();
+
+            $radius->table('radusergroup')
+                ->where('username', $customer->radius_username)
+                ->delete();
+        } else {
+            // FIFO users continue using the existing RADIUS group flow.
+            $radius->table('radreply')
+                ->where('username', $customer->radius_username)
+                ->whereIn('attribute', ['Mikrotik-Group', 'Mikrotik-Address-List'])
+                ->delete();
+
+            $radius->table('radusergroup')
+                ->updateOrInsert(
+                    ['username' => $customer->radius_username],
+                    ['groupname' => 'Expired_Redirect', 'priority' => 1]
+                );
+        }
 
         // Disconnect user to force re-auth into redirect group
         app(CustomerRadiusService::class)->disconnectCustomer($customer->radius_username, $customer->organization_id);
         
     }
         
+    public function syncRadiusAssignment(Customer $customer): void
+    {
+        if ($customer->status === 'suspended') {
+            $this->applySuspendedStatus($customer);
+            return;
+        }
+
+        if ($customer->status === 'expired') {
+            $this->applyExpiredStatus($customer, false);
+            return;
+        }
+
+        $this->applyActiveStatus($customer);
+    }
+
     public function applyActiveStatus(Customer $customer)
     {
         // Temporary workaround: avoid re-inserting active users into RADIUS group.
@@ -177,22 +225,75 @@ class SubscriptionService
 
         $customer->update(['status' => 'active']);
 
-        // 2. Check RADIUS group
-        $currentGroup = DB::connection('radius')->table('radusergroup')
+        $radius = DB::connection('radius');
+        $package = $customer->package;
+
+        if ($package->queue_type === 'pcq') {
+            $companyAcronym = strtoupper(preg_replace('/[^A-Za-z0-9_-]/', '', (string) $customer->organization->acronym));
+            $packageName = preg_replace('/\s+/', '-', trim((string) $package->name));
+            $upload = trim((string) $package->speed_up);
+            $download = trim((string) $package->speed_down);
+            $addressList = "PCQ-{$companyAcronym}-{$packageName}-{$upload}-{$download}";
+
+            $pcqReplies = [
+                'Mikrotik-Group' => "ppp-{$companyAcronym}-pcq",
+                'Mikrotik-Address-List' => $addressList,
+            ];
+            $requiresDisconnect = false;
+
+            foreach ($pcqReplies as $attribute => $value) {
+                $existingReply = $radius->table('radreply')
+                    ->where('username', $customer->radius_username)
+                    ->where('attribute', $attribute)
+                    ->first();
+
+                if (!$existingReply || $existingReply->op !== ':=' || $existingReply->value !== $value) {
+                    $requiresDisconnect = true;
+                }
+
+                $radius->table('radreply')->updateOrInsert(
+                    [
+                        'username' => $customer->radius_username,
+                        'attribute' => $attribute,
+                    ],
+                    [
+                        'op' => ':=',
+                        'value' => $value,
+                    ]
+                );
+            }
+
+            // Prevent an old FIFO, expired, or suspended group from overriding PCQ replies.
+            $radius->table('radusergroup')
+                ->where('username', $customer->radius_username)
+                ->delete();
+
+            if ($requiresDisconnect) {
+                app(CustomerRadiusService::class)->disconnectCustomer($customer->radius_username, $customer->organization_id);
+                Log::info("User {$customer->radius_username} resumed with PCQ RADIUS replies.");
+            }
+
+            return;
+        }
+
+        // FIFO users use the existing RADIUS group flow.
+        $radius->table('radreply')
+            ->where('username', $customer->radius_username)
+            ->whereIn('attribute', ['Mikrotik-Group', 'Mikrotik-Address-List'])
+            ->delete();
+
+        $packageName = "package_" . $package->id;
+        $currentGroup = $radius->table('radusergroup')
             ->where('username', $customer->radius_username)
             ->first();
 
-        $packageName = "package_" . $customer->package->id;
-
-        // 3. ONLY update and kick if they are in the wrong group (like Suspended or Expired)
         if (!$currentGroup || $currentGroup->groupname !== $packageName) {
-            DB::connection('radius')->table('radusergroup')
+            $radius->table('radusergroup')
                 ->updateOrInsert(
                     ['username' => $customer->radius_username],
                     ['groupname' => $packageName]
                 );
 
-            // This is where the magic happens: User is moved from Suspended -> Package
             app(CustomerRadiusService::class)->disconnectCustomer($customer->radius_username, $customer->organization_id);
             Log::info("User {$customer->radius_username} resumed and RADIUS group updated.");
         }
@@ -203,13 +304,49 @@ class SubscriptionService
         // Use a specific RADIUS group for suspended users
         // This group should have NO IP pool or a "Blocked" pool
         $targetGroup = 'Suspended_Group'; 
+        $radius = DB::connection('radius');
 
-        $radiusRecord = DB::connection('radius')->table('radusergroup')
+        if ($customer->package?->queue_type === 'pcq') {
+            // PCQ users receive the suspended group as a reply attribute.
+            $radius->table('radreply')->updateOrInsert(
+                [
+                    'username' => $customer->radius_username,
+                    'attribute' => 'Mikrotik-Group',
+                ],
+                [
+                    'op' => ':=',
+                    'value' => $targetGroup,
+                ]
+            );
+
+            // Do not leave the active PCQ address list attached to a suspended user.
+            $radius->table('radreply')
+                ->where('username', $customer->radius_username)
+                ->where('attribute', 'Mikrotik-Address-List')
+                ->delete();
+
+            // Prevent an old FIFO group from overriding the PCQ reply attributes.
+            $radius->table('radusergroup')
+                ->where('username', $customer->radius_username)
+                ->delete();
+
+            app(CustomerRadiusService::class)->disconnectCustomer($customer->radius_username, $customer->organization_id);
+            Log::warning("User {$customer->radius_username} has been SUSPENDED with PCQ RADIUS replies.");
+
+            return;
+        }
+
+        $radius->table('radreply')
+            ->where('username', $customer->radius_username)
+            ->whereIn('attribute', ['Mikrotik-Group', 'Mikrotik-Address-List'])
+            ->delete();
+
+        $radiusRecord = $radius->table('radusergroup')
             ->where('username', $customer->radius_username)
             ->first();
 
         if (!$radiusRecord || $radiusRecord->groupname !== $targetGroup) {
-            DB::connection('radius')->table('radusergroup')
+            $radius->table('radusergroup')
                 ->updateOrInsert(
                     ['username' => $customer->radius_username],
                     ['groupname' => $targetGroup, 'priority' => 1]

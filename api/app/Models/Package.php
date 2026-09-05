@@ -18,6 +18,7 @@ class Package extends Model
         'validity',
         'validity_type',
         'type',
+        'queue_type', 
         'max_connections',
         'status',
         'burst_limit_up',
@@ -25,8 +26,8 @@ class Package extends Model
         'burst_threshold_up',
         'burst_threshold_down',
         'burst_time',
-        'priority',     // Add this
-        'min_limit_up', // Add this
+        'priority',     
+        'min_limit_up',
         'min_limit_down'
     ];
 

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Services\RadiusService;
+use App\Services\SubscriptionService;
 use Illuminate\Http\Request;
 
 class RadiusController extends Controller
@@ -353,11 +354,7 @@ class RadiusController extends Controller
                 return response()->json($result, 422);
             }
 
-            // Assign to group based on package
-            if ($customer->package) {
-                $groupName = strtolower(str_replace(' ', '_', $customer->package->name));
-                $this->radiusService->assignUserToGroup($customer->radius_username, $groupName);
-            }
+            app(SubscriptionService::class)->applyActiveStatus($customer);
 
             return response()->json([
                 'message' => 'Customer synced to RADIUS successfully',
@@ -439,11 +436,7 @@ class RadiusController extends Controller
                 );
 
                 if ($result['success']) {
-                    // Assign to group
-                    if ($customer->package) {
-                        $groupName = strtolower(str_replace(' ', '_', $customer->package->name));
-                        $this->radiusService->assignUserToGroup($customer->radius_username, $groupName);
-                    }
+                    app(SubscriptionService::class)->applyActiveStatus($customer);
                     $synced++;
                 } else {
                     $failed++;

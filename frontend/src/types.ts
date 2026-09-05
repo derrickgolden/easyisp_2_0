@@ -62,6 +62,7 @@ export interface Package {
   validity: number;
   validity_type: 'days' | 'months' | 'hours' | 'minutes';
   type: 'time' | 'data';
+  queue_type: 'fifo' | 'pcq' | 'sfq' | 'custom';
   // Burst configuration
   burst_limit_up?: string;
   burst_limit_down?: string;

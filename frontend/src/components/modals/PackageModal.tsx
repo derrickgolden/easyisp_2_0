@@ -96,7 +96,7 @@ export const PackageModal: React.FC<PackageModalProps> = ({
               placeholder="e.g. Fiber Home 10Mbps"
             />
           </div>
-          {isHotspot && (
+          {isHotspot ? (
             <div>
               <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Max Connections(Devices)</label>
               <input 
@@ -109,6 +109,21 @@ export const PackageModal: React.FC<PackageModalProps> = ({
                 placeholder="1"
               />
             </div>
+          ) : (
+            <div>
+            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Connection Type</label>
+            <div className="flex gap-2 mt-1">
+              
+              <select
+                value={editingPackage?.queue_type || 'fifo'}
+                onChange={e => setEditingPackage({...editingPackage, queue_type: e.target.value as 'fifo' | 'pcq' | 'sfq' | 'custom'})}
+                className="shrink-0 w-28 bg-gray-50 dark:bg-slate-800 border-none rounded-xl px-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold text-sm"
+              >
+                <option value="fifo">FIFO</option>
+                <option value="pcq">PCQ</option>
+              </select>
+            </div>
+          </div>
           )}
           <div>
             <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Price (KSH)</label>

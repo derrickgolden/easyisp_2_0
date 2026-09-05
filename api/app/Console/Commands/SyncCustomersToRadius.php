@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Customer;
 use App\Services\RadiusService;
+use App\Services\SubscriptionService;
 use Illuminate\Console\Command;
 
 class SyncCustomersToRadius extends Command
@@ -105,11 +106,7 @@ class SyncCustomersToRadius extends Command
                 );
 
                 if ($result['success']) {
-                    // Assign to group based on package
-                    if ($customer->package) {
-                        $groupName = strtolower(str_replace(' ', '_', $customer->package->name));
-                        $this->radiusService->assignUserToGroup($customer->radius_username, $groupName);
-                    }
+                    app(SubscriptionService::class)->applyActiveStatus($customer);
 
                     $this->line("<fg=green>✓ SYNCED</>");
                     $synced++;

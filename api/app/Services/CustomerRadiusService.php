@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Exception;
 use App\Models\Customer;
+use App\Services\SubscriptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
@@ -90,15 +91,8 @@ class CustomerRadiusService
                 $this->addReplyAttribute($customer->radius_username, 'Mikrotik-Rate-Limit', ':=', $customer->custom_rate_limit);
             }
 
-            // 4. Assign to Group (radusergroup)
-            // log all customer data for debugging
-            if ($customer->package) {
-                // Consistency: Group Name is always 'package_' + ID
-                $groupName = "package_" . $customer->package->id;
-                if ($groupName) {
-                    $this->addUserToGroup($customer->radius_username, $groupName);
-                }
-            }
+            // Apply the package's FIFO or PCQ RADIUS assignment consistently.
+            app(SubscriptionService::class)->applyActiveStatus($customer);
 
             return [
                 'success' => true,

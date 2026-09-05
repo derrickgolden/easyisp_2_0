@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Package;
+use App\Services\SubscriptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -12,12 +13,14 @@ use Illuminate\Support\Facades\Log;
 class PackageController extends Controller
 {
     protected $radiusService;
+    protected $subscriptionService;
 
-    public function __construct(\App\Services\CustomerRadiusService $radiusService)
+    public function __construct(\App\Services\CustomerRadiusService $radiusService, SubscriptionService $subscriptionService)
     {
         $this->middleware('permission:manage-packages')->except(['index', 'show']);
         $this->middleware('permission:view-packages')->only(['index', 'show']);
         $this->radiusService = $radiusService;
+        $this->subscriptionService = $subscriptionService;
     }
 
     /**
@@ -63,6 +66,7 @@ class PackageController extends Controller
             'validity' => 'required|integer|min:1',
             'validity_type' => 'nullable|in:days,months',
             'type' => 'nullable|in:time,data',
+            'queue_type' => 'nullable|in:fifo,pcq,sfq,custom',
             'max_connections' => 'nullable|integer|min:0',
             'priority' => 'nullable|integer|between:1,8',
             'burst_limit_up' => 'nullable|string',
@@ -118,6 +122,7 @@ class PackageController extends Controller
             'validity' => 'sometimes|integer|min:1',
             'validity_type' => 'nullable|in:days,months',
             'type' => 'nullable|in:time,data',
+            'queue_type' => 'nullable|in:fifo,pcq,sfq,custom',
             'max_connections' => 'sometimes|integer|min:0',
             'priority' => 'nullable|integer|between:1,8',
             'burst_limit_up' => 'nullable|string',
@@ -135,6 +140,12 @@ class PackageController extends Controller
 
         $data = $this->normalizePackageData($request->all());
         $package->update($data);
+
+        if ($package->wasChanged('queue_type')) {
+            $package->customers()->get()->each(function ($customer) {
+                $this->subscriptionService->syncRadiusAssignment($customer);
+            });
+        }
 
         // Sync if any technical radius fields changed
         $radiusFields = [
