@@ -218,10 +218,6 @@ class SubscriptionService
 
     public function applyActiveStatus(Customer $customer)
     {
-        // Temporary workaround: avoid re-inserting active users into RADIUS group.
-        if ($customer->status === 'active') {
-            return;
-        }
 
         $customer->update(['status' => 'active']);
 
