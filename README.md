@@ -142,3 +142,61 @@ php artisan queue:restart
 
 # roll customers back
 php artisan migrate:rollback --path=/database/migrations/2026_06_10_000003_create_hotspot_customers_table.php
+
+## Implementing PPPoE PCQ -->
+
+/ppp profile
+add name=ppp-JTS-pcq \
+    local-address=10.254.255.1 \
+    remote-address=pppoe-pool-pcq \
+    dns-server=8.8.8.8,8.8.4.4
+
+
+INSERT INTO radreply
+(username, attribute, op, value)
+VALUES
+('Mutugi', 'Mikrotik-Group', ':=', 'ppp-pcq'),
+('muTugi', 'Mikrotik-Address-List', ':=', 'PCQ-JTS-20M-10M');
+
+
+## download = 10M upload   = 20M
+/queue type
+add name=pcq-10M-download \
+    kind=pcq \
+    pcq-rate=10M \
+    pcq-classifier=dst-address
+
+add name=pcq-20M-upload \
+    kind=pcq \
+    pcq-rate=20M \
+    pcq-classifier=src-address
+
+
+## 10M download / 20M upload package
+/ip firewall mangle
+add chain=forward \
+    src-address-list=PCQ-JTS-20M-10M \
+    action=mark-packet \
+    new-packet-mark=pcq-20M-10M-upload \
+    passthrough=no
+
+add chain=forward \
+    dst-address-list=PCQ-JTS-20M-10M \
+    action=mark-packet \
+    new-packet-mark=pcq-20M-10M-download \
+    passthrough=no
+
+# tree PCQ
+/queue tree
+add name=PCQ-10M-20M-DOWNLOAD \
+    parent=global \
+    packet-mark=pcq-20M-10M-download \
+    queue=pcq-10M-download
+
+add name=PCQ-10M-20M-UPLOAD \
+    parent=global \
+    packet-mark=pcq-20M-10M-upload \
+    queue=pcq-20M-upload
+
+
+

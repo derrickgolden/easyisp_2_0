@@ -4,7 +4,7 @@ import { Card, StatCard, Badge, RevenueChart, Modal } from '../components/UI';
 import { COLORS, ICONS } from '../constants';
 import { Site } from '../types';
 import { STORAGE_KEYS } from '../constants/storage';
-import { sitesApi, dashboardApi } from '../services/apiService';
+import { sitesApi, dashboardApi, hotspotDashboardApi } from '../services/apiService';
 import { useNavigate } from 'react-router-dom';
 
 interface DashboardStats {
@@ -44,7 +44,7 @@ interface RevenueChartData {
   method?: 'mpesa' | 'cash';
 }
 
-export const Dashboard: React.FC = () => {
+export const HotspotDashboard: React.FC = () => {
   const [sites, setSites] = useState<Site[]>([]);
   const [clientsGainedToday, setClientsGainedToday] = useState(0);
   const [statsWindowDays, setStatsWindowDays] = useState(30);
@@ -89,16 +89,16 @@ export const Dashboard: React.FC = () => {
         // 🚀 FIRE ALL AT ONCE
         const [sitesRes, statsRes, chartRes, todayStatsRes] = await Promise.all([
           sitesApi.getAll(),
-          dashboardApi.getStats({
+          hotspotDashboardApi.getStats({
             days: statsWindowDays,
             lostMode,
           }),
-          dashboardApi.getRevenueChart({
+          hotspotDashboardApi.getRevenueChart({
             period: revenueTrendPeriod,
             method: revenueTrendMethod,
             ...(revenueTrendPeriod === 'daily' ? { days: revenueTrendDays } : {}),
           }),
-          dashboardApi.getStats({
+          hotspotDashboardApi.getStats({
             days: 1,
             lostMode,
           }),
@@ -203,70 +203,6 @@ export const Dashboard: React.FC = () => {
         <StatCard label="Weekly M-Pesa" value={formatNumber(stats.weekly_revenue_mpesa ?? 0)} icon="" smIcon={<ICONS.Revenue />} color={COLORS.gold} />
         <StatCard label="Monthly M-Pesa" value={formatNumber(stats.monthly_revenue_mpesa ?? 0)} icon="" smIcon={<ICONS.Revenue />} color={COLORS.gold} />
       </div>
-
-      <Card title="Customer Momentum" className="overflow-hidden">
-        <div className="space-y-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-widest text-slate-500 font-black">Net Change ({statsWindowDays} days)</p>
-              <p className={`text-3xl font-black ${netMomentum >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                {netMomentum >= 0 ? '+' : ''}{netMomentum}
-              </p>
-              <p className="text-xs text-slate-500">Gained by registration date, lost by selected criteria</p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {[7, 14, 30, 60, 90].map((value) => (
-                <button
-                  key={value}
-                  onClick={() => setStatsWindowDays(value)}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all ${
-                    statsWindowDays === value
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  {value}d
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/70 dark:border-emerald-500/20 dark:bg-emerald-500/10 p-4">
-              <p className="text-[11px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Gained</p>
-              <p className="text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1">+{stats.clients_gained}</p>
-              <p className="text-xs text-emerald-800/80 dark:text-emerald-200/70 mt-1">Customers registered in the last {statsWindowDays} days</p>
-            </div>
-
-            <div className="rounded-2xl border border-red-200/70 bg-red-50/70 dark:border-red-500/20 dark:bg-red-500/10 p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] font-black uppercase tracking-widest text-red-700 dark:text-red-300">Lost</p>
-                <select
-                  value={lostMode}
-                  onChange={(event) => setLostMode(event.target.value as 'expired' | 'offline' | 'either' | 'both')}
-                  className="text-[11px] font-bold px-2 py-1 rounded-lg border border-red-200 bg-white text-red-700 dark:bg-slate-900 dark:border-red-400/30 dark:text-red-300"
-                >
-                  <option value="expired">Expired only</option>
-                  <option value="offline">Offline only</option>
-                  <option value="either">Expired OR Offline</option>
-                  <option value="both">Expired AND Offline</option>
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-              <p className="text-3xl font-black text-red-600 dark:text-red-400">-{stats.clients_lost}</p>
-              <button onClick={() => setIsDetailModalOpen(true)}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700`}>
-                View Lost Customers
-              </button>
-              </div>
-              <p className="text-xs text-red-800/80 dark:text-red-200/70">
-                Mode: {lostModeLabelMap[lostMode]}. Expiry checks use the last {statsWindowDays} days.
-              </p>
-            </div>
-          </div>
-        </div>
-      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
          <Card title={trendTitle} className="lg:col-span-2 overflow-hidden">

@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\RadiusController;
 use App\Http\Controllers\Api\SmsController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\HotspotDashboardController;
 use App\Http\Controllers\Api\LeadController;
 use App\Http\Controllers\Api\MikrotikController;
 use App\Http\Controllers\Api\PortalContextController;
@@ -112,6 +113,10 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     // Dashboard routes
     Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
     Route::get('/dashboard/revenue-chart', [DashboardController::class, 'getRevenueChart']);
+
+    // Hotspot dashboard aliases used by the frontend dashboard client.
+    Route::get('/hotspot-dashboard/stats', [HotspotDashboardController::class, 'getStats']);
+    Route::get('/hotspot-dashboard/revenue-chart', [HotspotDashboardController::class, 'getRevenueChart']);
 
     // Reverb test routes
     Route::post('/reverb/test/random-number', function (Request $request) {

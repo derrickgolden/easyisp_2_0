@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
-import { Dashboard } from './pages/Dashboard';
+import { DashboardPage } from './pages/DashboardPage';
 import { SitesPage } from './pages/SitesPage';
 import { AccessControlPage } from './pages/AccessControlPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -208,7 +208,7 @@ const App: React.FC = () => {
             >
               <Routes>
                 {/* Dashboard */}
-                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
                 
                 {/* Management Routes */}
                 <Route path="/management/sites" element={

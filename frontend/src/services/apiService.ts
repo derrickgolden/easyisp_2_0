@@ -905,6 +905,54 @@ export const dashboardApi = {
   },
 };
 
+// Hotspot Dashboard Endpoints
+export const hotspotDashboardApi = {
+  getStats: async (params?: {
+    days?: number;
+    lostMode?: 'expired' | 'offline' | 'either' | 'both';
+  }) => {
+    const query = new URLSearchParams();
+
+    if (params?.days) {
+      query.append('days', String(params.days));
+    }
+
+    if (params?.lostMode) {
+      query.append('lost_mode', params.lostMode);
+    }
+
+    const queryString = query.toString();
+    const url = queryString ? `/hotspot-dashboard/stats?${queryString}` : '/hotspot-dashboard/stats';
+    const response = await axiosInstance.get(url);
+    return response.data;
+  },
+
+  getRevenueChart: async (params?: {
+    period?: 'monthly' | 'daily';
+    days?: number;
+    method?: 'mpesa' | 'cash';
+  }) => {
+    const query = new URLSearchParams();
+
+    if (params?.period) {
+      query.append('period', params.period);
+    }
+
+    if (params?.days) {
+      query.append('days', String(params.days));
+    }
+
+    if (params?.method) {
+      query.append('method', params.method);
+    }
+
+    const queryString = query.toString();
+    const url = queryString ? `/hotspot-dashboard/revenue-chart?${queryString}` : '/hotspot-dashboard/revenue-chart';
+    const response = await axiosInstance.get(url);
+    return response.data;
+  },
+};
+
 // Leads Endpoints
 export const leadsApi = {
   getAll: async (page = 1, perPage = 10, status?: string, search?: string) => {
