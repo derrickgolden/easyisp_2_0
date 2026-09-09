@@ -21,13 +21,13 @@ class SubscriptionService
             return; 
         }
 
-        // Temporary workaround: do not force active users back into a RADIUS group.
-        // This prevents the cron from re-inserting radusergroup rows after a manual delete.
-        if ($customer->status === 'active') {
+        // Only skip active customers while their effective expiry is still in the future.
+        // Once the expiry date has passed, they must be re-evaluated so the cron can
+        // move them to the expired state and disconnect their RADIUS session.
+        $effectiveDate = $this->getEffectiveExpiryDate($customer);
+        if ($customer->status === 'active' && !$effectiveDate->isPast()) {
             return;
         }
-
-        $effectiveDate = $this->getEffectiveExpiryDate($customer);
 
         // Check and send pre-expiry warnings (48-hour and 1-hour)
         $this->checkAndSendExpiryWarnings($customer, $effectiveDate);

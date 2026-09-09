@@ -22,24 +22,9 @@ class PortalContextController extends Controller
             'mac' => 'nullable|string|max:32',
         ]);
 
-        // if (empty($data['nas_ip']) && empty($data['site_id']) && empty($data['identity'])) {
-        //     return response()->json([
-        //         'success' => false,
-        //         'message' => 'Provide at least one of nas_ip, site_id, or identity.',
-        //     ], 422);
-        // }
-
         try {
             $resolved = $resolver->resolve($data);
-            Log::info('PortalContextController: Resolved portal context', [
-                'client_ip' => $data['client_ip'],
-                'nas_ip' => $data['nas_ip'] ?? null,
-                'site_id' => $data['site_id'] ?? null,
-                'identity' => $data['identity'] ?? null,
-                'mac' => $data['mac'] ?? null,
-                'resolved' => $resolved,
-            ]);
-
+        
             return response()->json([
                 'success' => true,
                 'data' => $resolved,
@@ -77,11 +62,7 @@ class PortalContextController extends Controller
         
 
         $customer->loadMissing(['package', 'site']);
-Log::info('Customer data retrieved', [
-            'customer_id' => $customer->id,
-            'package_id' => $customer->package_id,
-            'site_id' => $customer->site_id,
-        ]);
+
         return response()->json([
             'success' => true,
             'customer' => $this->formatCustomer($customer),
