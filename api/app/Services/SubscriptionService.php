@@ -17,7 +17,7 @@ class SubscriptionService
     {        
         // 1. If the user is manually suspended, ensure they are blocked and STOP logic
         if ($customer->status === 'suspended') {
-            // $this->applySuspendedStatus($customer);
+            $this->applySuspendedStatus($customer);
             return; 
         }
 

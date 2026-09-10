@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('hotspot_transactions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('organization_id')->constrained()->onDelete('cascade');
-            $table->foreignId('customer_id')->constrained()->onDelete('cascade');
+            $table->foreignId('customer_id')->constrained('hotspot_customers')->onDelete('cascade');
             $table->decimal('amount', 12, 2);
             $table->enum('type', ['credit', 'debit']);
             $table->string('category');

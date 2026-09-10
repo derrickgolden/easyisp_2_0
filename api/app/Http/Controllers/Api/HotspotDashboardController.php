@@ -38,8 +38,6 @@ class HotspotDashboardController extends Controller
             ->pluck('radius_username')
             ->toArray();
 
-            Log::info('HotspotDashboardController: Retrieved usernames for organization_id ' . $organizationId . ': ' . implode(', ', $usernames));
-
         if (empty($usernames)) {
             $onlineUsers = 0;
         } else {

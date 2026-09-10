@@ -39,6 +39,6 @@ class VoucherWordsSeeder extends Seeder
             ];
         }, $words);
 
-        DB::table('voucher_words')->insert($data);
+        DB::table('voucher_words')->upsert($data, ['word'], ['active', 'updated_at']);
     }
 }
