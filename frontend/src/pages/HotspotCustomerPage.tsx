@@ -98,11 +98,19 @@ export const HotspotCustomersPage: React.FC = () => {
             });
 
             const list = Array.isArray(response?.data) ? response.data : [];
+            const sortedList = [...list].sort((a, b) => {
+                const aIsActive = String(a?.status || '').toLowerCase() === 'active';
+                const bIsActive = String(b?.status || '').toLowerCase() === 'active';
+
+                if (aIsActive && !bIsActive) return -1;
+                if (!aIsActive && bIsActive) return 1;
+                return 0;
+            });
             const apiTotalPages = Number(response?.meta?.last_page || 1);
             const apiTotal = Number(response?.meta?.total || 0);
             const apiStats = response?.stats || {};
 
-            setCustomers(list);
+            setCustomers(sortedList);
             setTotalPages(apiTotalPages > 0 ? apiTotalPages : 1);
             setTotalCustomers(apiTotal >= 0 ? apiTotal : 0);
             setStats({
@@ -305,7 +313,7 @@ export const HotspotCustomersPage: React.FC = () => {
                         </span>
                         <input
                             type="text"
-                            placeholder="Search by voucher, MAC, phone, package, site or IP..."
+                            placeholder="Search by voucher, phone, MAC, package or site"
                             value={filters.searchTerm}
                             onChange={e => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
                             className="w-full pl-10 pr-4 py-2.5 bg-gray-200 dark:bg-slate-700 border border-gray-500 dark:border-transparent rounded-xl text-sm focus:border-none focus:ring-2 focus:ring-yellow-500 transition-all text-gray-900 dark:text-white"
