@@ -119,12 +119,13 @@ class HotspotCustomerController extends Controller
             'online'  => count($activeOnlineUsernames), // Calculated purely in memory now!
         ];
 
-        // --- 5. Paginate ---
+        // --- 5. Sort active users first at the database layer so pagination keeps them at the top ---
         $customersPaginator = $query
             ->with([
                 'site:id,name,ip_address',
                 'package:id,name,price,speed_down,speed_up',
             ])
+            ->orderByRaw('CASE WHEN status = "active" THEN 0 ELSE 1 END ASC')
             ->latest()
             ->paginate($perPage)
             ->withQueryString();

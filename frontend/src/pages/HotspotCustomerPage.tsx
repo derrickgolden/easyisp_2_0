@@ -98,6 +98,7 @@ export const HotspotCustomersPage: React.FC = () => {
             });
 
             const list = Array.isArray(response?.data) ? response.data : [];
+            console.log('Fetched hotspot customers:', list);
             const sortedList = [...list].sort((a, b) => {
                 const aIsActive = String(a?.status || '').toLowerCase() === 'active';
                 const bIsActive = String(b?.status || '').toLowerCase() === 'active';
