@@ -260,8 +260,14 @@ export const PPPoECustomersPage: React.FC = () => {
         return '';
       };
 
-      const requiredHeaders = ['Full Names', 'Tel', 'Username'];
-      const missingRequiredHeaders = requiredHeaders.filter(header => !headerMap.has(normalizeHeader(header)));
+      const requiredHeaderGroups = [
+        { label: 'name', aliases: ['Full Names', 'Name'] },
+        { label: 'phone', aliases: ['Tel', 'Phone'] },
+        { label: 'username', aliases: ['Username', 'Radius Username', 'Account2'] },
+      ];
+      const missingRequiredHeaders = requiredHeaderGroups
+        .filter(group => !group.aliases.some(alias => headerMap.has(normalizeHeader(alias))))
+        .map(group => group.label);
 
       if (missingRequiredHeaders.length > 0) {
         toast.error(
@@ -353,11 +359,12 @@ export const PPPoECustomersPage: React.FC = () => {
         const firstName = nameParts[0] || fullName;
         const lastName = nameParts.slice(1).join(' ') || firstName;
         const csvLocation = getColumnValue(row, ['Location']);
-        const dueDateValue = getColumnValue(row, ['Due Date', 'Expiry Date']);
+        const dueDateValue = getColumnValue(row, ['Due Date', 'Expiry Date', 'Expiry']);
         const parsedExpiryDate = parseExpiryDate(dueDateValue);
         const statusValue = getColumnValue(row, ['Status']).toLowerCase();
         const phoneValue = getColumnValue(row, ['Tel', 'Phone']);
-        const usernameValue = getColumnValue(row, ['Username', 'Radius Username']);
+        const usernameValue = getColumnValue(row, ['Account2', 'Username', 'Radius Username']);
+        const passwordValue = getColumnValue(row, ['Password']) || usernameValue;
         const packageMbpsValue = getColumnValue(row, ['Package MBPS', 'Package Mbps', 'Package']);
         const matchedPackage = findPackageBySpeedPair(packageMbpsValue);
 
@@ -368,16 +375,16 @@ export const PPPoECustomersPage: React.FC = () => {
         const customer = {
           first_name: firstName,
           last_name: lastName,
-          email: undefined,
+          email: getColumnValue(row, ['Email']) || undefined,
           phone: phoneValue,
-          house_no: undefined,
-          apartment: undefined,
+          house_no: getColumnValue(row, ['HouseNumber', 'House Number', 'House No']) || undefined,
+          apartment: getColumnValue(row, ['Apartment']) || undefined,
           location: csvLocation || normalizedFallbackLocation || undefined,
           ip_address: getColumnValue(row, ['IP Address', 'Ip']) || undefined,
-          mac_address: getColumnValue(row, ['Mac']) || undefined,
+          mac_address: getColumnValue(row, ['Mac', 'MAC Address']) || undefined,
           expiry_date: parsedExpiryDate ? parsedExpiryDate.toISOString().split('T')[0] : undefined,
           radius_username: usernameValue,
-          radius_password: usernameValue,
+          radius_password: passwordValue,
           connection_type: 'PPPoE',
           package_id: matchedPackage?.id || selectedPackage.id,
           site_id: defaultSite.id,
@@ -739,7 +746,7 @@ export const PPPoECustomersPage: React.FC = () => {
                 title="Delete All Customers"
                 className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg text-red-500 transition-all"
                 onClick={() => setIsDeleteAllModalOpen(true)}
-                disabled={true}
+                // disabled={true}
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
               </button>
