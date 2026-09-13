@@ -16,6 +16,7 @@ import SmsModal from '../components/modals/SmsModal';
 import SmsLogsCard from '../components/cards/customerDetailsCards.tsx/SmsLogsCard';
 import { usePermissions } from '../hooks/usePermissions';
 import { formatPhone, isMobileDevice } from '../utils/callFactionality.ts';
+import { ConnectedDevicesCard } from '../components/cards/customerDetailsCards.tsx/ConnectedDevicesCard.tsx';
 
 interface CustomerDetailPageProps {}
 
@@ -302,11 +303,12 @@ export const HotspotCustomerDetailPage: React.FC<CustomerDetailPageProps> = () =
           </div>
 
           <div className='lg:hidden'>
-            <TechnicalSpecCard 
+            <ConnectedDevicesCard customerId={customer.id.toString()} />
+            {/* <TechnicalSpecCard 
               technicalSpecs={technicalSpecs} 
               customer={customer}
               onRefresh={async () => { await fetchTechnicalSpecs(); }}
-            />
+            /> */}
           </div>
 
           {/* Subscription & Financial Row */}
@@ -440,7 +442,7 @@ export const HotspotCustomerDetailPage: React.FC<CustomerDetailPageProps> = () =
                       disabled={!can('adjust-balances')}
                       className="py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-black uppercase rounded-xl transition-all hover:opacity-90">
                       Direct Deposit
-                      </button>
+                    </button>
                     <button onClick={() => actions.setIsReconcileModalOpen(true)}
                       disabled={!can('manage-payments')} 
                       className="py-3 border border-slate-200 dark:border-slate-700 text-white text-[10px] font-black uppercase rounded-xl transition-all bg-green-700 hover:bg-green-900 dark:hover:bg-green-800">
@@ -463,11 +465,12 @@ export const HotspotCustomerDetailPage: React.FC<CustomerDetailPageProps> = () =
         {/* Right Sidebar */}
         <div className="space-y-6">
           <div className='hidden lg:block'>
-            <TechnicalSpecCard 
+            <ConnectedDevicesCard customerId={customer.id.toString()} />
+            {/* <TechnicalSpecCard 
               technicalSpecs={technicalSpecs} 
               customer={customer}
               onRefresh={async () => { await fetchTechnicalSpecs(); }}
-            />
+            /> */}
           </div>
 
           {/* RADIUS AUTH LOGS */}

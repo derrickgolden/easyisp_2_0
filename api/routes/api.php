@@ -183,6 +183,7 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     // hotspot
     Route::get('/hotspot-customers/{id}/with-relations', [HotspotCustomerController::class, 'showWithRelations']);
     Route::get('/hotspot-customers/{id}/technical-specs', [HotspotCustomerController::class, 'technicalSpecs']);
+    Route::get('/hotspot-customers/{id}/devices', [HotspotCustomerController::class, 'devices']);
     Route::post('/hotspot-customers/{customer}/pause-subscription', [HotspotCustomerController::class, 'pauseSubscription']);
     Route::post('/hotspot-customers/{customer}/resume-subscription', [HotspotCustomerController::class, 'resumeSubscription']);
     Route::post('/hotspot-customers/{customer}/reset-mac-binding', [HotspotCustomerController::class, 'resetMacBinding']);

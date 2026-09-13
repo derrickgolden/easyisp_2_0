@@ -2,8 +2,8 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { get } from 'node:http';
 
-// const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
-const API_BASE_URL = 'https://isp.easytech.africa/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
+// const API_BASE_URL = 'https://isp.easytech.africa/api';
 
 export interface ApiResponse<T> {
   message?: string;
@@ -448,6 +448,11 @@ export const hotspotCustomersApi = {
 
   getTechnicalSpecs: async (id: string) => {
     const response = await axiosInstance.get(`/hotspot-customers/${id}/technical-specs`);
+    return response.data;
+  },
+
+  getDevices: async (id: string) => {
+    const response = await axiosInstance.get(`/hotspot-customers/${id}/devices`);
     return response.data;
   },
 

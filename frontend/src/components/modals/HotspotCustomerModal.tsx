@@ -66,6 +66,7 @@ export const HotspotCustomerModal: React.FC<HotspotCustomerModalProps> = ({
         is_independent: editingHotspotCustomer?.isIndependent ?? true,
         ip_address: editingHotspotCustomer?.ipAddress || null,
         mac_address: editingHotspotCustomer?.macAddress || null,
+        voucher: editingHotspotCustomer?.voucher || editingHotspotCustomer?.radiusUsername || null,
         radius_username: editingHotspotCustomer?.radiusUsername || null,
         radius_password: editingHotspotCustomer?.radiusPassword || null,
         connection_type: editingHotspotCustomer?.connectionType || 'Hotspot',

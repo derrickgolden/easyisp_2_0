@@ -850,6 +850,23 @@ class SiteController extends Controller
             color: #9a3412;
         }
 
+        .form-error {
+            display: block;
+            margin: -4px 0 12px;
+            padding: 5px 6px;
+            border: 1px solid #fecaca;
+            border-radius: var(--radius-sm);
+            background: #fef2f2;
+            color: #b91c1c;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.4;
+        }
+
+        .form-error:empty {
+            display: none;
+        }
+
         .error-title {
             font-size: 16px;
             font-weight: 700;
@@ -1009,25 +1026,27 @@ class SiteController extends Controller
         <span class="form-subtitle">Enter Mpesa Message Code from the payment you made. EG. 
             <span style="color: #15803d;">UHU864H44P</span>
         </span>
+        <span id="mpesa-error" class="form-error"></span>
         <form id="form-mpesa-code" onsubmit="handleMpesaCodeSubmit(event)">
             <div class="input-group">
                 <div class="input-wrapper">
                     <input type="text" id="mpesa-code" placeholder="Enter mpesa code or message" required autocomplete="off">
                 </div>
             </div>
-            <button type="submit" class="btn">Connect With Mpesa Code</button>
+            <button type="submit" id="mpesa-code-submit-btn" class="btn">Connect With Mpesa Code</button>
         </form>
 
         <!-- Voucher Form -->
         <div class="section-title">Already Have A Code?</div>
         <span class="form-subtitle">Call support for one if you have already paid.</span>
+        <span id="voucher-error" class="form-error"></span>
         <form id="form-voucher" onsubmit="handleVoucherSubmit(event)">
             <div class="input-group">
                 <div class="input-wrapper">
                     <input type="text" id="voucher-code" placeholder="Enter Voucher or Access Code" required autocomplete="off" oninput="this.value = this.value.toUpperCase()">
                 </div>
             </div>
-            <button type="submit" class="btn">Activate Voucher</button>
+            <button type="submit" id="voucher-submit-btn" class="btn">Activate Voucher</button>
         </form>
 
         <!-- Member Form -->
@@ -1086,14 +1105,21 @@ class SiteController extends Controller
         document.addEventListener("DOMContentLoaded", claimTokenAndLogin);
 
         async function claimTokenAndLogin() {
+            const mikrotikError = "$(error)" || "";
+            if (mikrotikError.trim() !== "") {
+                console.warn("Skipping auto-login due to MikroTik auth error:", mikrotikError);
+                return false;
+            }
+
             const code_type = "token";
             const token = localStorage.getItem('hotspot_device_token');
             const mac = "\$(mac)" || "";
-            if (!token || !mac) return false;
+            if (!token && !mac) return false;
             claimCode(token, mac, code_type);
         }
 
         async function claimCode(code, mac, code_type) {
+            showClaimError(code_type, '');
             
             try {
                 const res = await fetch(`\${API_BASE_URL}/api/hotspot/claim-code`, {
@@ -1116,6 +1142,9 @@ class SiteController extends Controller
                     return true;
                 } else {
                     console.warn('Claim token failed', data);
+                    if (data.error && (data.code_type === 'voucher' || data.code_type === 'mpesa_receipt' || data.code_type === 'mpesa_code')) {
+                        showClaimError(data.code_type, data.error);
+                    }
                     try {
                         localStorage.removeItem('hotspot_device_token');
                     } catch (e) {
@@ -1128,6 +1157,19 @@ class SiteController extends Controller
                 return false;
             }
         }        
+
+        function showClaimError(codeType, message) {
+            const errorElement = codeType === 'voucher'
+                ? document.getElementById('voucher-error')
+                : document.getElementById('mpesa-error');
+
+            if (!errorElement) return;
+
+            errorElement.textContent = message || '';
+            if (message) {
+                errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
 
         async function fetchPackages() {
             const container = document.getElementById("packages-container");
@@ -1263,10 +1305,21 @@ class SiteController extends Controller
             }, 3000);
         }
 
-        function handleVoucherSubmit(event) {
+        async function handleVoucherSubmit(event) {
             event.preventDefault();
             const code = document.getElementById('voucher-code').value.trim();
-            if (code) claimCode(code, "\$(mac)" || "", "voucher_code");
+            const submitBtn = document.getElementById('voucher-submit-btn');
+
+            if (!code) return;
+
+            submitBtn.disabled = true;
+            submitBtn.innerText = "Processing...";
+
+            const claimed = await claimCode(code, "\$(mac)" || "", "voucher_code");
+            if (!claimed) {
+                submitBtn.disabled = false;
+                submitBtn.innerText = "Activate Voucher";
+            }
         }
 
         function handleMemberSubmit(event) {
@@ -1276,9 +1329,10 @@ class SiteController extends Controller
             if (user && pass) executeMikrotikLogin(user, pass);
         }
 
-        function handleMpesaCodeSubmit(event) {
+        async function handleMpesaCodeSubmit(event) {
             event.preventDefault();
             let input = document.getElementById('mpesa-code').value.trim();
+            const submitBtn = document.getElementById('mpesa-code-submit-btn');
             
             if (!input) return;
             
@@ -1287,9 +1341,15 @@ class SiteController extends Controller
             const codeMatch = input.match(/^([A-Z0-9]{6,10})\b/i);
             
             if (codeMatch && codeMatch[1]) {
+                submitBtn.disabled = true;
+                submitBtn.innerText = "Processing...";
                 const code = codeMatch[1].toUpperCase();
                 // Use the extracted code for login
-                claimCode(code, "\$(mac)" || "", "mpesa_code");
+                const claimed = await claimCode(code, "\$(mac)" || "", "mpesa_code");
+                if (!claimed) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = "Connect With Mpesa Code";
+                }
             } else {
                 // Show error if no valid code found
                 alert('Invalid M-Pesa code. Please paste the transaction code (e.g., UHS864BLGG) or the full M-Pesa confirmation message starting with the code.');

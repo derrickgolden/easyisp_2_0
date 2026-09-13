@@ -8,6 +8,7 @@ use App\Services\HotspotCustomerRadiusService;
 use App\Services\HotspotSubscriptionService;
 use App\Services\CustomerMessagingService;
 use App\Models\HotspotCustomer;
+use App\Models\HotspotDevice;
 use App\Models\Site;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Validator;
@@ -26,7 +27,7 @@ class HotspotCustomerController extends Controller
     public function __construct(HotspotCustomerRadiusService $radiusService, HotspotSubscriptionService $subscriptionService)
     {
         $this->middleware('permission:view-customers')->only(['index', 'getByOrganization']);
-        $this->middleware('permission:view-customer-details')->only(['show', 'showWithRelations', 'getRadiusStatus']);
+        $this->middleware('permission:view-customer-details')->only(['show', 'showWithRelations', 'getRadiusStatus', 'devices']);
         $this->middleware('permission:manage-customers|create-customers')->only(['store', 'update']);
         $this->middleware('permission:delete-customers')->only(['destroy']);
         $this->middleware('permission:manage-subscriptions')->only(['pauseSubscription', 'resumeSubscription']);
@@ -222,6 +223,12 @@ class HotspotCustomerController extends Controller
             'balance' => 'sometimes|numeric|min:0',
             'ip_address' => 'nullable|string',
             'mac_address' => 'nullable|string',
+            'voucher' => [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('hotspot_customers', 'voucher')->ignore($request->route('hotspot_customer')),
+            ],
             'parent_id' => [
                 'nullable',
                 Rule::exists('hotspot_customers', 'id')->where(fn ($query) => $query->where('organization_id', $orgId)),
@@ -286,6 +293,7 @@ class HotspotCustomerController extends Controller
             $customer = HotspotCustomer::create(array_merge($customerData, [
                 'organization_id' => $request->user()->organization_id,
                 'status' => 'active',
+                'voucher' => $request->input('voucher') ?: $request->input('radius_username'),
                 'radius_username' => $tempUsername,
                 'radius_password' => $radiusPassword,
                 'activated_at' => now(),
@@ -384,6 +392,22 @@ class HotspotCustomerController extends Controller
     public function technicalSpecs(Request $request, $id)
     {
         return $this->radiusService->getTechnicalSpecs($request, $id);
+    }
+
+    public function devices(Request $request, $id)
+    {
+        $customer = HotspotCustomer::where('organization_id', $request->user()->organization_id)->find($id);
+
+        if (! $customer) {
+            return response()->json(['message' => 'Hotspot customer not found'], 404);
+        }
+
+        $devices = HotspotDevice::query()
+            ->where('customer_id', $customer->id)
+            ->latest('last_seen_at')
+            ->get(['id', 'current_mac', 'previous_mac', 'last_seen_at']);
+
+        return response()->json(['data' => $devices]);
     }
 
     public function update(Request $request, $id)

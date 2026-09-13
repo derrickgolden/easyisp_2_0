@@ -850,28 +850,28 @@ class DarajaHotspotController extends Controller
         $macRaw = $data['mac'];
         $mac = $this->normalizeMacAddress($macRaw);
         if ($mac === null) {
-            return response()->json(['success' => false, 'message' => 'Invalid MAC address'], 422);
+            return response()->json(['success' => false, 'message' => 'Invalid MAC address', 'code_type' => 'mpesa_receipt', 'error' => 'Opps! Something went wrong'], 422);
         }
 
         // Find the payment by M-Pesa receipt
         $payment = HotspotPayment::where('mpesa_receipt', $mpesaReceipt)->first();
         if (!$payment) {
-            return response()->json(['success' => false, 'message' => 'Payment not found for this M-Pesa receipt'], 404);
+            return response()->json(['success' => false, 'code_type' =>'mpesa_receipt', 'message' => 'Payment not found for this M-Pesa code', 'error' => 'Payment not found'], 404);
         }
 
         // Ensure the payment is completed
         if ($payment->status !== 'paid') {
-            return response()->json(['success' => false, 'message' => 'Payment is not completed'], 400);
+            return response()->json(['success' => false, 'code_type' =>'mpesa_receipt', 'message' => 'Payment is not completed', 'error' => 'Payment not completed'], 400);
         }
 
         // Ensure the payment has an associated customer
         if (empty($payment->customer_id)) {
-            return response()->json(['success' => false, 'message' => 'No customer linked to this payment'], 400);
+            return response()->json(['success' => false, 'code_type' =>'mpesa_receipt', 'message' => 'No customer linked to this payment', 'error' => 'Opps! Something went wrong'], 400);
         }
 
         $customer = HotspotCustomer::find($payment->customer_id);
         if (!$customer) {
-            return response()->json(['success' => false, 'message' => 'Customer not found'], 404);
+            return response()->json(['success' => false, 'code_type' =>'mpesa_receipt', 'message' => 'Customer not found', 'error' => 'Opps! Something went wrong'], 404);
         }   
 
 
@@ -926,7 +926,12 @@ class DarajaHotspotController extends Controller
             }
         } catch (\Throwable $e) {
             Log::error('Failed to update hotspot_devices for M-Pesa receipt claim: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Failed to bind MAC address'], 500);
+            return response()->json([
+                    'success' => true,
+                    'message' => 'Failed to bind MAC address',
+                    'username' => $mpesaReceipt,
+                    'mac' => $mac,
+                ]);
         }
     }
 
@@ -941,13 +946,13 @@ class DarajaHotspotController extends Controller
         $macRaw = $data['mac'];
         $mac = $this->normalizeMacAddress($macRaw);
         if ($mac === null) {
-            return response()->json(['success' => false, 'message' => 'Invalid MAC address'], 422);
+            return response()->json(['success' => false, 'message' => 'Invalid MAC address', 'code_type' => 'voucher', 'error' => 'Opps! Something went wrong'], 422);
         }
 
         // Find the customer by voucher code
         $customer = HotspotCustomer::where('voucher', $voucherCode)->first();
         if (!$customer) {
-            return response()->json(['success' => false, 'message' => 'Customer not found for this voucher'], 404);
+            return response()->json(['success' => false, 'code_type' => 'voucher', 'message' => 'Customer not found for this voucher', 'error' => 'Invalid voucher code'], 404);
         }
 
         // Update device record
@@ -998,7 +1003,12 @@ class DarajaHotspotController extends Controller
             }
         } catch (\Throwable $e) {   
             Log::error('Failed to update hotspot_devices for voucher claim: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Failed to bind MAC address'], 500);
+            return response()->json([
+                    'success' => true,
+                    'message' => 'Voucher claimed and MAC bound successfully',
+                    'username' => $voucherCode,
+                    'mac' => $mac,
+                ]);
         }
     }
 }
