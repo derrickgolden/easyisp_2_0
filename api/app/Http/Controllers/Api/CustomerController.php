@@ -21,6 +21,18 @@ class CustomerController extends Controller
 {
     protected $radiusService;
     protected $subscriptionService;
+
+    public static function duplicateUsernameConflictResponse(?string $username = null)
+    {
+        $message = 'This RADIUS username is already in use in your organization.';
+
+        return response()->json([
+            'message' => $message,
+            'errors' => [
+                'radius_username' => [$message],
+            ],
+        ], 422);
+    }
         
     public function __construct(CustomerRadiusService $radiusService, SubscriptionService $subscriptionService)
     {
@@ -44,25 +56,37 @@ class CustomerController extends Controller
             ->get();
 
         $usernames = $customers->pluck('radius_username')->filter()->toArray();
+        $organizationSiteIps = Site::where('organization_id', $request->user()->organization_id)
+            ->whereNotNull('ip_address')
+            ->pluck('ip_address')
+            ->map(fn ($ip) => trim((string) $ip))
+            ->filter(fn ($ip) => $ip !== '')
+            ->unique()
+            ->values()
+            ->all();
 
         // 2. Optimized RADIUS Query
-        // We only fetch the LATEST record for each relevant username using a subquery or clever grouping
+        // Only consider the latest sessions that belong to this organization's NAS IPs.
         $latestSessions = \DB::connection('radius')
             ->table('radacct')
             ->whereIn('username', $usernames)
-            ->whereIn('radacctid', function($query) use ($usernames) {
+            ->when(!empty($organizationSiteIps), fn ($query) => $query->whereIn('nasipaddress', $organizationSiteIps))
+            ->whereIn('radacctid', function($query) use ($usernames, $organizationSiteIps) {
                 $query->selectRaw('MAX(radacctid)')
                     ->from('radacct')
                     ->whereIn('username', $usernames)
-                    ->groupBy('username');
+                    ->when(!empty($organizationSiteIps), fn ($subQuery) => $subQuery->whereIn('nasipaddress', $organizationSiteIps))
+                    ->groupBy(['username', 'nasipaddress']);
             })
             ->get(['username', 'nasipaddress', 'acctstoptime'])
-            ->keyBy('username');
+            ->keyBy(fn ($session) => $session->username . '|' . ($session->nasipaddress ?? ''));
 
         // 3. Map status to customers
         $customers->each(function ($customer) use ($latestSessions) {
-            $session = $latestSessions->get($customer->radius_username);
-            
+            $sessionKey = $customer->radius_username . '|' . ($customer->site?->ip_address ?? '');
+            $session = $latestSessions->get($sessionKey)
+                ?? $latestSessions->first(fn ($item) => $item->username === $customer->radius_username);
+
             // Logic: Online if session exists AND stop time is null
             $customer->is_online = ($session && is_null($session->acctstoptime)) ? 1 : 0;
             $customer->radius_nas_ip = $session?->nasipaddress;
@@ -125,6 +149,7 @@ class CustomerController extends Controller
             'balance' => 'sometimes|numeric|min:0',
             'ip_address' => 'nullable|string',
             'mac_address' => 'nullable|string',
+            'radius_username' => 'nullable|string|max:255',
             'parent_id' => [
                 'nullable',
                 Rule::exists('customers', 'id')->where(fn ($query) => $query->where('organization_id', $orgId)),
@@ -133,6 +158,17 @@ class CustomerController extends Controller
         ]);
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $inputUsername = trim((string) ($request->input('radius_username') ?? ''));
+        if ($inputUsername !== '') {
+            $exists = Customer::where('organization_id', $orgId)
+                ->whereRaw('LOWER(radius_username) = ?', [mb_strtolower($inputUsername)])
+                ->first();
+
+            if ($exists) {
+                return self::duplicateUsernameConflictResponse($inputUsername);
+            }
         }
 
         try {
@@ -194,36 +230,14 @@ class CustomerController extends Controller
                 'password' => Hash::make($accountPassword),
             ]));
 
-            // Generate final RADIUS username using customer ID and organization acronym
-            $radiusUsername = $request->input('radius_username') 
+            // Keep the configured/generated username as-is. The same username may exist in
+            // a different organization; uniqueness is enforced only within the same organization.
+            $radiusUsername = $request->input('radius_username')
                 ?? CustomerRadiusService::generateRadiusUsername(
                     $customer->id,
                     $organization->acronym ?? null
                 );
 
-            // Check if username already exists and modify if necessary
-            $usernameModified = false;
-            if (Customer::where('radius_username', $radiusUsername)->where('id', '!=', $customer->id)->exists()) {
-                // Username exists, add acronym prefix if not already present
-                if ($organization->acronym) {
-                    $acronym = strtolower(trim($organization->acronym));
-                    $acronym = preg_replace('/[^a-z0-9]/', '', $acronym);
-                    
-                    // Only add prefix if username doesn't already start with it
-                    if (!str_starts_with($radiusUsername, $acronym . '_')) {
-                        $radiusUsername = $acronym . '_' . $radiusUsername;
-                        $usernameModified = true;
-                    }
-                }
-                
-                // If still exists after adding acronym, append customer ID
-                if (Customer::where('radius_username', $radiusUsername)->where('id', '!=', $customer->id)->exists()) {
-                    $radiusUsername = $radiusUsername . '_' . $customer->id;
-                    $usernameModified = true;
-                }
-            }
-
-            // Update customer with the generated username
             $customer->radius_username = $radiusUsername;
 
             // If expiry is within 1 hour (e.g. trial accounts), pre-stamp the 1-hour warning flag
@@ -253,8 +267,6 @@ class CustomerController extends Controller
                 'message' => 'Customer created successfully',
                 'customer' => $customerResource->load('package', 'site'),
                 'radius_sync' => $syncResult,
-                'username_modified' => $usernameModified,
-                'username_message' => $usernameModified ? 'RADIUS username was modified to avoid conflicts' : null,
             ], 201);
         } catch (\Throwable $e) {
             return response()->json([
@@ -292,6 +304,18 @@ class CustomerController extends Controller
         $customer = Customer::where('organization_id', $request->user()->organization_id)->find($id);
         if (!$customer) {
             return response()->json(['message' => 'Customer not found'], 404);
+        }
+
+        $inputUsername = trim((string) ($request->input('radius_username') ?? ''));
+        if ($inputUsername !== '') {
+            $duplicate = Customer::where('organization_id', $request->user()->organization_id)
+                ->whereRaw('LOWER(radius_username) = ?', [mb_strtolower($inputUsername)])
+                ->whereKeyNot($customer->id)
+                ->first();
+
+            if ($duplicate) {
+                return self::duplicateUsernameConflictResponse($inputUsername);
+            }
         }
 
         $validator = Validator::make($request->all(), [
@@ -343,39 +367,6 @@ class CustomerController extends Controller
         }
 
         $oldUsername = $customer->radius_username;
-        
-        // Track if we need to modify the username
-        $usernameModified = false;
-        $newUsername = $request->input('radius_username');
-        
-        // If username is being changed, check for conflicts
-        if ($newUsername && $newUsername !== $oldUsername) {
-            // Check if new username already exists
-            if (Customer::where('radius_username', $newUsername)->where('id', '!=', $customer->id)->exists()) {
-                // Username exists, add acronym prefix if available and not already present
-                $organization = \App\Models\Organization::find($customer->organization_id);
-                if ($organization->acronym) {
-                    $acronym = strtolower(trim($organization->acronym));
-                    $acronym = preg_replace('/[^a-z0-9]/', '', $acronym);
-                    
-                    // Only add prefix if username doesn't already start with it
-                    if (!str_starts_with($newUsername, $acronym . '_')) {
-                        $newUsername = $acronym . '_' . $newUsername;
-                        $usernameModified = true;
-                    }
-                }
-                
-                // If still exists after adding acronym, append customer ID
-                if (Customer::where('radius_username', $newUsername)->where('id', '!=', $customer->id)->exists()) {
-                    $newUsername = $newUsername . '_' . $customer->id;
-                    $usernameModified = true;
-                }
-                
-                // Update request and payload data with modified username
-                $request->merge(['radius_username' => $newUsername]);
-                $updateData['radius_username'] = $newUsername;
-            }
-        }
 
         $customer->update($updateData);
 
@@ -430,8 +421,6 @@ class CustomerController extends Controller
         return response()->json([
             'message' => 'Customer updated successfully',
             'customer' => $customer->load('package', 'site'),
-            'username_modified' => $usernameModified,
-            'username_message' => $usernameModified ? 'RADIUS username was modified to avoid conflicts' : null,
         ]);
     }
 
@@ -455,7 +444,7 @@ class CustomerController extends Controller
             // 1. Clean up Sub-Accounts first
             foreach ($customer->subAccounts as $subAccount) {
                 // Remove from RADIUS
-                $this->radiusService->removeCustomerFromRadius($subAccount->radius_username);
+                $this->radiusService->removeCustomerFromRadius($subAccount->radius_username, $subAccount->organization_id);
                 $this->radiusService->disconnectCustomer($subAccount->radius_username, $subAccount->organization_id);
                 
                 // Delete from MySQL
@@ -463,7 +452,7 @@ class CustomerController extends Controller
             }
 
             // 2. Clean up the Master Account
-            $this->radiusService->removeCustomerFromRadius($customer->radius_username);
+            $this->radiusService->removeCustomerFromRadius($customer->radius_username, $customer->organization_id);
             $this->radiusService->disconnectCustomer($customer->radius_username, $customer->organization_id);
             $customer->delete();
 
@@ -529,7 +518,7 @@ class CustomerController extends Controller
         $customer->save();
 
         // Run sync to update RADIUS and disconnect if necessary
-        $this->subscriptionService->syncSubscription($customer);
+        $this->subscriptionService->applyActiveStatus($customer, true);
 
         return response()->json([
             'message' => 'Service resumed successfully',
@@ -638,7 +627,6 @@ class CustomerController extends Controller
 
         try {
             // Remove MAC lock only for this organization
-            Log::info("MAC binding reset for customer {$customer->id} ({$customer->radius_username}) in organization {$customer->organization_id}");            
             $this->radiusService->flushMacOnly($customer->radius_username, $customer->organization_id);
             // Disconnect any active sessions for this username
             $this->radiusService->disconnectCustomer($customer->radius_username, $customer->organization_id);

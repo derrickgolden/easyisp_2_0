@@ -143,8 +143,26 @@ class HotspotCustomer extends Model
                     // ignore
                 }
 
-                DB::connection('radius')->table('radpostauth')->where('username', $username)->delete();
-                DB::connection('radius')->table('radacct')->where('username', $username)->delete();
+                $allowedNasIps = \App\Models\Site::where('organization_id', $customer->organization_id)
+                    ->whereNotNull('ip_address')
+                    ->pluck('ip_address')
+                    ->map(fn ($ip) => trim((string) $ip))
+                    ->filter(fn ($ip) => $ip !== '')
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                if (!empty($allowedNasIps)) {
+                    DB::connection('radius')->table('radpostauth')
+                        ->where('username', $username)
+                        ->whereIn('nasipaddress', $allowedNasIps)
+                        ->delete();
+
+                    DB::connection('radius')->table('radacct')
+                        ->where('username', $username)
+                        ->whereIn('nasipaddress', $allowedNasIps)
+                        ->delete();
+                }
             }
 
             // Finally remove group/policy rows for the sub_group
@@ -154,6 +172,7 @@ class HotspotCustomer extends Model
 
             DB::connection('radius')->table('radreply')
                 ->where('sub_group_id', $customer->id)
+                ->where('organization_id', $customer->organization_id)
                 ->delete();
         });
     }

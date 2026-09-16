@@ -27,12 +27,14 @@ class RadiusController extends Controller
         $request->validate([
             'username' => 'required|string',
             'password' => 'required|string',
+            'organization_id' => 'required|integer|min:1',
         ]);
 
         $username = trim($request->username);
+        $organizationId = (int) $request->organization_id;
 
         // Authenticate against RADIUS database
-        $result = $this->radiusService->authenticate($username, $request->password);
+        $result = $this->radiusService->authenticate($username, $request->password, $organizationId);
 
         if (!$result['success']) {
             return response()->json([
@@ -42,8 +44,8 @@ class RadiusController extends Controller
         }
 
         // Get user attributes (IP, package info, etc)
-        $userAttrs = $this->radiusService->getUserAttributes($username);
-        $userReplyAttrs = $this->radiusService->getUserReplyAttributes($username);
+        $userAttrs = $this->radiusService->getUserAttributes($username, $organizationId);
+        $userReplyAttrs = $this->radiusService->getUserReplyAttributes($username, $organizationId);
         $userGroups = $result['groups'] ?? [];
 
         // Get group reply attributes (bandwidth, session timeout)
@@ -53,7 +55,9 @@ class RadiusController extends Controller
         }
 
         // Try to match customer in local database for additional info
-        $customer = Customer::where('radius_username', $username)->first();
+        $customer = Customer::where('radius_username', $username)
+            ->where('organization_id', $organizationId)
+            ->first();
 
         return response()->json([
             'message' => 'Authentication successful',
@@ -85,15 +89,23 @@ class RadiusController extends Controller
     /**
      * Get RADIUS configuration for a specific username
      */
-    public function getConfig($username)
+    public function getConfig(Request $request, $username)
     {
+        $request->validate([
+            'organization_id' => 'required|integer|min:1',
+        ]);
+
+        $organizationId = (int) $request->organization_id;
+
         // Get user from RADIUS database
-        $userAttrs = $this->radiusService->getUserAttributes($username);
-        $userReplyAttrs = $this->radiusService->getUserReplyAttributes($username);
+        $userAttrs = $this->radiusService->getUserAttributes($username, $organizationId);
+        $userReplyAttrs = $this->radiusService->getUserReplyAttributes($username, $organizationId);
 
         if (empty($userAttrs) && empty($userReplyAttrs)) {
             // Try customer table
-            $customer = Customer::where('radius_username', $username)->first();
+            $customer = Customer::where('radius_username', $username)
+                ->where('organization_id', $organizationId)
+                ->first();
             if (!$customer) {
                 return response()->json(['message' => 'User not found'], 404);
             }
@@ -134,9 +146,10 @@ class RadiusController extends Controller
     {
         $request->validate([
             'password' => 'required|string',
+            'organization_id' => 'required|integer|min:1',
         ]);
 
-        $result = $this->radiusService->authenticate($username, $request->password);
+        $result = $this->radiusService->authenticate($username, $request->password, (int) $request->organization_id);
 
         return response()->json([
             'verified' => $result['success'],
@@ -150,12 +163,20 @@ class RadiusController extends Controller
      */
     public function getWifiAccess(Request $request, $username)
     {
+        $request->validate([
+            'organization_id' => 'required|integer|min:1',
+        ]);
+
+        $organizationId = (int) $request->organization_id;
+
         // Get user attributes from RADIUS
-        $userAttrs = $this->radiusService->getUserAttributes($username);
-        $userReplyAttrs = $this->radiusService->getUserReplyAttributes($username);
+        $userAttrs = $this->radiusService->getUserAttributes($username, $organizationId);
+        $userReplyAttrs = $this->radiusService->getUserReplyAttributes($username, $organizationId);
 
         // Try to match with customer in local database
-        $customer = Customer::where('radius_username', $username)->first();
+        $customer = Customer::where('radius_username', $username)
+            ->where('organization_id', $organizationId)
+            ->first();
 
         if (!$customer) {
             return response()->json([
@@ -230,7 +251,7 @@ class RadiusController extends Controller
 
         // Assign to group if provided
         if ($request->has('group')) {
-            $this->radiusService->assignUserToGroup($username, $request->group);
+            $this->radiusService->assignUserToGroup($username, $request->group, $request->organization_id);
         }
 
         return response()->json($result, 201);
@@ -284,9 +305,18 @@ class RadiusController extends Controller
     /**
      * Delete RADIUS user
      */
-    public function deleteUser($username)
+    public function deleteUser(Request $request, $username)
     {
-        $result = $this->radiusService->deleteUser($username);
+        $organizationId = $request->input('organization_id', $request->query('organization_id'));
+
+        if (empty($organizationId)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'organization_id is required',
+            ], 422);
+        }
+
+        $result = $this->radiusService->deleteUser($username, $organizationId);
 
         return response()->json($result);
     }
@@ -312,8 +342,8 @@ class RadiusController extends Controller
 
         try {
             // Delete if exists
-            if ($this->radiusService->userExists($customer->radius_username)) {
-                $this->radiusService->deleteUser($customer->radius_username);
+            if ($this->radiusService->userExists($customer->radius_username, $customer->organization_id)) {
+                $this->radiusService->deleteUser($customer->radius_username, $customer->organization_id);
             }
 
             // Create user in RADIUS database
@@ -389,7 +419,7 @@ class RadiusController extends Controller
         foreach ($customers as $customer) {
             try {
                 // Check if exists
-                $exists = $this->radiusService->userExists($customer->radius_username);
+                $exists = $this->radiusService->userExists($customer->radius_username, $customer->organization_id);
 
                 if ($exists && !$force) {
                     $skipped++;
@@ -398,7 +428,7 @@ class RadiusController extends Controller
 
                 // Delete if force
                 if ($exists && $force) {
-                    $this->radiusService->deleteUser($customer->radius_username);
+                    $this->radiusService->deleteUser($customer->radius_username, $customer->organization_id);
                 }
 
                 // Create in RADIUS
@@ -473,15 +503,16 @@ class RadiusController extends Controller
             ]);
         }
 
-        $exists = $this->radiusService->userExists($customer->radius_username);
-        $attributes = $this->radiusService->getUserAttributes($customer->radius_username);
-        $replyAttrs = $this->radiusService->getUserReplyAttributes($customer->radius_username);
+        $exists = $this->radiusService->userExists($customer->radius_username, $customer->organization_id);
+        $attributes = $this->radiusService->getUserAttributes($customer->radius_username, $customer->organization_id);
+        $replyAttrs = $this->radiusService->getUserReplyAttributes($customer->radius_username, $customer->organization_id);
         $groups = [];
 
         try {
             $conn = $this->radiusService->getConnection();
             $groups = $conn->table('radusergroup')
                 ->where('username', $customer->radius_username)
+                ->where('organization_id', $customer->organization_id)
                 ->get(['groupname', 'priority'])
                 ->toArray();
         } catch (\Exception $e) {

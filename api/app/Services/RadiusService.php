@@ -19,16 +19,27 @@ class RadiusService
      * Authenticate user against RADIUS database
      * Queries the radcheck table for credentials
      */
-    public function authenticate($username, $password)
+    public function authenticate($username, $password, $organizationId)
     {
         $username = trim($username);
 
         try {
+            if (empty($organizationId)) {
+                return [
+                    'success' => false,
+                    'message' => 'organization_id is required for radius authentication',
+                    'status' => 'Access-Reject',
+                ];
+            }
+
             // Query the radcheck table for User-Password attribute
             $userPassword = $this->radiusConnection->table('radcheck')
                 ->where('username', $username)
-                ->where('attribute', 'User-Password')
-                ->first();
+                ->where('attribute', 'User-Password');
+
+            $userPassword->where('organization_id', $organizationId);
+
+            $userPassword = $userPassword->first();
 
             if (!$userPassword) {
                 return [
@@ -53,7 +64,7 @@ class RadiusService
             }
 
             // Get user group information from radusergroup
-            $userGroups = $this->getUserGroups($username);
+            $userGroups = $this->getUserGroups($username, $organizationId);
 
             // Log successful authentication to radpostauth
             $this->logPostAuth($username, 'Accept');
@@ -115,12 +126,18 @@ class RadiusService
     /**
      * Get user groups from radusergroup table
      */
-    private function getUserGroups($username)
+    private function getUserGroups($username, $organizationId)
     {
         try {
-            $groups = $this->radiusConnection->table('radusergroup')
+            if (empty($organizationId)) {
+                return [];
+            }
+
+            $query = $this->radiusConnection->table('radusergroup')
                 ->where('username', $username)
-                ->orderBy('priority')
+                ->where('organization_id', $organizationId);
+
+            $groups = $query->orderBy('priority')
                 ->get(['groupname', 'priority']);
 
             return array_map(function($g) { return (array) $g; }, $groups->toArray());
@@ -152,11 +169,16 @@ class RadiusService
     /**
      * Get user check attributes from radcheck table
      */
-    public function getUserAttributes($username)
+    public function getUserAttributes($username, $organizationId = null)
     {
         try {
+            if (empty($organizationId)) {
+                return [];
+            }
+
             $attributes = $this->radiusConnection->table('radcheck')
                 ->where('username', $username)
+                ->where('organization_id', $organizationId)
                 ->get(['id', 'username', 'attribute', 'op', 'value']);
 
             return $attributes->toArray();
@@ -168,11 +190,16 @@ class RadiusService
     /**
      * Get user reply attributes from radreply table
      */
-    public function getUserReplyAttributes($username)
+    public function getUserReplyAttributes($username, $organizationId = null)
     {
         try {
+            if (empty($organizationId)) {
+                return [];
+            }
+
             $attributes = $this->radiusConnection->table('radreply')
                 ->where('username', $username)
+                ->where('organization_id', $organizationId)
                 ->get(['id', 'username', 'attribute', 'op', 'value']);
 
             return $attributes->toArray();
@@ -247,12 +274,16 @@ class RadiusService
             // Add reply attributes if provided
             if (!empty($attributes['reply'])) {
                 foreach ($attributes['reply'] as $attr) {
-                    $this->radiusConnection->table('radreply')->insert([
+                    $replyInsert = [
                         'username' => $username,
                         'attribute' => $attr['attribute'],
                         'op' => $attr['op'] ?? ':=',
                         'value' => $attr['value'],
-                    ]);
+                    ];
+                    if (isset($organizationId)) {
+                        $replyInsert['organization_id'] = $organizationId;
+                    }
+                    $this->radiusConnection->table('radreply')->insert($replyInsert);
                 }
             }
 
@@ -265,15 +296,21 @@ class RadiusService
     /**
      * Update RADIUS user password
      */
-    public function updateUserPassword($username, $newPassword)
+    public function updateUserPassword($username, $newPassword, $organizationId)
     {
         try {
-            $this->radiusConnection->table('radcheck')
+            if (empty($organizationId)) {
+                return ['success' => false, 'message' => 'organization_id is required'];
+            }
+
+            $query = $this->radiusConnection->table('radcheck')
                 ->where('username', $username)
                 ->where('attribute', 'User-Password')
-                ->update([
-                    'value' => $newPassword,
-                ]);
+                ->where('organization_id', $organizationId);
+
+            $query->update([
+                'value' => $newPassword,
+            ]);
 
             return ['success' => true, 'message' => 'Password updated'];
         } catch (Exception $e) {
@@ -284,24 +321,32 @@ class RadiusService
     /**
      * Assign user to group
      */
-    public function assignUserToGroup($username, $groupname, $priority = 1)
+    public function assignUserToGroup($username, $groupname, $organizationId, $priority = 1)
     {
         try {
-            // Check if already exists
-            $existing = $this->radiusConnection->table('radusergroup')
+            if (empty($organizationId)) {
+                return ['success' => false, 'message' => 'organization_id is required'];
+            }
+
+            $query = $this->radiusConnection->table('radusergroup')
                 ->where('username', $username)
                 ->where('groupname', $groupname)
-                ->first();
+                ->where('organization_id', $organizationId);
+
+            $existing = $query->first();
 
             if ($existing) {
                 return ['success' => false, 'message' => 'User already in group'];
             }
 
-            $this->radiusConnection->table('radusergroup')->insert([
+            $insert = [
                 'username' => $username,
                 'groupname' => $groupname,
                 'priority' => $priority,
-            ]);
+                'organization_id' => $organizationId,
+            ];
+
+            $this->radiusConnection->table('radusergroup')->insert($insert);
 
             return ['success' => true, 'message' => 'User assigned to group'];
         } catch (Exception $e) {
@@ -312,13 +357,19 @@ class RadiusService
     /**
      * Remove user from group
      */
-    public function removeUserFromGroup($username, $groupname)
+    public function removeUserFromGroup($username, $groupname, $organizationId)
     {
         try {
-            $this->radiusConnection->table('radusergroup')
+            if (empty($organizationId)) {
+                return ['success' => false, 'message' => 'organization_id is required'];
+            }
+
+            $query = $this->radiusConnection->table('radusergroup')
                 ->where('username', $username)
                 ->where('groupname', $groupname)
-                ->delete();
+                ->where('organization_id', $organizationId);
+
+            $query->delete();
 
             return ['success' => true, 'message' => 'User removed from group'];
         } catch (Exception $e) {
@@ -329,13 +380,19 @@ class RadiusService
     /**
      * Check if user exists
      */
-    public function userExists($username)
+    public function userExists($username, $organizationId)
     {
         try {
-            $user = $this->radiusConnection->table('radcheck')
+            if (empty($organizationId)) {
+                return false;
+            }
+
+            $query = $this->radiusConnection->table('radcheck')
                 ->where('username', $username)
                 ->where('attribute', 'User-Password')
-                ->exists();
+                ->where('organization_id', $organizationId);
+
+            $user = $query->exists();
 
             return $user;
         } catch (Exception $e) {
@@ -346,21 +403,28 @@ class RadiusService
     /**
      * Delete RADIUS user completely
      */
-    public function deleteUser($username)
+    public function deleteUser($username, $organizationId)
     {
         try {
+            if (empty($organizationId)) {
+                return ['success' => false, 'message' => 'organization_id is required'];
+            }
+
             // Delete from all RADIUS tables
-            $this->radiusConnection->table('radcheck')
+            $checkQuery = $this->radiusConnection->table('radcheck')
                 ->where('username', $username)
-                ->delete();
+                ->where('organization_id', $organizationId);
+            $checkQuery->delete();
 
-            $this->radiusConnection->table('radreply')
+            $replyQuery = $this->radiusConnection->table('radreply')
                 ->where('username', $username)
-                ->delete();
+                ->where('organization_id', $organizationId);
+            $replyQuery->delete();
 
-            $this->radiusConnection->table('radusergroup')
+            $groupQuery = $this->radiusConnection->table('radusergroup')
                 ->where('username', $username)
-                ->delete();
+                ->where('organization_id', $organizationId);
+            $groupQuery->delete();
 
             return ['success' => true, 'message' => 'User deleted'];
         } catch (Exception $e) {

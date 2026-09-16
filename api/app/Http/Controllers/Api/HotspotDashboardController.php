@@ -38,19 +38,30 @@ class HotspotDashboardController extends Controller
             ->pluck('radius_username')
             ->toArray();
 
+        $organizationSiteIps = Site::where('organization_id', $organizationId)
+            ->whereNotNull('ip_address')
+            ->pluck('ip_address')
+            ->map(fn ($ip) => trim((string) $ip))
+            ->filter(fn ($ip) => $ip !== '')
+            ->unique()
+            ->values()
+            ->all();
+
         if (empty($usernames)) {
             $onlineUsers = 0;
         } else {
-            // 2. Query RADIUS strictly by indexed usernames
+            // 2. Query RADIUS strictly by indexed usernames and this organization's site NAS IPs.
             $onlineUsers = \DB::connection('radius')
                 ->table('radacct as r1')
                 ->whereIn('r1.username', $usernames)
+                ->when(!empty($organizationSiteIps), fn ($query) => $query->whereIn('r1.nasipaddress', $organizationSiteIps))
                 ->whereNull('r1.acctstoptime')
-                ->whereIn('r1.radacctid', function($query) use ($usernames) {
+                ->whereIn('r1.radacctid', function($query) use ($usernames, $organizationSiteIps) {
                     $query->selectRaw('MAX(radacctid)')
                         ->from('radacct')
                         ->whereIn('username', $usernames)
-                        ->groupBy('username');
+                        ->when(!empty($organizationSiteIps), fn ($subQuery) => $subQuery->whereIn('nasipaddress', $organizationSiteIps))
+                        ->groupBy(['username', 'nasipaddress']);
                 })
                 ->count();
         }

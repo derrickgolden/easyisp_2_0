@@ -31,7 +31,6 @@ class SubscriptionService
 
         // Check and send pre-expiry warnings (48-hour and 1-hour)
         $this->checkAndSendExpiryWarnings($customer, $effectiveDate);
-       
         if ($effectiveDate->isPast()) {
             // Customer is expired - check if they have enough balance to auto-renew
             $packagePrice = $customer->effective_package_price;
@@ -166,33 +165,38 @@ class SubscriptionService
                 [
                     'username' => $customer->radius_username,
                     'attribute' => 'Mikrotik-Group',
+                    'organization_id' => $customer->organization_id,
                 ],
                 [
                     'op' => ':=',
                     'value' => 'Expired_Redirect',
+                    'organization_id' => $customer->organization_id,
                 ]
             );
 
             // Do not leave the active PCQ address list attached to an expired user.
             $radius->table('radreply')
                 ->where('username', $customer->radius_username)
+                ->where('organization_id', $customer->organization_id)
                 ->where('attribute', 'Mikrotik-Address-List')
                 ->delete();
 
             $radius->table('radusergroup')
                 ->where('username', $customer->radius_username)
+                ->where('organization_id', $customer->organization_id)
                 ->delete();
         } else {
             // FIFO users continue using the existing RADIUS group flow.
             $radius->table('radreply')
                 ->where('username', $customer->radius_username)
+                ->where('organization_id', $customer->organization_id)
                 ->whereIn('attribute', ['Mikrotik-Group', 'Mikrotik-Address-List'])
                 ->delete();
 
             $radius->table('radusergroup')
                 ->updateOrInsert(
-                    ['username' => $customer->radius_username],
-                    ['groupname' => 'Expired_Redirect', 'priority' => 1]
+                    ['username' => $customer->radius_username, 'organization_id' => $customer->organization_id],
+                    ['groupname' => 'Expired_Redirect', 'priority' => 1, 'organization_id' => $customer->organization_id]
                 );
         }
 
@@ -216,11 +220,10 @@ class SubscriptionService
         $this->applyActiveStatus($customer);
     }
 
-    public function applyActiveStatus(Customer $customer)
+    public function applyActiveStatus(Customer $customer, bool $requiresDisconnect = false)
     {
 
         $customer->update(['status' => 'active']);
-
         $radius = DB::connection('radius');
         $package = $customer->package;
 
@@ -235,11 +238,12 @@ class SubscriptionService
                 'Mikrotik-Group' => "ppp-{$companyAcronym}-pcq",
                 'Mikrotik-Address-List' => $addressList,
             ];
-            $requiresDisconnect = false;
+            $requiresDisconnect = $requiresDisconnect || false;
 
             foreach ($pcqReplies as $attribute => $value) {
                 $existingReply = $radius->table('radreply')
                     ->where('username', $customer->radius_username)
+                    ->where('organization_id', $customer->organization_id)
                     ->where('attribute', $attribute)
                     ->first();
 
@@ -251,10 +255,12 @@ class SubscriptionService
                     [
                         'username' => $customer->radius_username,
                         'attribute' => $attribute,
+                        'organization_id' => $customer->organization_id,
                     ],
                     [
                         'op' => ':=',
                         'value' => $value,
+                        'organization_id' => $customer->organization_id,
                     ]
                 );
             }
@@ -262,11 +268,11 @@ class SubscriptionService
             // Prevent an old FIFO, expired, or suspended group from overriding PCQ replies.
             $radius->table('radusergroup')
                 ->where('username', $customer->radius_username)
+                ->where('organization_id', $customer->organization_id)
                 ->delete();
 
             if ($requiresDisconnect) {
                 app(CustomerRadiusService::class)->disconnectCustomer($customer->radius_username, $customer->organization_id);
-                Log::info("User {$customer->radius_username} resumed with PCQ RADIUS replies.");
             }
 
             return;
@@ -275,19 +281,21 @@ class SubscriptionService
         // FIFO users use the existing RADIUS group flow.
         $radius->table('radreply')
             ->where('username', $customer->radius_username)
+            ->where('organization_id', $customer->organization_id)
             ->whereIn('attribute', ['Mikrotik-Group', 'Mikrotik-Address-List'])
             ->delete();
 
         $packageName = "package_" . $package->id;
         $currentGroup = $radius->table('radusergroup')
             ->where('username', $customer->radius_username)
+            ->where('organization_id', $customer->organization_id)
             ->first();
 
         if (!$currentGroup || $currentGroup->groupname !== $packageName) {
             $radius->table('radusergroup')
                 ->updateOrInsert(
-                    ['username' => $customer->radius_username],
-                    ['groupname' => $packageName]
+                    ['username' => $customer->radius_username, 'organization_id' => $customer->organization_id],
+                    ['groupname' => $packageName, 'organization_id' => $customer->organization_id]
                 );
 
             app(CustomerRadiusService::class)->disconnectCustomer($customer->radius_username, $customer->organization_id);
@@ -308,22 +316,26 @@ class SubscriptionService
                 [
                     'username' => $customer->radius_username,
                     'attribute' => 'Mikrotik-Group',
+                    'organization_id' => $customer->organization_id,
                 ],
                 [
                     'op' => ':=',
                     'value' => $targetGroup,
+                    'organization_id' => $customer->organization_id,
                 ]
             );
 
             // Do not leave the active PCQ address list attached to a suspended user.
             $radius->table('radreply')
                 ->where('username', $customer->radius_username)
+                ->where('organization_id', $customer->organization_id)
                 ->where('attribute', 'Mikrotik-Address-List')
                 ->delete();
 
             // Prevent an old FIFO group from overriding the PCQ reply attributes.
             $radius->table('radusergroup')
                 ->where('username', $customer->radius_username)
+                ->where('organization_id', $customer->organization_id)
                 ->delete();
 
             app(CustomerRadiusService::class)->disconnectCustomer($customer->radius_username, $customer->organization_id);
@@ -334,18 +346,20 @@ class SubscriptionService
 
         $radius->table('radreply')
             ->where('username', $customer->radius_username)
+            ->where('organization_id', $customer->organization_id)
             ->whereIn('attribute', ['Mikrotik-Group', 'Mikrotik-Address-List'])
             ->delete();
 
         $radiusRecord = $radius->table('radusergroup')
             ->where('username', $customer->radius_username)
+            ->where('organization_id', $customer->organization_id)
             ->first();
 
         if (!$radiusRecord || $radiusRecord->groupname !== $targetGroup) {
             $radius->table('radusergroup')
                 ->updateOrInsert(
-                    ['username' => $customer->radius_username],
-                    ['groupname' => $targetGroup, 'priority' => 1]
+                    ['username' => $customer->radius_username, 'organization_id' => $customer->organization_id],
+                    ['groupname' => $targetGroup, 'priority' => 1, 'organization_id' => $customer->organization_id]
                 );
 
             // Kick the session immediately

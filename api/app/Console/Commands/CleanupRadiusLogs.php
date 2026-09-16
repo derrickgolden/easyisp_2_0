@@ -39,7 +39,7 @@ class CleanupRadiusLogs extends Command
                     SELECT radacctid FROM (
                         SELECT radacctid,
                                ROW_NUMBER() OVER (
-                                   PARTITION BY username 
+                                   PARTITION BY nasipaddress, username 
                                    ORDER BY acctstarttime DESC
                                ) AS rn
                         FROM radacct
@@ -58,7 +58,7 @@ class CleanupRadiusLogs extends Command
                     SELECT id FROM (
                         SELECT id,
                                ROW_NUMBER() OVER (
-                                   PARTITION BY username 
+                                   PARTITION BY nasipaddress, username 
                                    ORDER BY authdate DESC
                                ) AS rn
                         FROM radpostauth

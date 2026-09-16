@@ -69,7 +69,10 @@ class AutoBindMacAddress extends Command
             ->whereIn('username', $sessions->pluck('username'))
             ->where('attribute', 'Calling-Station-Id')
             ->where('client_type', 'pppoe')
-            ->pluck('username')
+            ->get(['username', 'organization_id'])
+            ->map(function ($row) {
+                return $row->username . '_' . $row->organization_id;
+            })
             ->flip()
             ->toArray();
 
@@ -78,7 +81,10 @@ class AutoBindMacAddress extends Command
             ->whereIn('username', $sessions->pluck('username'))
             ->where('attribute', 'Cleartext-Password')
             ->where('client_type', 'pppoe')
-            ->pluck('username')
+            ->get(['username', 'organization_id'])
+            ->map(function ($row) {
+                return $row->username . '_' . $row->organization_id;
+            })
             ->flip()
             ->toArray();
 
@@ -87,23 +93,22 @@ class AutoBindMacAddress extends Command
         // 5. Process in-memory
         foreach ($sessions as $session) {
             $username = $session->username;
-
-            // Skip if user already has a bound MAC
-            if (isset($boundUsers[$username])) {
-                continue;
-            }
-
-            // Skip if user lacks a valid PPPoE Cleartext-Password row in radcheck
-            if (!isset($authenticatedUsers[$username])) {
-                $this->info("Skipping {$username}; missing Cleartext-Password row for pppoe.");
-                continue;
-            }
-
-            // Resolve organization ID (Site NAS IP first, fallback to customer table)
             $organizationId = $siteOrgMap[$session->nasipaddress] ?? $pppoeCustomers[$username] ?? null;
+            $compositeKey = $username . '_' . $organizationId;
 
             if (empty($organizationId)) {
                 $this->info("Skipping {$username}; unable to resolve organization.");
+                continue;
+            }
+
+            // Skip if this specific organization's user already has a bound MAC
+            if (isset($boundUsers[$compositeKey])) {
+                continue;
+            }
+
+            // Skip if user lacks a valid PPPoE Cleartext-Password row for THIS specific organization
+            if (!isset($authenticatedUsers[$compositeKey])) {
+                $this->info("Skipping {$username} for Org {$organizationId}; missing Cleartext-Password row.");
                 continue;
             }
 

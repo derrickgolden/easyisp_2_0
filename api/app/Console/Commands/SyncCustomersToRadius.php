@@ -58,7 +58,7 @@ class SyncCustomersToRadius extends Command
 
             try {
                 // Check if user already exists
-                $exists = $this->radiusService->userExists($customer->radius_username);
+                $exists = $this->radiusService->userExists($customer->radius_username, $customer->organization_id);
 
                 if ($exists && !$force) {
                     $this->line("<fg=yellow>SKIPPED</> (already exists)");
@@ -68,7 +68,7 @@ class SyncCustomersToRadius extends Command
 
                 // Delete if exists and force is set
                 if ($exists && $force) {
-                    $this->radiusService->deleteUser($customer->radius_username);
+                    $this->radiusService->deleteUser($customer->radius_username, $customer->organization_id);
                 }
 
                 // Create user with check attributes

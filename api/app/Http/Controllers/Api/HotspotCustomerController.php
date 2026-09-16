@@ -23,6 +23,18 @@ class HotspotCustomerController extends Controller
 {
     protected $radiusService;
     protected $subscriptionService;
+
+    public static function duplicateUsernameConflictResponse(?string $username = null)
+    {
+        $message = 'This Voucher username is already in use.';
+
+        return response()->json([
+            'message' => $message,
+            'errors' => [
+                'radius_username' => [$message],
+            ],
+        ], 422);
+    }
         
     public function __construct(HotspotCustomerRadiusService $radiusService, HotspotSubscriptionService $subscriptionService)
     {
@@ -55,6 +67,15 @@ class HotspotCustomerController extends Controller
             ->pluck('radius_username')
             ->toArray();
 
+        $organizationSiteIps = Site::where('organization_id', $organizationId)
+            ->whereNotNull('ip_address')
+            ->pluck('ip_address')
+            ->map(fn ($ip) => trim((string) $ip))
+            ->filter(fn ($ip) => $ip !== '')
+            ->unique()
+            ->values()
+            ->all();
+
         $activeOnlineUsernames = [];
         if (!empty($allOrgUsernames)) {
             try {
@@ -62,6 +83,7 @@ class HotspotCustomerController extends Controller
                 $activeOnlineUsernames = DB::connection('radius')
                     ->table('radacct')
                     ->whereIn('username', $allOrgUsernames)
+                    ->when(!empty($organizationSiteIps), fn ($query) => $query->whereIn('nasipaddress', $organizationSiteIps))
                     ->whereNull('acctstoptime')
                     ->pluck('username')
                     ->unique()
@@ -141,10 +163,12 @@ class HotspotCustomerController extends Controller
                 $latestSessions = DB::connection('radius')
                     ->table('radacct')
                     ->whereIn('username', $pageUsernames)
-                    ->whereIn('radacctid', function ($subQuery) use ($pageUsernames) {
+                    ->when(!empty($organizationSiteIps), fn ($query) => $query->whereIn('nasipaddress', $organizationSiteIps))
+                    ->whereIn('radacctid', function ($subQuery) use ($pageUsernames, $organizationSiteIps) {
                         $subQuery->selectRaw('MAX(radacctid)')
                             ->from('radacct')
                             ->whereIn('username', $pageUsernames)
+                            ->when(!empty($organizationSiteIps), fn ($innerQuery) => $innerQuery->whereIn('nasipaddress', $organizationSiteIps))
                             ->groupBy('username');
                     })
                     ->get(['username', 'nasipaddress', 'acctstoptime'])
@@ -223,6 +247,7 @@ class HotspotCustomerController extends Controller
             'balance' => 'sometimes|numeric|min:0',
             'ip_address' => 'nullable|string',
             'mac_address' => 'nullable|string',
+            'radius_username' => 'nullable|string|max:255',
             'voucher' => [
                 'nullable',
                 'string',
@@ -234,10 +259,35 @@ class HotspotCustomerController extends Controller
                 Rule::exists('hotspot_customers', 'id')->where(fn ($query) => $query->where('organization_id', $orgId)),
             ],
             'is_independent' => 'sometimes|boolean',
+        ], [
+            'phone.unique' => 'This phone number is already in use in your organization.',
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            $errors = $validator->errors();
+            $phoneMsg = $errors->first('phone');
+            if ($phoneMsg) {
+                return response()->json([
+                    'message' => $phoneMsg,
+                    'errors' => ['phone' => [$phoneMsg]],
+                ], 422);
+            }
+
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $errors->messages(),
+            ], 422);
+        }
+
+        $inputUsername = trim((string) ($request->input('radius_username') ?? ''));
+        if ($inputUsername !== '') {
+            $exists = HotspotCustomer::where('organization_id', $orgId)
+                ->whereRaw('LOWER(radius_username) = ?', [mb_strtolower($inputUsername)])
+                ->first();
+
+            if ($exists) {
+                return self::duplicateUsernameConflictResponse($inputUsername);
+            }
         }
 
         try {
@@ -301,36 +351,14 @@ class HotspotCustomerController extends Controller
                 'password' => Hash::make($accountPassword),
             ]));
 
-            // Generate final RADIUS username using customer ID and organization acronym
-            $radiusUsername = $request->input('radius_username') 
+            // Keep the configured/generated username as-is. The same username may exist in
+            // a different organization; uniqueness is enforced only within the same organization.
+            $radiusUsername = $request->input('radius_username')
                 ?? HotspotCustomerRadiusService::generateRadiusUsername(
                     $customer->id,
                     $organization->acronym ?? null
                 );
 
-            // Check if username already exists and modify if necessary
-            $usernameModified = false;
-            if (HotspotCustomer::where('radius_username', $radiusUsername)->where('id', '!=', $customer->id)->exists()) {
-                // Username exists, add acronym prefix if not already present
-                if ($organization->acronym) {
-                    $acronym = strtolower(trim($organization->acronym));
-                    $acronym = preg_replace('/[^a-z0-9]/', '', $acronym);
-                    
-                    // Only add prefix if username doesn't already start with it
-                    if (!str_starts_with($radiusUsername, $acronym . '_')) {
-                        $radiusUsername = $acronym . '_' . $radiusUsername;
-                        $usernameModified = true;
-                    }
-                }
-                
-                // If still exists after adding acronym, append customer ID
-                if (HotspotCustomer::where('radius_username', $radiusUsername)->where('id', '!=', $customer->id)->exists()) {
-                    $radiusUsername = $radiusUsername . '_' . $customer->id;
-                    $usernameModified = true;
-                }
-            }
-
-            // Update customer with the generated username
             $customer->radius_username = $radiusUsername;
 
             // If expiry is within 1 hour (e.g. trial accounts), pre-stamp the 1-hour warning flag
@@ -359,8 +387,6 @@ class HotspotCustomerController extends Controller
                 'message' => 'Customer created successfully',
                 'customer' => $customerResource->load('package', 'site'),
                 'radius_sync' => $syncResult,
-                'username_modified' => $usernameModified,
-                'username_message' => $usernameModified ? 'RADIUS username was modified to avoid conflicts' : null,
             ], 201);
         } catch (\Throwable $e) {
             Log::error('Failed to create hotspot customer: ' . $e->getMessage(), ['exception' => $e]);
@@ -429,6 +455,18 @@ class HotspotCustomerController extends Controller
             return response()->json(['message' => 'Customer not found'], 404);
         }
 
+        $inputUsername = trim((string) ($request->input('radius_username') ?? ''));
+        if ($inputUsername !== '') {
+            $duplicate = HotspotCustomer::where('organization_id', $request->user()->organization_id)
+                ->whereRaw('LOWER(radius_username) = ?', [mb_strtolower($inputUsername)])
+                ->whereKeyNot($customer->id)
+                ->first();
+
+            if ($duplicate) {
+                return self::duplicateUsernameConflictResponse($inputUsername);
+            }
+        }
+
         $validator = Validator::make($request->all(), [
             'first_name' => 'nullable|string|max:255',
             'last_name' => 'nullable|string|max:255',
@@ -444,7 +482,7 @@ class HotspotCustomerController extends Controller
                 Rule::exists('sites', 'id')->where(fn ($query) => $query->where('organization_id', $customer->organization_id)),
             ],
             'connection_type' => 'sometimes|in:Hotspot,Static IP',
-            'radius_username' => 'sometimes|string|max:255', // Uniqueness handled by conflict resolution logic
+            'radius_username' => 'sometimes|string|max:255',
             'installation_fee' => 'sometimes|numeric|min:0',
             'status' => 'sometimes|in:active,expired,suspended',
             'expiry_date' => 'sometimes|date',
@@ -460,7 +498,19 @@ class HotspotCustomerController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            $errors = $validator->errors();
+            $phoneMsg = $errors->first('phone');
+            if ($phoneMsg) {
+                return response()->json([
+                    'message' => $phoneMsg,
+                    'errors' => ['phone' => [$phoneMsg]],
+                ], 422);
+            }
+
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $errors->messages(),
+            ], 422);
         }
 
         $updateData = $request->all();
@@ -478,39 +528,6 @@ class HotspotCustomerController extends Controller
         }
 
         $oldUsername = $customer->radius_username;
-        
-        // Track if we need to modify the username
-        $usernameModified = false;
-        $newUsername = $request->input('radius_username');
-        
-        // If username is being changed, check for conflicts
-        if ($newUsername && $newUsername !== $oldUsername) {
-            // Check if new username already exists
-            if (HotspotCustomer::where('radius_username', $newUsername)->where('id', '!=', $customer->id)->exists()) {
-                // Username exists, add acronym prefix if available and not already present
-                $organization = \App\Models\Organization::find($customer->organization_id);
-                if ($organization->acronym) {
-                    $acronym = strtolower(trim($organization->acronym));
-                    $acronym = preg_replace('/[^a-z0-9]/', '', $acronym);
-                    
-                    // Only add prefix if username doesn't already start with it
-                    if (!str_starts_with($newUsername, $acronym . '_')) {
-                        $newUsername = $acronym . '_' . $newUsername;
-                        $usernameModified = true;
-                    }
-                }
-                
-                // If still exists after adding acronym, append customer ID
-                if (HotspotCustomer::where('radius_username', $newUsername)->where('id', '!=', $customer->id)->exists()) {
-                    $newUsername = $newUsername . '_' . $customer->id;
-                    $usernameModified = true;
-                }
-                
-                // Update request and payload data with modified username
-                $request->merge(['radius_username' => $newUsername]);
-                $updateData['radius_username'] = $newUsername;
-            }
-        }
 
         $customer->update($updateData);
 
@@ -563,8 +580,6 @@ class HotspotCustomerController extends Controller
         return response()->json([
             'message' => 'Customer updated successfully',
             'customer' => $customer->load('package', 'site'),
-            'username_modified' => $usernameModified,
-            'username_message' => $usernameModified ? 'RADIUS username was modified to avoid conflicts' : null,
         ]);
     }
 
@@ -654,7 +669,7 @@ class HotspotCustomerController extends Controller
             // 1. Clean up Sub-Accounts first
             foreach ($customer->subAccounts as $subAccount) {
                 // Remove from RADIUS
-                $this->radiusService->removeCustomerFromRadius($subAccount->radius_username);
+                $this->radiusService->removeCustomerFromRadius($subAccount->radius_username, $subAccount->organization_id);
                 $this->radiusService->disconnectCustomer($subAccount->radius_username, $subAccount->organization_id);
                 
                 // Delete from MySQL
@@ -662,7 +677,7 @@ class HotspotCustomerController extends Controller
             }
 
             // 2. Clean up the Master Account
-            $this->radiusService->removeCustomerFromRadius($customer->radius_username);
+            $this->radiusService->removeCustomerFromRadius($customer->radius_username, $customer->organization_id);
             $this->radiusService->disconnectCustomer($customer->radius_username, $customer->organization_id);
             $customer->delete();
 

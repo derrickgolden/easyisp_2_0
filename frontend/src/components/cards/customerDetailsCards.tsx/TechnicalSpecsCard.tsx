@@ -139,11 +139,13 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, onRefresh}) => {
     // }, [isOnline, onRefresh]);
 
     const onResetMAC = async (customer: Customer) => {
+      console.log("Attempting to reset MAC binding for customer:", customer.id, "Connection Type:", customer.connectionType);
       if (isResettingMac) return;
       setIsResettingMac(true);
 
       try {
         if (customer.connectionType === "PPPoE") {
+          console.log("Resetting MAC binding for PPPoE customer:", customer.id);
           const response = await customersApi.resetMacBinding(customer.id);
           onRefresh();
           toast.success(response.message);

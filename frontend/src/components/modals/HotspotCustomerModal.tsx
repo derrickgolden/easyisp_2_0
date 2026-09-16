@@ -146,6 +146,7 @@ export const HotspotCustomerModal: React.FC<HotspotCustomerModalProps> = ({
               <label className={labelClassName}>First Name</label>
               <input 
                 readOnly={isSubAccount}
+                required
                 type="text" 
                 value={editingHotspotCustomer?.firstName || ''} 
                 onChange={e => setEditingHotspotCustomer({...editingHotspotCustomer, firstName: e.target.value})}
@@ -157,6 +158,7 @@ export const HotspotCustomerModal: React.FC<HotspotCustomerModalProps> = ({
               <label className={labelClassName}>Last Name</label>
               <input 
                 readOnly={isSubAccount}
+                required
                 type="text" 
                 value={editingHotspotCustomer?.lastName || ''} 
                 onChange={e => setEditingHotspotCustomer({...editingHotspotCustomer, lastName: e.target.value})}
@@ -278,39 +280,61 @@ export const HotspotCustomerModal: React.FC<HotspotCustomerModalProps> = ({
           </div>
         </div> */}
 
-        <div className="p-4 bg-indigo-50/50 dark:bg-indigo-900/5 rounded-2xl border border-indigo-100 dark:border-indigo-900/20 space-y-4">
-          <h5 className="text-[10px] font-black uppercase text-indigo-500 tracking-widest ml-1">RADIUS Credentials</h5>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelClassName}>Radius Username</label>
-              <input 
-                type="text" 
-                value={editingHotspotCustomer?.radiusUsername || ''} 
-                // onChange={e => setEditingHotspotCustomer({...editingHotspotCustomer, radiusUsername: e.target.value, radiusPassword: e.target.value})}
-                onChange={e => {
-                  // Sanitize: Strip out @ symbols and optional casing transformation
-                  const sanitizedVal = e.target.value.replace(/@/g, '').toUpperCase();
-                  
-                  setEditingHotspotCustomer({
-                    ...editingHotspotCustomer, 
-                    radiusUsername: sanitizedVal, 
-                    radiusPassword: sanitizedVal // Syncs password to username dynamically
-                  });
-                }}
-                className={inputClassName}
-              />
-            </div>
-            <div>
-              <label className={labelClassName}>Radius Password</label>
-              <input 
-                type="text"
-                readOnly={true} 
-                value={editingHotspotCustomer?.radiusPassword || ''} 
-                className={inputClassName}
-              />
+      {
+        editingHotspotCustomer?.id ?(
+          <div className="p-4 bg-indigo-50/50 dark:bg-indigo-900/5 rounded-2xl border border-indigo-100 dark:border-indigo-900/20 space-y-4">
+            <h5 className="text-[10px] font-black uppercase text-indigo-500 tracking-widest ml-1">Voucher Credentials</h5>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className={labelClassName}>Voucher Username</label>
+                <input 
+                  type="text" 
+                  value={editingHotspotCustomer?.voucher || ''} 
+                  onChange={e => {
+                    // Sanitize: Strip out @ symbols and optional casing transformation
+                    const sanitizedVal = e.target.value.replace(/@/g, '').toUpperCase();
+                    
+                    setEditingHotspotCustomer({
+                      ...editingHotspotCustomer, voucher: sanitizedVal, radiusUsername: sanitizedVal, radiusPassword: sanitizedVal
+                    });
+                  }}
+                  className={inputClassName}
+                />
+              </div>
             </div>
           </div>
-        </div>
+        ):(
+          <div className="p-4 bg-indigo-50/50 dark:bg-indigo-900/5 rounded-2xl border border-indigo-100 dark:border-indigo-900/20 space-y-4">
+            <h5 className="text-[10px] font-black uppercase text-indigo-500 tracking-widest ml-1">Voucher Credentials</h5>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className={labelClassName}>Voucher Username</label>
+                <input 
+                  type="text" 
+                  value={editingHotspotCustomer?.radiusUsername || ''} 
+                  // onChange={e => setEditingHotspotCustomer({...editingHotspotCustomer, radiusUsername: e.target.value, radiusPassword: e.target.value})}
+                  onChange={e => {
+                    // Sanitize: Strip out @ symbols and optional casing transformation
+                    const sanitizedVal = e.target.value.replace(/@/g, '').toUpperCase();
+                    
+                    setEditingHotspotCustomer({
+                      ...editingHotspotCustomer, 
+                      radiusUsername: sanitizedVal, 
+                      radiusPassword: sanitizedVal // Syncs password to username dynamically
+                    });
+                  }}
+                  className={inputClassName}
+                />
+              </div>
+                <input hidden
+                  type="text"
+                  readOnly={true} 
+                  value={editingHotspotCustomer?.radiusPassword || ''} 
+                  className={inputClassName}
+                />
+            </div>
+          </div>
+        )}
 
         <div className="p-4 bg-blue-50/50 dark:bg-blue-900/5 rounded-2xl border border-blue-100 dark:border-blue-900/20 space-y-4">
           <div className="grid grid-cols-2 gap-4">

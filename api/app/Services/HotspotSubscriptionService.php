@@ -132,10 +132,12 @@ class HotspotSubscriptionService
                 [
                     'username' => $customer->radius_username,
                     'attribute' => 'Mikrotik-Rate-Limit',
+                    'organization_id' => $customer->organization_id,
                 ],
                 [
                     'op' => ':=',
                     'value' => $rateLimit,
+                    'organization_id' => $customer->organization_id,
                     'sub_group_id' => $customer->id,
                 ]
             );
@@ -148,10 +150,12 @@ class HotspotSubscriptionService
                 [
                     'username' => $customer->radius_username,
                     'attribute' => 'Session-Timeout',
+                    'organization_id' => $customer->organization_id,
                 ],
                 [
                     'op' => ':=',
                     'value' => (string) $seconds,
+                    'organization_id' => $customer->organization_id,
                     'sub_group_id' => $customer->id,
                 ]
             );
@@ -211,10 +215,12 @@ class HotspotSubscriptionService
                     [
                         'username' => $alt,
                         'attribute' => 'Mikrotik-Rate-Limit',
+                        'organization_id' => $customer->organization_id,
                     ],
                     [
                         'op' => ':=',
                         'value' => $rateLimit,
+                        'organization_id' => $customer->organization_id,
                         'sub_group_id' => $customer->id,
                     ]
                 );
@@ -226,10 +232,12 @@ class HotspotSubscriptionService
                     [
                         'username' => $alt,
                         'attribute' => 'Session-Timeout',
+                        'organization_id' => $customer->organization_id,
                     ],
                     [
                         'op' => ':=',
                         'value' => (string) $seconds,
+                        'organization_id' => $customer->organization_id,
                         'sub_group_id' => $customer->id,
                     ]
                 );
@@ -304,10 +312,12 @@ class HotspotSubscriptionService
         // Remove policy grants so the suspended state is deterministic after reactivation.
         DB::connection('radius')->table('radreply')
             ->where('sub_group_id', $customer->id)
+            ->where('organization_id', $customer->organization_id)
             ->delete();
 
         DB::connection('radius')->table('radusergroup')
             ->where('sub_group_id', $customer->id)
+            ->where('organization_id', $customer->organization_id)
             ->delete();
 
         Log::warning("User {$customer->radius_username} has been SUSPENDED.");
@@ -371,6 +381,7 @@ class HotspotSubscriptionService
 
         DB::connection('radius')->table('radreply')
             ->where('sub_group_id', $customer->id)
+            ->where('organization_id', $customer->organization_id)
             ->delete();
 
         // Cascade expiry to dependent (non-independent) sub-accounts and remove their RADIUS rows
@@ -385,10 +396,12 @@ class HotspotSubscriptionService
 
             DB::connection('radius')->table('radusergroup')
                 ->where('sub_group_id', $child->id)
+                ->where('organization_id', $child->organization_id)
                 ->delete();
 
             DB::connection('radius')->table('radreply')
                 ->where('sub_group_id', $child->id)
+                ->where('organization_id', $child->organization_id)
                 ->delete();
 
             try {

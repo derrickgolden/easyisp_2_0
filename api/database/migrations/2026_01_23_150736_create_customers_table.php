@@ -33,7 +33,7 @@ return new class extends Migration
             $table->unsignedInteger('paused_seconds_remaining')->default(0);
             $table->boolean('is_independent')->default(true); // Sub-account billing dependency
             // RADIUS details
-            $table->string('radius_username')->unique();
+            $table->string('radius_username');
             $table->string('radius_password');
             $table->string('ip_address')->nullable();
             $table->string('mac_address')->nullable();
@@ -42,8 +42,6 @@ return new class extends Migration
             $table->timestamps();
 
             // Composite Unique Constraints
-            // This allows info@test.com to exist in Org A and Org B, 
-            // but blocks it from being added twice in Org A.
             $table->index(['organization_id', 'email']);
             $table->index(['organization_id', 'phone']);
             $table->index(['organization_id', 'status']);

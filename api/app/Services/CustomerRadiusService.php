@@ -60,8 +60,8 @@ class CustomerRadiusService
             // If username changed, remove old entry
             $usernameToClean = $oldUsername ?? $customer->radius_username;
 
-            // 1. Clean slate for this username
-            $this->removeCustomerFromRadius($usernameToClean);
+            // 1. Clean slate for this username under the owning org
+            $this->removeCustomerFromRadius($usernameToClean, $customer->organization_id);
 
             // 2. Add Authentication (radcheck)
             // Using 'Cleartext-Password' as the attribute for MS-CHAPv2 compatibility
@@ -88,7 +88,7 @@ class CustomerRadiusService
             // 3. Add User-Specific Overrides (radreply)
             // ONLY add these if the customer has a specific custom override
             if ($customer->custom_rate_limit) {
-                $this->addReplyAttribute($customer->radius_username, 'Mikrotik-Rate-Limit', ':=', $customer->custom_rate_limit);
+                $this->addReplyAttribute($customer->radius_username, 'Mikrotik-Rate-Limit', ':=', $customer->custom_rate_limit, $customer->organization_id);
             }
 
             // Apply the package's FIFO or PCQ RADIUS assignment consistently.
@@ -216,14 +216,45 @@ class CustomerRadiusService
         return $affected;
     }
 
-    public function removeCustomerFromRadius($username)
+    public function removeCustomerFromRadius($username, $organizationId)
     {
         try {
-            $this->radiusConnection->table('radcheck')->where('username', $username)->delete();
-            $this->radiusConnection->table('radreply')->where('username', $username)->delete();
-            $this->radiusConnection->table('radusergroup')->where('username', $username)->delete();
-            $this->radiusConnection->table('radpostauth')->where('username', $username)->delete();
-            $this->radiusConnection->table('radacct')->where('username', $username)->delete();
+            if (empty($organizationId)) {
+                return false;
+            }
+
+            $checkQuery = $this->radiusConnection->table('radcheck')->where('username', $username)->where('organization_id', $organizationId);
+            $checkQuery->delete();
+
+            $replyQuery = $this->radiusConnection->table('radreply')->where('username', $username)->where('organization_id', $organizationId);
+            $replyQuery->delete();
+
+            $groupQuery = $this->radiusConnection->table('radusergroup')->where('username', $username)->where('organization_id', $organizationId);
+            $groupQuery->delete();
+
+            $allowedNasIps = \App\Models\Site::where('organization_id', $organizationId)
+                ->whereNotNull('ip_address')
+                ->pluck('ip_address')
+                ->map(fn ($ip) => trim((string) $ip))
+                ->filter(fn ($ip) => $ip !== '')
+                ->unique()
+                ->values()
+                ->all();
+
+            if (empty($allowedNasIps)) {
+                Log::warning("Skipping tenant-scoped radacct/radpostauth cleanup for username {$username} because org {$organizationId} has no assigned NAS IPs.");
+                return true;
+            }
+
+            $this->radiusConnection->table('radpostauth')
+                ->where('username', $username)
+                ->whereIn('nasipaddress', $allowedNasIps)
+                ->delete();
+
+            $this->radiusConnection->table('radacct')
+                ->where('username', $username)
+                ->whereIn('nasipaddress', $allowedNasIps)
+                ->delete();
             return true;
         } catch (Exception $e) {
             return false;
@@ -245,8 +276,9 @@ class CustomerRadiusService
     public function getTechnicalSpecs(Request $request, $id, $modelClass = null)
     {
         $modelClass ??= Customer::class;
+        $organizationId = $request->user()->organization_id;
 
-        $customer = $modelClass::where('organization_id', $request->user()->organization_id)
+        $customer = $modelClass::where('organization_id', $organizationId)
             ->find($id);
 
         if (!$customer) {
@@ -254,37 +286,50 @@ class CustomerRadiusService
         }
 
         $username = $customer->radius_username;
+        $allowedNasIps = \App\Models\Site::where('organization_id', $organizationId)
+            ->whereNotNull('ip_address')
+            ->pluck('ip_address')
+            ->map(fn ($ip) => trim((string) $ip))
+            ->filter(fn ($ip) => $ip !== '')
+            ->unique()
+            ->values()
+            ->all();
 
         // Fetch technical specs from RADIUS DB
-        // 1. Check if user exists in radcheck
+        // 1. Check if user exists in radcheck for this organization only
         $userCheck = DB::connection('radius')->table('radcheck')
             ->where('username', $username)
-            ->first();  
+            ->where('organization_id', $organizationId)
+            ->first();
         if (!$userCheck) {
             throw new Exception("User not found in RADIUS");
         }
 
-        // 1. Get current active session (if any)
+        // 1. Get current active session (if any) scoped to this organization's NAS IPs.
         $activeSession = DB::connection('radius')->table('radacct')
             ->where('username', $username)
+            ->when(!empty($allowedNasIps), fn ($query) => $query->whereIn('nasipaddress', $allowedNasIps))
             ->whereNull('acctstoptime') // Still connected
             ->orderBy('acctstarttime', 'desc')
             ->first();
 
         $lastSession = DB::connection('radius')->table('radacct')
             ->where('username', $username)
+            ->when(!empty($allowedNasIps), fn ($query) => $query->whereIn('nasipaddress', $allowedNasIps))
             ->whereNotNull('acctstoptime') // Disconnected sessions
             ->orderBy('acctstoptime', 'desc')
             ->first();
 
         $sessions = DB::connection('radius')->table('radacct')
             ->where('username', $username)
+            ->when(!empty($allowedNasIps), fn ($query) => $query->whereIn('nasipaddress', $allowedNasIps))
             ->orderBy('acctstarttime', 'desc')
             ->take(5) // Limit the result to 5 rows
             ->get();
 
         $logs = DB::connection('radius')->table('radpostauth')
             ->where('username', $username)
+            ->when(!empty($allowedNasIps), fn ($query) => $query->whereIn('nasipaddress', $allowedNasIps))
             // Add 'id' here --------------------v
             ->select('id', 'reply', 'authdate', 'reason', 'pass') 
             ->orderBy('id', 'desc')
@@ -521,27 +566,41 @@ class CustomerRadiusService
     /**
      * Add reply attribute to radreply
      */
-    private function addReplyAttribute($username, $attribute, $op, $value)
+    private function addReplyAttribute($username, $attribute, $op, $value, $organizationId)
     {
-        $this->radiusConnection->table('radreply')->insert([
+        if (empty($organizationId)) {
+            throw new Exception('organization_id is required when writing radreply entries');
+        }
+
+        $insert = [
             'username' => $username,
             'attribute' => $attribute,
             'op' => $op,
             'value' => $value,
-        ]);
+            'organization_id' => $organizationId,
+        ];
+
+        $this->radiusConnection->table('radreply')->insert($insert);
     }
 
     /**
      * Add user to group
      */
-    private function addUserToGroup($username, $groupname, $priority = 1)
+    private function addUserToGroup($username, $groupname, $priority = 1, $organizationId = null)
     {
+        if (empty($organizationId)) {
+            throw new Exception('organization_id is required when writing radusergroup entries');
+        }
+
         Log::info("Adding user {$username} to group {$groupname} with priority {$priority}");
-        $this->radiusConnection->table('radusergroup')->insert([
+        $insert = [
             'username' => $username,
             'groupname' => $groupname,
             'priority' => $priority,
-        ]);
+            'organization_id' => $organizationId,
+        ];
+
+        $this->radiusConnection->table('radusergroup')->insert($insert);
     }
 
     /**

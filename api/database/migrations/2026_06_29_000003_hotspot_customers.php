@@ -39,7 +39,7 @@ return new class extends Migration
             $table->unsignedInteger('paused_seconds_remaining')->default(0);
             $table->boolean('is_independent')->default(true);
 
-            $table->string('radius_username')->unique();
+            $table->string('radius_username');
             $table->string('radius_password')->nullable();
 
             $table->string('ip_address')->nullable()->index();
