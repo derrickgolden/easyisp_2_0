@@ -21,16 +21,19 @@ class SubscriptionService
             return; 
         }
 
-        // Only skip active customers while their effective expiry is still in the future.
-        // Once the expiry date has passed, they must be re-evaluated so the cron can
-        // move them to the expired state and disconnect their RADIUS session.
+        // Always evaluate the expiry window for active accounts before we bail out.
+        // The warning checks are time-based and must run even while the customer is still active.
         $effectiveDate = $this->getEffectiveExpiryDate($customer);
-        if ($customer->status === 'active' && !$effectiveDate->isPast()) {
-            return;
-        }
 
         // Check and send pre-expiry warnings (48-hour and 1-hour)
         $this->checkAndSendExpiryWarnings($customer, $effectiveDate);
+
+        // Only skip active customers while their effective expiry is still in the future.
+        // Once the expiry date has passed, they must be re-evaluated so the cron can
+        // move them to the expired state and disconnect their RADIUS session.
+        if ($customer->status === 'active' && !$effectiveDate->isPast()) {
+            return;
+        }
         if ($effectiveDate->isPast()) {
             // Customer is expired - check if they have enough balance to auto-renew
             $packagePrice = $customer->effective_package_price;
@@ -392,24 +395,24 @@ class SubscriptionService
 
         // Send 48-hour warning only in the window (48h, 1h] and only once.
         if (!$customer->expiry_warning_sent_at && $minutesUntilExpiry > 60 && $minutesUntilExpiry <= (48 * 60)) {
-                $hoursUntilExpiry = max(1, (int) ceil($minutesUntilExpiry / 60));
+            $hoursUntilExpiry = max(1, (int) ceil($minutesUntilExpiry / 60));
 
+            $updates['expiry_warning_sent_at'] = $now;
             $messagingService->send(
                 $customer,
                 CustomerMessagingService::TYPE_EXPIRY_WARNING,
                 [
                     '{Expiry}' => $effectiveDate->format('M d, Y h:i A'),
-                        '{HoursUntilExpiry}' => (string) $hoursUntilExpiry,
+                    '{HoursUntilExpiry}' => (string) $hoursUntilExpiry,
                 ]
             );
-
-            $updates['expiry_warning_sent_at'] = $now;
         }
 
         // Send 1-hour warning in the last hour and only once.
         if (!$customer->expiry_one_hour_warning_sent_at && $minutesUntilExpiry <= 60) {
             $hoursUntilExpiry = max(1, (int) ceil($minutesUntilExpiry / 60));
 
+            $updates['expiry_one_hour_warning_sent_at'] = $now;
             $messagingService->send(
                 $customer,
                 CustomerMessagingService::TYPE_EXPIRY_ONE_HOUR_WARNING,
@@ -418,8 +421,6 @@ class SubscriptionService
                     '{HoursUntilExpiry}' => (string) $hoursUntilExpiry,
                 ]
             );
-
-            $updates['expiry_one_hour_warning_sent_at'] = $now;
         }
 
         if (!empty($updates)) {
