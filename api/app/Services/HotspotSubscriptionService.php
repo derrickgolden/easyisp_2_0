@@ -10,9 +10,6 @@ use Illuminate\Support\Facades\Log;
 
 class HotspotSubscriptionService
 {
-    /**
-     * Process a single hotspot customer - can be called by Cron or on Payment
-     */
     public function syncSubscription(HotspotCustomer $hotspot_customer)
     {        
         // 1. If the user is manually suspended, ensure they are blocked and STOP logic
@@ -43,9 +40,6 @@ class HotspotSubscriptionService
         }
     }
 
-    /**
-     * Requirement 1 & 2: Calculate date based on Extensions and Parent logic
-     */
     public function getEffectiveExpiryDate(HotspotCustomer $hotspot_customer)
     {
         // Determine who the "Provider" of the expiry date is

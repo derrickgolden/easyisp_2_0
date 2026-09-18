@@ -186,7 +186,8 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     Route::get('/hotspot-customers/{id}/devices', [HotspotCustomerController::class, 'devices']);
     Route::post('/hotspot-customers/{customer}/pause-subscription', [HotspotCustomerController::class, 'pauseSubscription']);
     Route::post('/hotspot-customers/{customer}/resume-subscription', [HotspotCustomerController::class, 'resumeSubscription']);
-    Route::post('/hotspot-customers/{customer}/reset-mac-binding', [HotspotCustomerController::class, 'resetMacBinding']);
+    Route::post('/hotspot-customers/{customer}/refresh-session', [HotspotCustomerController::class, 'refreshSession']);
+    Route::post('/hotspot-customers/{customer}/revoke-session', [HotspotCustomerController::class, 'revokeSession']);
     Route::apiResource('/hotspot-customers', HotspotCustomerController::class);
     // pppoe
     Route::get('/customers/organization', [CustomerController::class, 'getByOrganization']);

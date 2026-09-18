@@ -1137,7 +1137,7 @@ class SiteController extends Controller
                             // ignore storage errors
                         }
                     }
-                    const login = data.username || mac;
+                    const login = data.mac || mac || data.username;
                     executeMikrotikLogin(login, login);
                     return true;
                 } else {

@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card, Badge, Modal } from '../components/UI';
-import { Customer, Payment, TechnicalSpec } from '../types';
+import { Customer, Payment, TechnicalSpecs } from '../types';
 import { useNavigate, useParams } from 'react-router-dom';
 import { CustomerModal } from '../components/modals/CustomerModal';
 import { customersApi, hotspotPaymentsApi, paymentsApi } from '../services/apiService';
@@ -28,7 +28,7 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
   const [parent, setParent] = useState<Customer | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [technicalSpecs, setTechnicalSpecs] = useState<TechnicalSpec>();
+  const [technicalSpecs, setTechnicalSpecs] = useState<TechnicalSpecs>();
   const [isChangeDateModalOpen, setIsChangeDateModalOpen] = useState({open: false, type:''});
   const [isPriceOverrideModalOpen, setIsPriceOverrideModalOpen] = useState(false);
   const [callApi, setCallApi] = useState(false);

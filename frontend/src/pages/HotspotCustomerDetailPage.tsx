@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card, Badge } from '../components/UI';
-import { Customer, Payment, TechnicalSpec } from '../types';
+import { Customer, HotspotCustomerDevice, Payment, TechnicalSpecs } from '../types';
 import { useNavigate, useParams } from 'react-router-dom';
 import { HotspotCustomerModal } from '../components/modals/HotspotCustomerModal';
 import { hotspotCustomersApi, hotspotPaymentsApi } from '../services/apiService';
@@ -17,6 +17,7 @@ import SmsLogsCard from '../components/cards/customerDetailsCards.tsx/SmsLogsCar
 import { usePermissions } from '../hooks/usePermissions';
 import { formatPhone, isMobileDevice } from '../utils/callFactionality.ts';
 import { ConnectedDevicesCard } from '../components/cards/customerDetailsCards.tsx/ConnectedDevicesCard.tsx';
+import { toast } from 'sonner';
 
 interface CustomerDetailPageProps {}
 
@@ -24,14 +25,16 @@ export const HotspotCustomerDetailPage: React.FC<CustomerDetailPageProps> = () =
   const navigate = useNavigate();
   const { customerId } = useParams<{ customerId: string }>();
   const [customer, setCustomer] = useState<Customer | null>(null);
-
+  const [selectedDevice, setSelectedDevice] = useState<HotspotCustomerDevice | null>(null);
+  const [isRevokingSession, setIsRevokingSession] = useState(false);
   const [parent, setParent] = useState<Customer | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState({details: false, devices: false, payments: false});
   const [error, setError] = useState<string | null>(null);
-  const [technicalSpecs, setTechnicalSpecs] = useState<TechnicalSpec>();
+  const [technicalSpecs, setTechnicalSpecs] = useState<TechnicalSpecs>();
   const [isChangeDateModalOpen, setIsChangeDateModalOpen] = useState({open: false, type:''});
-  const [callApi, setCallApi] = useState(false);
+  const [callApi, setCallApi] = useState({details: false, devices: false, payments: false});
   const lastFetchKeyRef = React.useRef<string | null>(null);
+  const [devices, setDevices] = useState<HotspotCustomerDevice[]>([]);
   const { state, actions } = useCustomerActions();
   const { can } = usePermissions();
 
@@ -69,22 +72,55 @@ export const HotspotCustomerDetailPage: React.FC<CustomerDetailPageProps> = () =
     [customer?.effectivePackagePrice, customer?.package?.price]
   );
 
+  useEffect(() => {
+      let isMounted = true;
+
+      const fetchDevices = async () => {
+        setIsLoading(prev => ({ ...prev, devices: true }));
+        try {
+          if (!customer?.id) return;
+          const response = await hotspotCustomersApi.getDevices(customer.id.toString());
+          console.log('Fetched connected devices:', response.data);
+          if (isMounted) setDevices(response.data || []);
+        } catch (error) {
+          console.error('Failed to fetch connected devices:', error);
+          if (isMounted) setDevices([]);
+        } finally {
+          if (isMounted) setIsLoading(prev => ({ ...prev, devices: false }));
+        }
+      };
+
+      fetchDevices();
+
+      return () => {
+        isMounted = false;
+      };
+  }, [customer?.id, callApi.devices]);
+
   // Fetch customer and related data
   useEffect(() => {
     if (!customerId) return;
-    const fetchKey = `${customerId}-${callApi}`;
+    const fetchKey = `${customerId}-${callApi.details}`;
     if (lastFetchKeyRef.current === fetchKey) return;
     lastFetchKeyRef.current = fetchKey;
 
-    fetchTechnicalSpecs();
     fetchCustomerData();
     fetchPayments();
-  }, [customerId, callApi]);
+  }, [customerId, callApi.details, callApi.payments]);
+
+  useEffect(() => {
+    if (customer && devices.length === 1) {
+      fetchTechnicalSpecs();
+    }
+  }, [customer, devices, callApi.devices]);
+
   // Fetch technical specs
   const fetchTechnicalSpecs = async () => {
     if (!customerId) return;
+    if (devices.length !== 1) return;
     try {
-      const response = await hotspotCustomersApi.getTechnicalSpecs(customerId);
+      const macAddress = devices.length > 0 ? (devices[0].current_mac || devices[0].previous_mac || '') : '';
+      const response = await hotspotCustomersApi.getTechnicalSpecs(customerId, macAddress);
       setTechnicalSpecs(response);
     } catch (err: any) {
       console.error('Failed to fetch technical specs:', err);
@@ -94,7 +130,7 @@ export const HotspotCustomerDetailPage: React.FC<CustomerDetailPageProps> = () =
   const fetchCustomerData = async () => {
     if (!customerId) return;
     
-    setIsLoading(true);
+    setIsLoading(prev => ({ ...prev, details: true }));
     setError(null);
 
     try {
@@ -107,7 +143,7 @@ export const HotspotCustomerDetailPage: React.FC<CustomerDetailPageProps> = () =
       console.error('Failed to fetch customer:', err);
       setError(err.message || 'Failed to load customer details');
     } finally {
-      setIsLoading(false);
+      setIsLoading(prev => ({ ...prev, details: false }));
     }
   };
 
@@ -124,6 +160,29 @@ export const HotspotCustomerDetailPage: React.FC<CustomerDetailPageProps> = () =
     }
   };
 
+const RevokeSession = async ({customerId, radiusUsername}: {customerId: string, radiusUsername: string}, macAddress: string) => {
+      if (isRevokingSession) return;
+
+      if (radiusUsername === macAddress) {
+        toast.error('Cannot revoke mac session for a primary device.');
+        return;
+      }
+      
+      setIsRevokingSession(true);
+
+      try {
+        const response = await hotspotCustomersApi.revokeSession(customerId, macAddress);
+        toast.success(response.message);
+      } catch (error) {
+        console.error('Error revoking hotspot session:', error);
+        toast.error('Failed to revoke session.');
+      } finally {
+        setCallApi(prev => ({ ...prev, devices: !prev.devices })); 
+        setSelectedDevice(null);
+        setIsRevokingSession(false);
+      }
+  };
+
   const handleCallClick = (): void => {
     if (!customer || typeof customer.phone !== 'string' || !customer.phone.trim()) return;
     const formattedPhone: string = formatPhone(customer.phone);
@@ -138,7 +197,7 @@ export const HotspotCustomerDetailPage: React.FC<CustomerDetailPageProps> = () =
     }
   };
 
-  if (isLoading) {
+  if (isLoading.details) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
@@ -303,12 +362,26 @@ export const HotspotCustomerDetailPage: React.FC<CustomerDetailPageProps> = () =
           </div>
 
           <div className='lg:hidden'>
-            <ConnectedDevicesCard customerId={customer.id.toString()} />
-            {/* <TechnicalSpecCard 
-              technicalSpecs={technicalSpecs} 
-              customer={customer}
-              onRefresh={async () => { await fetchTechnicalSpecs(); }}
-            /> */}
+            {
+              devices.length > 1 ? (
+                <ConnectedDevicesCard 
+                  customer={customer} 
+                  devices={devices} 
+                  selectedDevice={selectedDevice}
+                  setSelectedDevice={setSelectedDevice}
+                  isRevokingSession={isRevokingSession}
+                  revokeSession={RevokeSession}
+                  isLoading={isLoading.devices} 
+                  />
+                ) : (
+                <TechnicalSpecCard 
+                  technicalSpecs={technicalSpecs} 
+                  revokeSession={RevokeSession}
+                  isRevokingSession={isRevokingSession}
+                  customer={customer}
+                  onRefresh={async () => { await fetchTechnicalSpecs(); }}
+              /> 
+            )}
           </div>
 
           {/* Subscription & Financial Row */}
@@ -465,50 +538,68 @@ export const HotspotCustomerDetailPage: React.FC<CustomerDetailPageProps> = () =
         {/* Right Sidebar */}
         <div className="space-y-6">
           <div className='hidden lg:block'>
-            <ConnectedDevicesCard customerId={customer.id.toString()} />
-            {/* <TechnicalSpecCard 
-              technicalSpecs={technicalSpecs} 
-              customer={customer}
-              onRefresh={async () => { await fetchTechnicalSpecs(); }}
-            /> */}
+            {
+              devices.length > 1 ? (
+                <ConnectedDevicesCard 
+                  customer={customer} 
+                  selectedDevice={selectedDevice}
+                  setSelectedDevice={setSelectedDevice}
+                  revokeSession={RevokeSession}
+                  isRevokingSession={isRevokingSession}
+                  devices={devices} 
+                  isLoading={isLoading.devices} 
+                  />
+                ) : (
+                <TechnicalSpecCard 
+                  technicalSpecs={technicalSpecs} 
+                  customer={customer}
+                  isRevokingSession={isRevokingSession}
+                  revokeSession={RevokeSession}
+                  onRefresh={async () => { await fetchTechnicalSpecs(); }}
+              /> 
+            )}
           </div>
 
           {/* RADIUS AUTH LOGS */}
-          <Card title="Authentication Records" className="border-none shadow-sm rounded-[2.5rem]">
-            <div className="flex justify-between items-center">
-              <p className="text-xs text-gray-500 font-medium italic">Detailed RADIUS authentication and accounting trail.</p>
-            </div>
+          {
+            devices.length < 2 &&  (
+              <Card title="Authentication Records" className="border-none shadow-sm rounded-[2.5rem]">
+                <div className="flex justify-between items-center">
+                  <p className="text-xs text-gray-500 font-medium italic">Detailed RADIUS authentication and accounting trail.</p>
+                </div>
 
-              <div className="mt-4 overflow-x-auto -mx-6 border-t dark:border-slate-800 animate-in slide-in-from-top-2 duration-300">
-                <table className="w-full text-sm">
-                  <thead className="text-left text-gray-400 uppercase text-[10px] tracking-widest bg-gray-50/50 dark:bg-slate-800/30">
-                    <tr>
-                      {/* <th className="py-4 px-6">Time</th> */}
-                      <th className="py-4 px-6">Reply</th>
-                      <th className="py-4 px-6">Auth Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y dark:divide-slate-800">
-                    {technicalSpecs?.logs?.data?.map((log) => (
-                        <tr key={log.id} className="hover:bg-blue-50/10 transition-colors">
-                          {/* <td className="py-4 px-6 text-xs text-gray-500 font-mono">{log.time}</td> */}
-                          <td className="py-4 px-6">
-                            <span className="text-[10px] font-black uppercase text-slate-400">{log.reply}</span> <br />
-                            <span className=" text-xs text-gray-500 font-mono">{log.time}</span>
-                          </td>
-                          <td className="py-4 px-6">
-                            <Badge variant={log.status_label.toLowerCase() === 'auth successful' ? 'active' : 'expired'}>
-                              {log.status_label.toUpperCase()}
-                            </Badge>
-                          </td>
+                  <div className="mt-4 overflow-x-auto -mx-6 border-t dark:border-slate-800 animate-in slide-in-from-top-2 duration-300">
+                    <table className="w-full text-sm">
+                      <thead className="text-left text-gray-400 uppercase text-[10px] tracking-widest bg-gray-50/50 dark:bg-slate-800/30">
+                        <tr>
+                          {/* <th className="py-4 px-6">Time</th> */}
+                          <th className="py-4 px-6">Reply</th>
+                          <th className="py-4 px-6">Auth Status</th>
                         </tr>
-                      )) || (
-                        <tr><td colSpan={3} className="py-10 text-center text-xs text-gray-400 italic">No logs found in the core database.</td></tr>
-                      )}
-                  </tbody>
-                </table>
-              </div>
-          </Card>
+                      </thead>
+                      <tbody className="divide-y dark:divide-slate-800">
+                        {technicalSpecs?.logs?.data?.map((log) => (
+                            <tr key={log.id} className="hover:bg-blue-50/10 transition-colors">
+                              {/* <td className="py-4 px-6 text-xs text-gray-500 font-mono">{log.time}</td> */}
+                              <td className="py-4 px-6">
+                                <span className="text-[10px] font-black uppercase text-slate-400">{log.reply}</span> <br />
+                                <span className=" text-xs text-gray-500 font-mono">{log.time}</span>
+                              </td>
+                              <td className="py-4 px-6">
+                                <Badge variant={log.status_label.toLowerCase() === 'auth successful' ? 'active' : 'expired'}>
+                                  {log.status_label.toUpperCase()}
+                                </Badge>
+                              </td>
+                            </tr>
+                          )) || (
+                            <tr><td colSpan={3} className="py-10 text-center text-xs text-gray-400 italic">No logs found in the core database.</td></tr>
+                          )}
+                      </tbody>
+                    </table>
+                  </div>
+              </Card>
+            )
+          }
 
           {/* Relational Hierarchy with Sub-Account Details */}
            <Card title="Relational Hierarchy" className="rounded-[2.5rem] border border-purple-300 dark:border-purple-800 shadow-sm bg-purple-50/50 dark:bg-purple-900/5">
@@ -595,14 +686,14 @@ export const HotspotCustomerDetailPage: React.FC<CustomerDetailPageProps> = () =
         editingHotspotCustomer={state.editingCustomer}
         setEditingHotspotCustomer={actions.setEditingCustomer}
         customers={ [] }
-        onSuccess={() => setCallApi(!callApi) }
+        onSuccess={() => setCallApi(prev => ({ ...prev, details: !prev.details })) }
       />
 
       <DirectDepositModal
         isOpen={state.isDepositModalOpen}
         setIsDepositModalOpen={actions.setIsDepositModalOpen}
         customer={customer}
-        onSuccess={() => setCallApi(!callApi)}
+        onSuccess={() => setCallApi(prev => ({ ...prev, payments: !prev.payments })) }
       />
 
       <ChangeDateModal
@@ -610,14 +701,14 @@ export const HotspotCustomerDetailPage: React.FC<CustomerDetailPageProps> = () =
          setIsChangeDateModalOpen={setIsChangeDateModalOpen}
          customer={customer}
          customerType="hotspot"
-         onSuccess={() => setCallApi(!callApi)}
+         onSuccess={() => setCallApi(prev => ({ ...prev, details: !prev.details })) }
       />
 
       <ChangePackageModal
         isOpen={state.isPackageModalOpen}
         onClose={() => actions.setIsPackageModalOpen(false)}
         customer={customer}
-        onSuccess={() => setCallApi(!callApi)}
+        onSuccess={() => setCallApi(prev => ({ ...prev, details: !prev.details })) }
       />
 
       <ReconcileMpesaModal
@@ -625,7 +716,7 @@ export const HotspotCustomerDetailPage: React.FC<CustomerDetailPageProps> = () =
         isResolveModalOpen={state.isReconcileModalOpen}
         setIsResolveModalOpen={actions.setIsReconcileModalOpen}
         onClose={() => actions.setIsReconcileModalOpen(false)}
-        onSuccess={() => setCallApi(!callApi)}
+        onSuccess={() => setCallApi(prev => ({ ...prev, details: !prev.details })) }
       /> 
 
     </div>

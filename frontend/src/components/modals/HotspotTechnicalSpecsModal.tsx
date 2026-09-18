@@ -1,22 +1,29 @@
 import { useState, useEffect, useRef } from 'react';
-import { Card, Modal } from "../../UI";
-import { customersApi, hotspotCustomersApi } from '../../../services/apiService';
+import { Card, Modal } from "../UI";
+import { customersApi, hotspotCustomersApi } from '../../services/apiService';
 import { toast } from 'sonner';
 import { usePermissions } from '@/src/hooks/usePermissions';
-import type { Customer, TechnicalSpecs } from '@/src/types';
+import type { Customer, HotspotCustomerDevice, HotspotRadiusSession, TechnicalSpecs } from '@/src/types';
 
-export const TechnicalSpecCard = ({technicalSpecs, customer, revokeSession, onRefresh, isRevokingSession}: 
-  { technicalSpecs?: TechnicalSpecs; 
-    customer: Customer; 
-    revokeSession: (params: { customerId: string; radiusUsername: string }, macAddress: string) => Promise<void>; 
-    onRefresh: () => Promise<void>, 
-    isRevokingSession: boolean
-  }) => {
+interface HotspotSessionHistoryModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  device: HotspotCustomerDevice | null;
+  customer: Customer;
+  onRevokeSession: ({customerId, radiusUsername}: {customerId: string, radiusUsername: string}, macAddress: string) => Promise<void>;
+  isRevokingSession: boolean;
+  onRefresh: () => Promise<void> | void;
+  technicalSpecs: TechnicalSpecs | null;
+  isLoading?: boolean;
+}
 
+
+export const HotspotTechnicalSpecsModal = ({
+  isOpen, onClose, technicalSpecs, device, customer, onRefresh, isLoading, onRevokeSession, isRevokingSession
+}: HotspotSessionHistoryModalProps) => {
     const [uptime, setUptime] = useState<string>('Offline');
     const [isPolling, setIsPolling] = useState(false);
     const [isResettingMac, setIsResettingMac] = useState(false);
-    const [isAccountingModalOpen, setIsAccountingModalOpen] = useState(false);
     const isRequesting = useRef(false);
     const currentDelay = useRef(2000); // Use ref to persist delay across renders
     const startTimeIso = technicalSpecs?.start_time;
@@ -156,13 +163,16 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, revokeSession, onRe
           onRefresh();
           toast.success(response.message);
         }else if (customer.connectionType === "Hotspot") {
-          const response = await hotspotCustomersApi.refreshSession(customer.id, [technicalSpecs?.calling_station_id || '']);
+          const macAddresses = [device?.current_mac, device?.previous_mac]
+            .filter((mac): mac is string => Boolean(mac?.trim()))
+            .map((mac) => mac.trim());
+          const response = await hotspotCustomersApi.refreshSession(customer.id, macAddresses);
           onRefresh();
           toast.success(response.message);
         }
       } catch (error) {
-        console.error("Error resetting MAC binding:", error);
-        toast.error("Failed to reset MAC binding.");
+        console.error("Error refreshing session:", error);
+        toast.error("Failed to refresh session.");
       } finally {
         setIsResettingMac(false);
       }
@@ -194,7 +204,12 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, revokeSession, onRe
     };
 
     return (
-           <Card title="Technical Specs" className="border-none shadow-sm rounded-[2.5rem] bg-slate-900 text-white">
+            <Modal
+              isOpen={isOpen}
+              onClose={onClose}
+              title={`RADIUS Session History: ${device?.current_mac || 'Device'}`}
+              maxWidth="max-w-3xl"
+            >
               <div className="space-y-5">
                  <div className="flex justify-between items-start">
                     <div>
@@ -272,45 +287,33 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, revokeSession, onRe
                         </span>
                       </div>
                     </div>
-                    <div className={`grid grid-cols-2 gap-2`}>
+                    <div className="flex gap-2">
                       {
                         can('flash-mac-binding') && (
                           <button
                             onClick={() => onResetMAC(customer)}
                             disabled={isResettingMac}
-                            className={`flex-1 py-2 text-yellow-800 border border-yellow-300 rounded-xl text-[12px] font-black uppercase tracking-widest transition-all ${
+                            className={`w-1/2 py-2 text-yellow-800 border border-yellow-300 rounded-xl text-[12px] font-black uppercase tracking-widest transition-all ${
                               isResettingMac
                                 ? 'bg-yellow-100 opacity-60 cursor-not-allowed'
                                 : 'bg-yellow-100 hover:bg-yellow-200'
                             }`}
                           >
-                              {isResettingMac ? 'Refreshing...' : 'REFRESH'}
+                            {isResettingMac ? 'Refreshing...' : 'REFRESH SESSION'}
                           </button>
                         )
                       }
-                      <button onClick={() => setIsAccountingModalOpen(true)} 
-                        className="flex-1 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-xl text-[12px] 
-                        border border-blue-300 font-black uppercase tracking-widest transition-all">
-                          In Detail
+                      <button
+                        onClick={() => onRevokeSession({customerId: customer.id.toString(), radiusUsername: customer?.radiusUsername || ''}, technicalSpecs?.calling_station_id || '')}
+                        disabled={isRevokingSession}
+                        className={`flex-1 py-2 rounded-xl text-[12px] border border-red-300 font-black uppercase tracking-widest transition-all ${
+                          isRevokingSession
+                            ? 'bg-red-600/10 text-red-400/60 cursor-not-allowed'
+                            : 'bg-red-600/20 hover:bg-red-600/30 text-red-400'
+                        }`}
+                      >
+                          {isRevokingSession ? 'Revoking...' : 'Revoke Session'}
                       </button>
-                      {
-                        customer.connectionType === "Hotspot" && (
-                          <button
-                            onClick={() => revokeSession({ 
-                              customerId: customer.id.toString(), radiusUsername: customer?.radiusUsername || ''}, 
-                              technicalSpecs?.calling_station_id || '')
-                            }
-                            disabled={isRevokingSession}
-                            className={`col-span-2 py-2 rounded-xl text-[12px] border border-red-300 font-black uppercase tracking-widest transition-all ${
-                              isRevokingSession
-                                ? 'bg-red-600/10 text-red-400/60 cursor-not-allowed'
-                                : 'bg-red-600/20 hover:bg-red-600/30 text-red-400'
-                            }`}
-                          >
-                              {isRevokingSession ? 'Revoking...' : 'Revoke Session'}
-                          </button>
-                        )
-                      }
                     </div>
 
                     {/* <p className="text-[9px] font-mono text-slate-500 uppercase tracking-wider">
@@ -320,13 +323,7 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, revokeSession, onRe
                  </div>
               </div>
 
-              <Modal 
-                isOpen={isAccountingModalOpen} 
-                onClose={() => setIsAccountingModalOpen(false)} 
-                title={`RADIUS Session History: ${customer.radiusUsername}`}
-                maxWidth="max-w-6xl"
-              >
-                <div className="space-y-4">
+                <div className="space-y-4 mt-10">
                   <div className="overflow-x-auto -mx-6">
                     <table className="w-full text-[11px]">
                       <thead className="bg-gray-50 dark:bg-slate-800 text-gray-400 uppercase tracking-widest">
@@ -340,7 +337,7 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, revokeSession, onRe
                         </tr>
                       </thead>
                       <tbody className="divide-y dark:divide-slate-800">
-                        {technicalSpecs?.sessions?.map((record, index: number) => {
+                        {technicalSpecs?.sessions?.map((record: HotspotRadiusSession, index: number) => {
                           let offlineSeconds = -1;
                           const nextRecord = technicalSpecs.sessions[index + 1];
                           if (nextRecord && nextRecord.acctstoptime) {
@@ -389,18 +386,14 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, revokeSession, onRe
                       </tbody>
                     </table>
                   </div>
+                </div>
                   <div className="flex justify-between items-center pt-4 border-t dark:border-slate-800">
-                    <p className="text-[10px] text-gray-500 uppercase font-black tracking-tighter">
-                      Last synced with MikroTik: {new Date().toLocaleTimeString()}
-                    </p>
-                    <button onClick={() => setIsAccountingModalOpen(false)} 
+                    <button onClick={() => onClose()} 
                       className="px-6 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] 
                       font-black uppercase rounded-xl">
                         Close Intelligence
                     </button>
                   </div>
-                </div>
-              </Modal>
-           </Card>         
+           </Modal>         
     )
 }

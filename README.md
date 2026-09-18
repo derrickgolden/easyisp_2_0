@@ -91,12 +91,18 @@ Callback URL: /payments/c2b/hNnF5iJJPR71uYGRtgt6/confirmation
 Callback URL: /payments/payhero/hNnF5iJJPR71uYGRtgt6/stk/callback
 Callback URL: /payments/daraja/hNnF5iJJPR71uYGRtgt6/stk/callback
 
-
 Generated token for organization 2 (Shinetech Networks).
 Callback URL: /payments/c2b/ENNXfWa8JwrjLcvfg42x/validation
 Callback URL: /payments/c2b/ENNXfWa8JwrjLcvfg42x/confirmation
 Callback URL: /payments/payhero/ENNXfWa8JwrjLcvfg42x/stk/callback
 Callback URL: /payments/daraja/ENNXfWa8JwrjLcvfg42x/stk/callback
+
+Generated token for organization 9 (Trika kenya  Global).
+Callback URL: /payments/c2b/azAVf52VENWZCWZA2lCn/validation
+Callback URL: /payments/c2b/azAVf52VENWZCWZA2lCn/confirmation
+Callback URL: /payments/payhero/azAVf52VENWZCWZA2lCn/stk/callback
+Callback URL: /payments/daraja/azAVf52VENWZCWZA2lCn/stk/callback
+
 
 
 #reversing wrongly closed sessions

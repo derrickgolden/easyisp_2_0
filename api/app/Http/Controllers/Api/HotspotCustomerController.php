@@ -43,7 +43,7 @@ class HotspotCustomerController extends Controller
         $this->middleware('permission:manage-customers|create-customers')->only(['store', 'update']);
         $this->middleware('permission:delete-customers')->only(['destroy']);
         $this->middleware('permission:manage-subscriptions')->only(['pauseSubscription', 'resumeSubscription']);
-        $this->middleware('permission:flash-mac-binding')->only(['resetMacBinding']);
+        $this->middleware('permission:refresh-sessions')->only(['refreshSession', 'revokeSession']);
 
         $this->radiusService = $radiusService;
         $this->subscriptionService = $subscriptionService;
@@ -60,12 +60,34 @@ class HotspotCustomerController extends Controller
         $search = trim((string) $request->query('search', ''));
 
         // --- 1. OPTIMIZATION: Fetch Active RADIUS Usernames upfront ---
-        // Instead of slow subqueries inside SQL, get a fast array of usernames 
-        // currently marked as online in RADIUS.
-        $allOrgUsernames = HotspotCustomer::where('organization_id', $organizationId)
-            ->whereNotNull('radius_username')
-            ->pluck('radius_username')
-            ->toArray();
+        // $organizationDevices = HotspotDevice::where('organization_id', $organizationId)
+        //     ->whereNotNull('customer_id')
+        //     ->get(['customer_id', 'current_mac', 'previous_mac']);
+
+        $organizationDevices = HotspotDevice::where('organization_id', $organizationId)
+            ->whereNotNull('customer_id')
+            ->select(['customer_id', 'current_mac', 'previous_mac'])
+            ->get();
+
+        $allDeviceMacs = $organizationDevices
+            ->flatMap(function ($device) {
+                return collect([$device->current_mac, $device->previous_mac])
+                    ->map(fn ($mac) => trim((string) $mac))
+                    ->filter();
+            })
+            ->unique()
+            ->values()
+            ->all();
+
+        $deviceMacsByCustomer = $organizationDevices
+            ->groupBy('customer_id')
+            ->map(fn ($devices) => $devices
+                ->flatMap(fn ($device) => [$device->current_mac, $device->previous_mac])
+                ->map(fn ($mac) => trim((string) $mac))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all());
 
         $organizationSiteIps = Site::where('organization_id', $organizationId)
             ->whereNotNull('ip_address')
@@ -76,13 +98,13 @@ class HotspotCustomerController extends Controller
             ->values()
             ->all();
 
-        $activeOnlineUsernames = [];
-        if (!empty($allOrgUsernames)) {
+        $activeOnlineDeviceMacs = [];
+        if (!empty($allDeviceMacs)) {
             try {
                 // This is lightning fast because it only queries active sessions (acctstoptime is null)
-                $activeOnlineUsernames = DB::connection('radius')
+                $activeOnlineDeviceMacs = DB::connection('radius')
                     ->table('radacct')
-                    ->whereIn('username', $allOrgUsernames)
+                    ->whereIn('username', $allDeviceMacs)
                     ->when(!empty($organizationSiteIps), fn ($query) => $query->whereIn('nasipaddress', $organizationSiteIps))
                     ->whereNull('acctstoptime')
                     ->pluck('username')
@@ -92,6 +114,11 @@ class HotspotCustomerController extends Controller
                 Log::warning('Failed to fetch active sessions from RADIUS.', ['error' => $e->getMessage()]);
             }
         }
+
+        $onlineCustomerIds = $deviceMacsByCustomer
+            ->filter(fn ($macs, $customerId) => !empty(array_intersect($macs, $activeOnlineDeviceMacs)))
+            ->keys()
+            ->all();
 
         // --- 2. Build the Base Query ---
         $query = HotspotCustomer::query()->where('organization_id', $organizationId);
@@ -110,12 +137,15 @@ class HotspotCustomerController extends Controller
         // --- 3. OPTIMIZATION: Fast PHP-driven Online/Offline filtering ---
         // No correlated subqueries or collation conversions!
         if ($onlineStatus === 'online') {
-            $query->whereIn('radius_username', $activeOnlineUsernames);
+            if (empty($onlineCustomerIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereIn('id', $onlineCustomerIds);
+            }
         } elseif ($onlineStatus === 'offline') {
-            $query->where(function ($q) use ($activeOnlineUsernames) {
-                $q->whereNull('radius_username')
-                ->orWhereNotIn('radius_username', $activeOnlineUsernames);
-            });
+            if (!empty($onlineCustomerIds)) {
+                $query->whereNotIn('id', $onlineCustomerIds);
+            }
         }
 
         if ($search !== '') {
@@ -139,7 +169,7 @@ class HotspotCustomerController extends Controller
             'total'   => (clone $query)->count(),
             'active'  => (clone $query)->where('status', 'active')->count(),
             'expired' => (clone $query)->where('status', 'expired')->count(),
-            'online'  => count($activeOnlineUsernames), // Calculated purely in memory now!
+            'online'  => count($onlineCustomerIds), // Calculated purely in memory now!
         ];
 
         // --- 5. Sort active users first at the database layer so pagination keeps them at the top ---
@@ -155,19 +185,24 @@ class HotspotCustomerController extends Controller
 
         // --- 6. Session Enrichment for Current Page (Max 50 or 200) ---
         $customersCollection = $customersPaginator->getCollection();
-        $pageUsernames = $customersCollection->pluck('radius_username')->filter()->values()->toArray();
+        $pageCustomerIds = $customersCollection->pluck('id')->all();
+        $pageDeviceMacs = collect($pageCustomerIds)
+            ->flatMap(fn ($customerId) => $deviceMacsByCustomer->get($customerId, []))
+            ->unique()
+            ->values()
+            ->all();
         $latestSessions = collect();
 
-        if (!empty($pageUsernames)) {
+        if (!empty($pageDeviceMacs)) {
             try {
                 $latestSessions = DB::connection('radius')
                     ->table('radacct')
-                    ->whereIn('username', $pageUsernames)
+                    ->whereIn('username', $pageDeviceMacs)
                     ->when(!empty($organizationSiteIps), fn ($query) => $query->whereIn('nasipaddress', $organizationSiteIps))
-                    ->whereIn('radacctid', function ($subQuery) use ($pageUsernames, $organizationSiteIps) {
+                    ->whereIn('radacctid', function ($subQuery) use ($pageDeviceMacs, $organizationSiteIps) {
                         $subQuery->selectRaw('MAX(radacctid)')
                             ->from('radacct')
-                            ->whereIn('username', $pageUsernames)
+                            ->whereIn('username', $pageDeviceMacs)
                             ->when(!empty($organizationSiteIps), fn ($innerQuery) => $innerQuery->whereIn('nasipaddress', $organizationSiteIps))
                             ->groupBy('username');
                     })
@@ -191,8 +226,12 @@ class HotspotCustomerController extends Controller
         }
 
         // Map attributes back to models
-        $customersCollection->each(function ($customer) use ($latestSessions, $sitesByIp) {
-            $session = $latestSessions->get($customer->radius_username);
+        $customersCollection->each(function ($customer) use ($deviceMacsByCustomer, $latestSessions, $sitesByIp) {
+            $session = collect($deviceMacsByCustomer->get($customer->id, []))
+                ->map(fn ($mac) => $latestSessions->get($mac))
+                ->filter()
+                ->sortByDesc(fn ($candidate) => is_null($candidate->acctstoptime))
+                ->first();
             $isOnline = ($session && is_null($session->acctstoptime));
             $nasIpAddress = trim((string) ($session?->nasipaddress ?? ''));
 
@@ -422,7 +461,10 @@ class HotspotCustomerController extends Controller
 
     public function devices(Request $request, $id)
     {
-        $customer = HotspotCustomer::where('organization_id', $request->user()->organization_id)->find($id);
+        $customer = HotspotCustomer::query()
+            ->where('organization_id', $request->user()->organization_id)
+            ->whereKey($id)
+            ->first();
 
         if (! $customer) {
             return response()->json(['message' => 'Hotspot customer not found'], 404);
@@ -432,6 +474,53 @@ class HotspotCustomerController extends Controller
             ->where('customer_id', $customer->id)
             ->latest('last_seen_at')
             ->get(['id', 'current_mac', 'previous_mac', 'last_seen_at']);
+
+        $deviceMacs = $devices
+            ->flatMap(fn ($device) => [$device->current_mac, $device->previous_mac])
+            ->map(fn ($mac) => trim((string) $mac))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $activeSessions = collect();
+        if (!empty($deviceMacs)) {
+            $siteIps = Site::where('organization_id', $customer->organization_id)
+                ->whereNotNull('ip_address')
+                ->pluck('ip_address')
+                ->map(fn ($ip) => trim((string) $ip))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            try {
+                $activeSessions = DB::connection('radius')
+                    ->table('radacct')
+                    ->whereIn('username', $deviceMacs)
+                    ->when(!empty($siteIps), fn ($query) => $query->whereIn('nasipaddress', $siteIps))
+                    ->whereNull('acctstoptime')
+                    ->get(['username'])
+                    ->keyBy('username');
+            } catch (\Throwable $exception) {
+                Log::warning('Failed to load device session states from RADIUS.', [
+                    'customer_id' => $customer->id,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+        }
+
+        $devices->each(function ($device) use ($activeSessions) {
+            $macs = collect([$device->current_mac, $device->previous_mac])
+                ->map(fn ($mac) => trim((string) $mac))
+                ->filter();
+
+            $isOnline = $macs
+                ->contains(fn ($mac) => $activeSessions->has($mac));
+
+            $device->is_online = $isOnline ? 1 : 0;
+            $device->online_status = $isOnline ? 'online' : 'offline';
+        });
 
         return response()->json(['data' => $devices]);
     }
@@ -554,7 +643,7 @@ class HotspotCustomerController extends Controller
                 if ($newExpiry->isFuture()) {
                     $customer->status = 'active';
                     $customer->save();
-                    $this->subscriptionService->applyActiveStatus($customer);
+                    $this->subscriptionService->applyActiveStatus($customer, $customer->voucher);
                 } else {
                     $customer->save();
                     $this->subscriptionService->syncSubscription($customer);
@@ -569,7 +658,7 @@ class HotspotCustomerController extends Controller
                     if ($newExpiry->isFuture()) {
                         $child->status = 'active';
                         $child->save();
-                        $this->subscriptionService->applyActiveStatus($child);
+                        $this->subscriptionService->applyActiveStatus($child, $child->voucher);
                     } else {
                         $child->save();
                         $this->subscriptionService->syncSubscription($child);
@@ -707,27 +796,152 @@ class HotspotCustomerController extends Controller
         ]);
     }
 
-    public function resetMacBinding(Request $request, $id)
+    public function refreshSession(Request $request, $id)
     {
-        $customer = HotspotCustomer::where('organization_id', $request->user()->organization_id)->find($id);
+        $customer = HotspotCustomer::query()
+            ->where('organization_id', $request->user()->organization_id)
+            ->whereKey($id)
+            ->first();
         if (!$customer) {
             return response()->json(['message' => 'Customer not found'], 404);
         }
 
         try {
-            // Remove MAC lock only for this organization
-            // $this->radiusService->flushMacOnly($customer->radius_username, $customer->organization_id);
-            // Disconnect any active sessions for this username
-            $this->radiusService->disconnectCustomer($customer->radius_username, $customer->organization_id);
+            $request->validate([
+                'macAddresses' => ['nullable', 'array'],
+                'macAddresses.*' => ['nullable', 'string', 'max:17'],
+            ]);
+
+            $requestedMacs = collect($request->input('macAddresses', []))
+                ->filter(fn ($mac) => is_string($mac) && trim($mac) !== '')
+                ->map(fn ($mac) => trim($mac))
+                ->unique()
+                ->values();
+
+            $linkedMacs = HotspotDevice::query()
+                ->where('organization_id', $customer->organization_id)
+                ->where('customer_id', $customer->id)
+                ->where(function ($query) use ($requestedMacs) {
+                    $query->whereIn('current_mac', $requestedMacs)
+                        ->orWhereIn('previous_mac', $requestedMacs);
+                })
+                ->get(['current_mac', 'previous_mac'])
+                ->flatMap(fn ($device) => [$device->current_mac, $device->previous_mac])
+                ->map(fn ($mac) => trim((string) $mac))
+                ->filter()
+                ->unique()
+                ->values();
+
+            $disconnectResults = [];
+            foreach ($linkedMacs as $mac) {
+                $disconnectResults[$mac] = $this->radiusService->disconnectCustomer(
+                    $mac,
+                    $customer->organization_id
+                );
+            }
+
+            if ($linkedMacs->isEmpty()) {
+                $disconnectResults[$customer->radius_username] = $this->radiusService->disconnectCustomer(
+                    $customer->radius_username,
+                    $customer->organization_id
+                );
+            }
                         
             return response()->json([
-                'message' => 'MAC binding reset.',
+                'message' => 'Session refreshed.',
                 'customer_id' => $customer->id,
+                'disconnected_usernames' => array_keys($disconnectResults),
+                'disconnect_results' => $disconnectResults,
                 'status' => 're-syncing'
             ], 200);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             return response()->json([
-                'message' => 'Failed to reset MAC binding',
+                'message' => 'Failed to refresh session.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function revokeSession(Request $request, $id)
+    {
+        $customer = HotspotCustomer::query()
+            ->where('organization_id', $request->user()->organization_id)
+            ->whereKey($id)
+            ->first();
+
+        if (!$customer) {
+            return response()->json(['message' => 'Customer not found'], 404);
+        }
+
+        try {
+            $validated = $request->validate([
+                'mac_address' => ['required', 'string', 'max:17'],
+            ]);
+            $macAddress = trim($validated['mac_address']);
+
+            $devices = HotspotDevice::query()
+                ->where('organization_id', $customer->organization_id)
+                ->where('customer_id', $customer->id)
+                ->where(function ($query) use ($macAddress) {
+                    $query->where('current_mac', $macAddress)
+                        ->orWhere('previous_mac', $macAddress);
+                })
+                ->get(['id']);
+
+            $disconnectResult = $this->radiusService->disconnectCustomer(
+                $macAddress,
+                $customer->organization_id
+            );
+
+            $radiusConnection = DB::connection('radius');
+            foreach (['radcheck', 'radreply', 'radusergroup'] as $table) {
+                $radiusConnection->table($table)
+                    ->where('username', $macAddress)
+                    ->where('organization_id', $customer->organization_id)
+                    ->delete();
+            }
+
+            $allowedNasIps = Site::query()
+                ->where('organization_id', $customer->organization_id)
+                ->whereNotNull('ip_address')
+                ->pluck('ip_address')
+                ->map(fn ($ip) => trim((string) $ip))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            if (!empty($allowedNasIps)) {
+                DB::connection('radius')->table('radacct')
+                    ->where('username', $macAddress)
+                    ->whereIn('nasipaddress', $allowedNasIps)
+                    ->delete();
+
+                DB::connection('radius')->table('radpostauth')
+                    ->where('username', $macAddress)
+                    ->whereIn('nasipaddress', $allowedNasIps)
+                    ->delete();
+            }
+
+            $deletedDevices = HotspotDevice::query()
+                ->whereIn('id', $devices->pluck('id'))
+                ->delete();
+
+            return response()->json([
+                'message' => 'Session revoked and RADIUS access permanently removed.',
+                'customer_id' => $customer->id,
+                'mac_address' => $macAddress,
+                'deleted_devices' => $deletedDevices,
+                'disconnect_result' => $disconnectResult,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Failed to revoke hotspot session.', [
+                'customer_id' => $customer->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to revoke session.',
                 'error' => $e->getMessage(),
             ], 500);
         }

@@ -301,7 +301,7 @@ class HotspotCustomerRadiusService
             throw new Exception("Customer not found");
         }
 
-        $username = $customer->radius_username;
+        $username = $request->query('username') ?: $customer->radius_username;
         $allowedNasIps = \App\Models\Site::where('organization_id', $organizationId)
             ->whereNotNull('ip_address')
             ->pluck('ip_address')

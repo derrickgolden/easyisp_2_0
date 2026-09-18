@@ -132,22 +132,84 @@ export interface Customer {
   site: { id: string; name: string }
 }
 
-export interface TechnicalSpec {
-  id: string;
-  customerId: string;
-  deviceType: string;
-  macAddress: string;
-  ipAddress: string;
-  nas_ip_address?: string;
-  connectionDetails: string;
-  notes?: string;
-  logs: { data: [{
-    id: number;
-    reply: string;
-    time: string;
-    status_label: string;
-    password_attempted: string;
-  }]}
+export interface HotspotRadiusLog {
+  id: number;
+  time: string;
+  exact_time: string;
+  reply: string;
+  password_attempted: string;
+  status_label: string;
+  is_success: boolean;
+}
+
+export interface HotspotRadiusSession {
+  radacctid: number;
+  acctsessionid: string;
+  acctuniqueid: string;
+  username: string;
+  realm: string;
+  nasipaddress: string;
+  nasportid: string;
+  nasporttype: string;
+  acctstarttime: string;
+  acctupdatetime: string | null;
+  acctstoptime: string | null;
+  acctinterval: number | null;
+  acctsessiontime: number | null;
+  acctauthentic: string;
+  connectinfo_start: string;
+  connectinfo_stop: string;
+  acctinputoctets: number;
+  acctoutputoctets: number;
+  calledstationid: string;
+  callingstationid: string;
+  acctterminatecause: string;
+  servicetype: string;
+  framedprotocol: string;
+  framedipaddress: string;
+  framedipv6address: string;
+  framedipv6prefix: string;
+  framedinterfaceid: string;
+  delegatedipv6prefix: string;
+  class: string | null;
+}
+
+export interface HotspotRadiusLogs {
+  current_page: number;
+  data: HotspotRadiusLog[];
+  first_page_url: string;
+  from: number | null;
+  last_page: number;
+  last_page_url: string;
+  next_page_url: string | null;
+  path: string;
+  per_page: number;
+  prev_page_url: string | null;
+  to: number | null;
+  total: number;
+}
+
+export interface TechnicalSpecs {
+  radius_user_exists?: boolean;
+  is_online: boolean;
+  uptime: string;
+  last_uptime: string;
+  start_time: string | null;
+  framed_ip: string;
+  nas_ip_address: string;
+  calling_station_id: string;
+  device_vendor: string;
+  logs: HotspotRadiusLogs;
+  sessions: HotspotRadiusSession[];
+}
+
+export interface HotspotCustomerDevice {
+  id: number;
+  current_mac: string | null;
+  previous_mac: string | null;
+  last_seen_at: string | null;
+  is_online: number;
+  online_status: 'online' | 'offline';
 }
 
 export interface Payment {

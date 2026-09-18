@@ -51,6 +51,7 @@ class PermissionSeeder extends Seeder
             ['name' => 'change-packages', 'description' => 'Manually change customer service packages', 'group' => 'crm'],
             ['name' => 'adjust-balances', 'description' => 'Manually adjust customer account balances', 'group' => 'crm'],
             ['name' => 'flash-mac-binding', 'description' => 'Reset customer MAC binding for RADIUS authentication', 'group' => 'crm'],
+            ['name' => 'refresh-sessions', 'description' => 'Refresh customer RADIUS sessions', 'group' => 'crm'],
             ['name' => 'delete-customers', 'description' => 'Delete customer profiles and data', 'group' => 'crm'],
             ['name' => 'create-customers', 'description' => 'Create new customer profiles', 'group' => 'crm'],
             ['name' => 'view-leads', 'description' => 'View sales leads and customer inquiries', 'group' => 'crm'],

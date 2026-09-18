@@ -741,10 +741,6 @@ class DarajaHotspotController extends Controller
      */
     public function claimCode(Request $request)
     {
-        Log::info('Hotspot claim code request received', [
-            'request' => $request->all(),
-            'ip' => $request->ip(),
-        ]);
 
         $validator = Validator::make($request->all(), [
             'code' => 'required|string',

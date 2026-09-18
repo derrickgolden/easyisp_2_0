@@ -1,6 +1,7 @@
 // API Configuration
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { get } from 'node:http';
+import type { HotspotCustomerDevice, TechnicalSpecs } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 // const API_BASE_URL = 'https://isp.easytech.africa/api';
@@ -296,7 +297,7 @@ export const customersApi = {
     return response.data;
   },
 
-  getTechnicalSpecs: async (id: string) => {
+  getTechnicalSpecs: async (id: string): Promise<TechnicalSpecs> => {
     const response = await axiosInstance.get(`/customers/${id}/technical-specs`);
     return response.data;
   },
@@ -446,18 +447,29 @@ export const hotspotCustomersApi = {
     return response.data;
   },
 
-  getTechnicalSpecs: async (id: string) => {
-    const response = await axiosInstance.get(`/hotspot-customers/${id}/technical-specs`);
+  getTechnicalSpecs: async (id: string, username: string): Promise<TechnicalSpecs> => {
+    const response = await axiosInstance.get(`/hotspot-customers/${id}/technical-specs`, {
+      params: {
+        username,
+      },
+    });
     return response.data;
   },
 
-  getDevices: async (id: string) => {
+  getDevices: async (id: string): Promise<{ data: HotspotCustomerDevice[] }> => {
     const response = await axiosInstance.get(`/hotspot-customers/${id}/devices`);
     return response.data;
   },
 
-  resetMacBinding: async (id: string) => {
-    const response = await axiosInstance.post(`/hotspot-customers/${id}/reset-mac-binding`);
+  refreshSession: async (id: string, macAddresses: string[]) => {
+    const response = await axiosInstance.post(`/hotspot-customers/${id}/refresh-session`, { macAddresses });
+    return response.data;
+  },
+
+  revokeSession: async (id: string, macAddress: string) => {
+    const response = await axiosInstance.post(`/hotspot-customers/${id}/revoke-session`, {
+      mac_address: macAddress,
+    });
     return response.data;
   },
 };

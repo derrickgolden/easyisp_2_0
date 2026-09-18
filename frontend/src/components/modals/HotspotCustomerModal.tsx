@@ -146,7 +146,6 @@ export const HotspotCustomerModal: React.FC<HotspotCustomerModalProps> = ({
               <label className={labelClassName}>First Name</label>
               <input 
                 readOnly={isSubAccount}
-                required
                 type="text" 
                 value={editingHotspotCustomer?.firstName || ''} 
                 onChange={e => setEditingHotspotCustomer({...editingHotspotCustomer, firstName: e.target.value})}
@@ -158,7 +157,6 @@ export const HotspotCustomerModal: React.FC<HotspotCustomerModalProps> = ({
               <label className={labelClassName}>Last Name</label>
               <input 
                 readOnly={isSubAccount}
-                required
                 type="text" 
                 value={editingHotspotCustomer?.lastName || ''} 
                 onChange={e => setEditingHotspotCustomer({...editingHotspotCustomer, lastName: e.target.value})}

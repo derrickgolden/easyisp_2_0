@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\HotspotCustomer;
+use App\Models\HotspotDevice;
 use App\Models\HotspotPayment;
 use App\Models\Site;
 use App\Models\HotspotTransaction;
@@ -32,11 +33,22 @@ class HotspotDashboardController extends Controller
         $totalUsers = HotspotCustomer::where('organization_id', $organizationId)
             ->count();
 
-        // 1. Get only the usernames for this organization
-        $usernames = HotspotCustomer::where('organization_id', $organizationId)
-            ->whereNotNull('radius_username')
-            ->pluck('radius_username')
-            ->toArray();
+        // Hotspot sessions use the device MAC as the RADIUS username.
+        $organizationDevices = HotspotDevice::where('organization_id', $organizationId)
+            ->whereNotNull('customer_id')
+            ->get(['customer_id', 'current_mac', 'previous_mac']);
+
+        $deviceMacsByCustomer = $organizationDevices
+            ->groupBy('customer_id')
+            ->map(fn ($devices) => $devices
+                ->flatMap(fn ($device) => [$device->current_mac, $device->previous_mac])
+                ->map(fn ($mac) => trim((string) $mac))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all());
+
+        $allDeviceMacs = $deviceMacsByCustomer->flatten()->unique()->values()->all();
 
         $organizationSiteIps = Site::where('organization_id', $organizationId)
             ->whereNotNull('ip_address')
@@ -47,23 +59,25 @@ class HotspotDashboardController extends Controller
             ->values()
             ->all();
 
-        if (empty($usernames)) {
+        if (empty($allDeviceMacs)) {
             $onlineUsers = 0;
+            $onlineCustomerIds = [];
         } else {
-            // 2. Query RADIUS strictly by indexed usernames and this organization's site NAS IPs.
-            $onlineUsers = \DB::connection('radius')
-                ->table('radacct as r1')
-                ->whereIn('r1.username', $usernames)
-                ->when(!empty($organizationSiteIps), fn ($query) => $query->whereIn('r1.nasipaddress', $organizationSiteIps))
-                ->whereNull('r1.acctstoptime')
-                ->whereIn('r1.radacctid', function($query) use ($usernames, $organizationSiteIps) {
-                    $query->selectRaw('MAX(radacctid)')
-                        ->from('radacct')
-                        ->whereIn('username', $usernames)
-                        ->when(!empty($organizationSiteIps), fn ($subQuery) => $subQuery->whereIn('nasipaddress', $organizationSiteIps))
-                        ->groupBy(['username', 'nasipaddress']);
-                })
-                ->count();
+            // Query RADIUS by device MACs and map active sessions back to customers.
+            $activeDeviceMacs = DB::connection('radius')
+                ->table('radacct')
+                ->whereIn('username', $allDeviceMacs)
+                ->when(!empty($organizationSiteIps), fn ($query) => $query->whereIn('nasipaddress', $organizationSiteIps))
+                ->whereNull('acctstoptime')
+                ->pluck('username')
+                ->unique()
+                ->all();
+
+            $onlineCustomerIds = $deviceMacsByCustomer
+                ->filter(fn ($macs) => !empty(array_intersect($macs, $activeDeviceMacs)))
+                ->keys()
+                ->all();
+            $onlineUsers = count($onlineCustomerIds);
         }
 
         // Daily revenue split by channel (today)
@@ -110,12 +124,10 @@ class HotspotDashboardController extends Controller
                 ->whereBetween('expiry_date', [$windowStart, $now]);
         };
 
-        $offlineCondition = function ($query) {
-            $query->whereRaw('NOT EXISTS (
-                SELECT 1 FROM radius.radacct
-                WHERE radacct.username COLLATE utf8mb4_unicode_ci = hotspot_customers.radius_username
-                AND acctstoptime IS NULL
-            )');
+        $offlineCondition = function ($query) use ($onlineCustomerIds) {
+            if (!empty($onlineCustomerIds)) {
+                $query->whereNotIn('id', $onlineCustomerIds);
+            }
         };
 
         $clientsLostQuery = HotspotCustomer::where('organization_id', $organizationId);

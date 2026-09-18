@@ -1,81 +1,94 @@
-import { useEffect, useState } from 'react';
-import { Card, Modal } from "../../UI";
-import { usePermissions } from '@/src/hooks/usePermissions';
+import { useState } from 'react';
+import { Card } from "../../UI";
 import { hotspotCustomersApi } from '@/src/services/apiService';
-
-interface ConnectedDevice {
-  id: number;
-  current_mac: string | null;
-  previous_mac: string | null;
-  last_seen_at: string | null;
-}
+import { HotspotTechnicalSpecsModal } from '@/src/components/modals/HotspotTechnicalSpecsModal';
+import type { Customer, HotspotCustomerDevice, TechnicalSpecs } from '@/src/types';
 
 interface ConnectedDevicesCardProps {
-  customerId: string;
+  customer: Customer;
+  revokeSession: ({customerId, radiusUsername}: {customerId: string, radiusUsername: string}, macAddress: string) => Promise<void>;
+  devices: HotspotCustomerDevice[];
+  selectedDevice: HotspotCustomerDevice | null;
+  setSelectedDevice: (device: HotspotCustomerDevice | null) => void;
+  isLoading: boolean;
+  isRevokingSession: boolean;
 }
 
-export const ConnectedDevicesCard = ({ customerId }: ConnectedDevicesCardProps) => {
-    const [isAccountingModalOpen, setIsAccountingModalOpen] = useState(false);
-  const [devices, setDevices] = useState<ConnectedDevice[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-    
+export const ConnectedDevicesCard = ({ customer, devices, isLoading, revokeSession, selectedDevice, setSelectedDevice, isRevokingSession }: ConnectedDevicesCardProps) => {
+  const [selectedTechnicalSpecs, setSelectedTechnicalSpecs] = useState<TechnicalSpecs | null>(null);
+  const [isSpecsLoading, setIsSpecsLoading] = useState(false);
 
-    const { can } = usePermissions();
+  const openDeviceHistory = async (device: HotspotCustomerDevice) => {
+    setSelectedDevice(device);
+    setSelectedTechnicalSpecs(null);
+    setIsSpecsLoading(true);
 
-    useEffect(() => {
-      let isMounted = true;
+    try {
+      const response = await hotspotCustomersApi.getTechnicalSpecs(customer.id.toString(), device.current_mac || device.previous_mac || '');
+      setSelectedTechnicalSpecs(response);
+    } catch (error) {
+      console.error('Failed to fetch device session history:', error);
+    } finally {
+      setIsSpecsLoading(false);
+    }
+  };
 
-      const fetchDevices = async () => {
-        setIsLoading(true);
-        try {
-          const response = await hotspotCustomersApi.getDevices(customerId);
-          if (isMounted) setDevices(response.data || []);
-        } catch (error) {
-          console.error('Failed to fetch connected devices:', error);
-          if (isMounted) setDevices([]);
-        } finally {
-          if (isMounted) setIsLoading(false);
-        }
-      };
+  return (
+    <Card title={`Connected Devices (${devices.length})`} className="border-none shadow-sm rounded-[2.5rem] bg-slate-900 text-white">
+      <div className="space-y-4">
 
-      fetchDevices();
+        {isLoading ? (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-5 text-sm text-slate-400">Loading devices...</div>
+        ) : devices.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-sm text-slate-400">No connected devices</div>
+        ) : devices.map((device) => {
+          const isOnline = device.online_status === 'online';
 
-      return () => {
-        isMounted = false;
-      };
-    }, [customerId]);
-
-    return (
-           <Card title={`Connected Devices (${devices.length})`} className="border-none shadow-sm rounded-[2.5rem] bg-slate-900 text-white">
-              <div className="space-y-5">
-                 {isLoading ? (
-                    <p className="text-sm text-slate-400">Loading devices...</p>
-                 ) : devices.length === 0 ? (
-                    <p className="text-sm text-slate-400">No connected devices</p>
-                 ) : devices.map((device) => (
-                    <div key={device.id} className="flex justify-between items-start">
-                      <div>
-                        <p className="text-sm font-mono font-bold text-emerald-400">{device.current_mac || 'Unbound'}</p>
-                        {device.previous_mac && <p className="text-[10px] text-slate-500 mt-1">Previous: {device.previous_mac}</p>}
-                        {device.last_seen_at && <p className="text-[10px] text-slate-400 mt-1">Last seen: {new Date(device.last_seen_at).toDateString()}, {new Date(device.last_seen_at).toLocaleTimeString()}</p>}
-                      </div>
-                      <div className="p-2 bg-white/5 rounded-lg">
-                        <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A10.003 10.003 0 0012 3c1.268 0 2.49.234 3.62.661m-1.42 14.24l.066.088A10.018 10.018 0 0021 12c0-2.312-.783-4.441-2.091-6.13" /></svg>
-                      </div>
-                    </div>
-                 ))}
-              </div>
-
-              <Modal 
-                isOpen={isAccountingModalOpen} 
-                onClose={() => setIsAccountingModalOpen(false)} 
-                title={`RADIUS Session History: `}
-                maxWidth="max-w-6xl"
-              >
-                <div className="space-y-4">
-                  
+          return (
+            <div key={device.id} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition-colors hover:border-white/20 hover:bg-white/[0.07]">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`h-2 w-2 rounded-full ${isOnline ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.7)]' : 'bg-slate-500'}`} />
+                  <p className={`truncate text-sm font-mono font-bold ${isOnline ? 'text-emerald-400' : 'text-orange-400'}`}>{device.current_mac || 'Unbound'}</p>
+                  <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${isOnline ? 'bg-emerald-400/10 text-emerald-300' : 'bg-orange-500/15 text-orange-400'}`}>
+                    {device.online_status}
+                  </span>
                 </div>
-              </Modal>
-           </Card>         
-    )
+                {device.previous_mac && <p className="mt-2 text-[10px] text-slate-500">Previous: <span className="font-mono">{device.previous_mac}</span></p>}
+                {device.last_seen_at && <p className="mt-1 text-[10px] text-slate-400">Reg At: {new Date(device.last_seen_at).toLocaleDateString()} at {new Date(device.last_seen_at).toLocaleTimeString()}</p>}
+              </div>
+              <button
+                type="button"
+                onClick={() => openDeviceHistory(device)}
+                aria-label={`View session history for ${device.current_mac || 'unbound device'}`}
+                title="View session history"
+                className={`shrink-0 rounded-xl border border-white/10 bg-white/[0.06] p-2.5 text-slate-400 transition-colors ${isOnline ? 'border-emerald-400/40 bg-emerald-400/10 hover:text-emerald-300' : 'border-orange-500/40 bg-orange-500/10 hover:text-orange-300'} focus:outline-none focus:ring-2 focus:ring-emerald-400/50`}
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7s-8.268-2.943-9.542-7Z" />
+                  <circle cx="12" cy="12" r="3" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
+                </svg>
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      <HotspotTechnicalSpecsModal
+        isOpen={selectedDevice !== null}
+        onClose={() => setSelectedDevice(null)}
+        device={selectedDevice}
+        customer={customer}
+        onRevokeSession={revokeSession}
+        isRevokingSession={isRevokingSession}
+        onRefresh={async () => {
+          if (selectedDevice) {
+            await openDeviceHistory(selectedDevice);
+          }
+        }}
+        technicalSpecs={selectedTechnicalSpecs}
+        isLoading={isSpecsLoading}
+      />
+    </Card>
+  );
 }
