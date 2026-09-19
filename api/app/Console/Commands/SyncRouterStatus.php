@@ -34,14 +34,15 @@ class SyncRouterStatus extends Command
                 'last_seen' => $isReachable ? now() : $site->last_seen,
             ]);
 
+            if ($wasOnline && !$shouldBeOnline && $site->notify_on_down) {
+                $this->notifySiteStatus($site, false);
+            } elseif (!$wasOnline && $shouldBeOnline && $site->notify_on_down) {
+                $this->notifySiteStatus($site, true);
+            }
+
             $statusText = $shouldBeOnline ? 'ONLINE' : 'OFFLINE';
             $reachabilityText = $isReachable ? 'reachable' : 'not-reachable';
             $this->info("Site: {$site->name} | IP: {$site->ip_address} | Probe: {$probeMethod} ({$reachabilityText}) | Status: {$statusText}");
-
-            // Notify if site transitioned from online to offline
-            // if ($wasOnline && !$shouldBeOnline && $site->notify_on_down) {
-            //     $this->notifySiteDown($site);
-            // }
         }
     }
 
@@ -50,10 +51,6 @@ class SyncRouterStatus extends Command
         if ($this->isSiteReachable($site->ip_address)) {
             return [true, 'ping'];
         }
-
-        // if ($this->isMikrotikFallbackConfigured($site) && $this->canConnectToMikrotik($site)) {
-        //     return [true, 'mikrotik-api'];
-        // }
 
         return [false, 'ping'];
     }
@@ -119,7 +116,7 @@ class SyncRouterStatus extends Command
         return now()->diffInMinutes($site->last_seen) < self::OFFLINE_GRACE_MINUTES;
     }
 
-    private function notifySiteDown(Site $site): void
+    private function notifySiteStatus(Site $site, bool $isOnline): void
     {
         try {
             $organization = $site->organization;
@@ -127,7 +124,11 @@ class SyncRouterStatus extends Command
                 return;
             }
 
-            $users = $organization->users()->get();
+            $users = $organization->users()
+                ->where('is_super_admin', true)
+                ->whereNotNull('phone')
+                ->where('phone', '!=', '')
+                ->get();
             if ($users->isEmpty()) {
                 return;
             }
@@ -137,25 +138,25 @@ class SyncRouterStatus extends Command
 
             foreach ($users as $user) {
                 try {
-                    // Send SMS if provider is configured and user has phone
-                    if ($smsConfig && $user->phone) {
-                        $this->sendSiteDownSms($user, $site, $smsConfig, $organization);
+                    if ($smsConfig) {
+                        $this->sendSiteStatusSms($user, $site, $smsConfig, $organization, $isOnline);
                     }
                 } catch (\Throwable $e) {
-                    Log::warning("Failed to notify user {$user->id} about site down: {$e->getMessage()}", [
+                    Log::warning("Failed to notify user {$user->id} about site status: {$e->getMessage()}", [
                         'site_id' => $site->id,
                         'user_id' => $user->id,
                     ]);
                 }
             }
 
-            Log::info("Site down notifications sent for {$site->name}", [
+            Log::info("Site status notifications sent for {$site->name}", [
                 'site_id' => $site->id,
+                'status' => $isOnline ? 'online' : 'offline',
                 'recipients' => $users->count(),
                 'sms_enabled' => $smsConfig !== null,
             ]);
         } catch (\Throwable $e) {
-            Log::error("Failed to send site-down notifications for {$site->name}", [
+            Log::error("Failed to send site status notifications for {$site->name}", [
                 'site_id' => $site->id,
                 'error' => $e->getMessage(),
             ]);
@@ -170,18 +171,24 @@ class SyncRouterStatus extends Command
 
         $smsSettings = $organization->settings['sms-gateway'] ?? null;
 
-        if (!$smsSettings || !$smsSettings['provider'] || !$smsSettings['api_key']) {
+        if (
+            !is_array($smsSettings)
+            || empty($smsSettings['provider'])
+            || empty($smsSettings['api_key'])
+        ) {
             return null;
         }
 
         return $smsSettings;
     }
 
-    private function sendSiteDownSms($user, $site, $smsConfig, $organization): void
+    private function sendSiteStatusSms($user, $site, $smsConfig, $organization, bool $isOnline): void
     {
         try {
-            $message = "⚠️ ALERT: Site '{$site->name}' ({$site->ip_address}) is OFFLINE. "
-                . "Location: {$site->location}. Last seen: {$site->last_seen}";
+            $message = $isOnline
+                ? "✅ RECOVERY: Site '{$site->name}' ({$site->ip_address}) is back ONLINE."
+                : "⚠️ ALERT: Site '{$site->name}' ({$site->ip_address}) is OFFLINE. "
+                    . "Location: {$site->location}. Last seen: {$site->last_seen}";
 
             $smsService = new SmsProviderService();
             $smsService->send(
@@ -193,16 +200,17 @@ class SyncRouterStatus extends Command
                 $smsConfig['api_username'] ?? null,
                 [
                     'organization_id' => $organization->id,
-                    'type' => 'site-down-alert',
+                    'type' => $isOnline ? 'site-recovery-alert' : 'site-down-alert',
                 ]
             );
 
-            Log::info("Site down SMS sent to {$user->phone}", [
+            Log::info("Site status SMS sent to {$user->phone}", [
                 'site_id' => $site->id,
                 'user_id' => $user->id,
+                'status' => $isOnline ? 'online' : 'offline',
             ]);
         } catch (\Throwable $e) {
-            Log::warning("Failed to send site-down SMS to {$user->phone}", [
+            Log::warning("Failed to send site status SMS to {$user->phone}", [
                 'site_id' => $site->id,
                 'user_id' => $user->id,
                 'error' => $e->getMessage(),
