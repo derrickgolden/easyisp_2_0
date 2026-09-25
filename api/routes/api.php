@@ -30,6 +30,9 @@ use App\Http\Controllers\Api\MikrotikController;
 use App\Http\Controllers\Api\PortalContextController;
 use App\Http\Controllers\Api\PosUserStatusController;
 use App\Http\Controllers\Api\Payments\DarajaHotspotController;
+use App\Http\Controllers\Api\Payments\PayheroHotspotController;
+use App\Http\Controllers\Api\OrganizationPaymentGatewayController;
+use App\Http\Controllers\Api\Payments\AllHotspotPaymentController;
 use App\Events\RandomNumberBroadcasted;
 use App\Services\CustomerRadiusService;
 
@@ -67,16 +70,19 @@ Route::get('/customer/packages', [PortalContextController::class, 'packages']);
 Route::post('/customer/payments/initiate', [DarajaPaymentController::class, 'customerStkPush']);
 Route::get('/customer/{id}', [PortalContextController::class, 'customer']);
 Route::get('/portal/pppoe-payment', [SiteController::class, 'pppoePaymentPortal']);
-Route::post('/payments/hotspot/{token}/callback', [DarajaHotspotController::class, 'stkCallback']);
-Route::post('/payments/hotspot', [DarajaHotspotController::class, 'stkPush']);
-Route::get('/payments/hotspot/check-status', [DarajaHotspotController::class, 'checkStatus']);
+Route::post('/payments/hotspot', [AllHotspotPaymentController::class, 'stkPush']);
+Route::get('/payments/hotspot/check-status', [AllHotspotPaymentController::class, 'checkStatus']);
+Route::post('/hotspot/claim-code', [AllHotspotPaymentController::class, 'claimCode']);
 Route::post('/hotspot/sync-device', [HotspotCustomerController::class, 'syncDevice']);
-Route::post('/hotspot/claim-code', [DarajaHotspotController::class, 'claimCode']);
 
 // Public M-Pesa C2B routes
 Route::post('/payments/c2b/{token}/validation', [PaymentController::class, 'c2bValidation']);
 Route::post('/payments/c2b/{token}/confirmation', [PaymentController::class, 'c2bConfirmation']);
-Route::post('/payments/payhero/{token}/stk/callback', [PayheroPaymentController::class, 'stkCallback']);
+// Public Hotspot M-Pesa STK callback routes
+Route::post('/payments/hotspot/{token}/callback', [DarajaHotspotController::class, 'stkCallback']);
+// Public Payhero STK callback routes
+Route::post('/payments/payhero/{token}/stk/callback', [PayheroHotspotController::class, 'stkCallback']);
+// Public PPPoE Mpesa STK callback routes
 Route::post('/payments/daraja/{token}/stk/callback', [DarajaPaymentController::class, 'stkCallback']);
 
 
@@ -158,12 +164,13 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     Route::get('/mikrotik/user-traffic', [MikrotikController::class, 'getUserTraffic']);
     
     // Organization routes
-    Route::get('/organization', [OrganizationController::class, 'index']);
+    Route::get('/organization/payment-gateways', [OrganizationPaymentGatewayController::class, 'index']);
+    Route::post('/organization/payment-gateways', [OrganizationPaymentGatewayController::class, 'store']);
     Route::get('/organization/license-billing', [OrganizationController::class, 'licenseBilling']);
-    Route::put('/organization', [OrganizationController::class, 'update']);
     Route::post('/organization/upload-logo', [OrganizationController::class, 'uploadLogo']);
     Route::get('/organization/{id}', [OrganizationController::class, 'show']);
-    
+    Route::get('/organization', [OrganizationController::class, 'index']);
+    Route::put('/organization', [OrganizationController::class, 'update']);
     
     // User management
     Route::apiResource('/users', UserController::class);

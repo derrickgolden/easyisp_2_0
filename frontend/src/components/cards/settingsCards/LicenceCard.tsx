@@ -45,11 +45,6 @@ const LicenceCard: React.FC<{ orgSettings: any }> = ({orgSettings}) => {
         fetchLicenseBilling();
     }, []);
 
-    const initiatePayment = () => {
-        setPaymentStep('idle');
-        setIsPaymentModalOpen(true);
-    };
-
     const copyPaymentPhoneNumber = async () => {
       try {
         await navigator.clipboard.writeText(paymentPhoneNumber);

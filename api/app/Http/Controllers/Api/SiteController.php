@@ -1286,7 +1286,7 @@ class SiteController extends Controller
                         }
                     } else if (data.status === "failed") {
                         clearInterval(interval);
-                        alert("Transaction failed.");
+                        alert(data.message || "Transaction failed.");
                         document.getElementById("mpesa-overlay").classList.add("hidden");
                         const submitButton = document.getElementById("mpesa-submit-btn");
                         submitButton.disabled = false;

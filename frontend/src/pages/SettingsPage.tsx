@@ -4,6 +4,7 @@ import { organizationApi, paymentsApi } from '../services/apiService';
 import ChangePasswordCard from '../components/cards/settingsCards/ChangePasswordCard';
 import { useLocation } from 'react-router-dom';
 import LicenceCard from '../components/cards/settingsCards/LicenceCard';
+import PaymentGatewayCard from '../components/cards/settingsCards/PaymentGatewayCard';
 
 interface SettingsPageProps {
   onSave: (msg: string) => void;
@@ -15,7 +16,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
   // --- FORM STATE ---
   const formRef = useRef<HTMLFormElement>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orgSettings, setOrgSettings] = useState<any>({});
 
@@ -28,18 +28,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
     trial_duration: 30,
     trial_unit: 'minutes',
     business_logo: ''
-  });
-
-  // --- PAYMENT GATEWAY ---
-  const [paymentForm, setPaymentForm] = useState({
-    paybill: '',
-    consumer_key: '',
-    consumer_secret: '',
-    passkey: '',
-    environment: 'Production',
-    confirmation_url: '',
-    validation_url: '',
-    stk_callback_url: ''
   });
 
   // --- SMS GATEWAY ---
@@ -79,8 +67,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
     switch (mode) {
       case 'general':
         return generalForm;
-      case 'payment-gateway':
-        return paymentForm;
       case 'sms-gateway':
         return smsForm;
       case 'email-gateway':
@@ -97,7 +83,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
         const response = await organizationApi.get();
         const orgSettings = response?.settings || {};
         const generalSettings = orgSettings.general || {};
-        const paymentSettings = orgSettings['payment-gateway'] || {};
         const smsSettings = orgSettings['sms-gateway'] || {};
         const emailSettings = orgSettings['email-gateway'] || {};
 
@@ -108,11 +93,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
           ...prev,
           ...generalSettings,
           acronym: response?.acronym || generalSettings.acronym || prev.acronym
-        }));
-
-        setPaymentForm(prev => ({
-          ...prev,
-          ...paymentSettings
         }));
 
         setSmsForm(prev => ({
@@ -167,43 +147,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
       onSave(`Error: ${errorMsg}`);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleRegisterC2BUrls = async () => {
-    setError(null);
-    setIsRegistering(true);
-
-    try {
-      const paybill = paymentForm.paybill?.trim() || '';
-      const consumerKey = paymentForm.consumer_key?.trim() || '';
-      const consumerSecret = paymentForm.consumer_secret?.trim() || '';
-      const confirmationUrl = paymentForm.confirmation_url?.trim() || '';
-      const validationUrl = paymentForm.validation_url?.trim() || '';
-
-      if (!paybill || !consumerKey || !consumerSecret) {
-        const message = 'Paybill, consumer key, and consumer secret are required.';
-        setError(message);
-        onSave(`Error: ${message}`);
-        return;
-      }
-
-      await paymentsApi.registerC2BUrls({
-        paybill,
-        consumer_key: consumerKey,
-        consumer_secret: consumerSecret,
-        environment: paymentForm.environment,
-        ...(confirmationUrl && { confirmation_url: confirmationUrl }),
-        ...(validationUrl && { validation_url: validationUrl }),
-      });
-
-      onSave('C2B confirmation and validation URLs registered successfully');
-    } catch (err: any) {
-      const errorMsg = err.message || 'Failed to register C2B URLs';
-      setError(errorMsg);
-      onSave(`Error: ${errorMsg}`);
-    } finally {
-      setIsRegistering(false);
     }
   };
 
@@ -335,131 +278,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
 
       case 'licence': return ( <LicenceCard orgSettings={orgSettings} /> );
 
-      case 'payment-gateway':
-        return (
-          <div className="space-y-6">
-            <Card title="M-Pesa Integration (Daraja API)">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Paybill / Shortcode</label>
-                  <input 
-                    type="text" 
-                    value={paymentForm.paybill}
-                    onChange={e => setPaymentForm({ ...paymentForm, paybill: e.target.value })}
-                    placeholder="e.g. 174379" 
-                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold" 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Consumer Key</label>
-                  <input 
-                    type="password" 
-                    value={paymentForm.consumer_key}
-                    onChange={e => setPaymentForm({ ...paymentForm, consumer_key: e.target.value })}
-                    placeholder="••••••••••••••••" 
-                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono" 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Consumer Secret</label>
-                  <input 
-                    type="password" 
-                    value={paymentForm.consumer_secret}
-                    onChange={e => setPaymentForm({ ...paymentForm, consumer_secret: e.target.value })}
-                    placeholder="••••••••••••••••" 
-                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono" 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Passkey</label>
-                  <input 
-                    type="password" 
-                    value={paymentForm.passkey}
-                    onChange={e => setPaymentForm({ ...paymentForm, passkey: e.target.value })}
-                    placeholder="••••••••••••••••" 
-                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono" 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Environment</label>
-                  <select 
-                    value={paymentForm.environment}
-                    onChange={e => setPaymentForm({ ...paymentForm, environment: e.target.value })}
-                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold">
-                    <option>Production</option>
-                    <option>Sandbox (Testing)</option>
-                  </select>
-                </div>
-              </div>
-            </Card>
-            
-            <Card title="Custom C2B Callback URLs (Optional - For Testing)">
-              <div className="grid grid-cols-1 gap-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Confirmation URL</label>
-                  <input 
-                    type="url" 
-                    value={paymentForm.confirmation_url}
-                    onChange={e => setPaymentForm({ ...paymentForm, confirmation_url: e.target.value })}
-                    placeholder="https://your-ngrok-url.ngrok.io/api/payments/c2b/confirmation" 
-                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono text-sm" 
-                  />
-                  <p className="text-[9px] text-gray-400 italic">Leave empty to use default server URL. Use ngrok/localtunnel for local testing.</p>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Validation URL</label>
-                  <input 
-                    type="url" 
-                    value={paymentForm.validation_url}
-                    onChange={e => setPaymentForm({ ...paymentForm, validation_url: e.target.value })}
-                    placeholder="https://your-ngrok-url.ngrok.io/api/payments/c2b/validation" 
-                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono text-sm" 
-                  />
-                  <p className="text-[9px] text-gray-400 italic">Leave empty to use default server URL. Use ngrok/localtunnel for local testing.</p>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">STK Callback URL</label>
-                  <input
-                    type="url"
-                    value={paymentForm.stk_callback_url}
-                    onChange={e => setPaymentForm({ ...paymentForm, stk_callback_url: e.target.value })}
-                    placeholder="https://your-domain.com/api/payments/daraja/{token}/stk/callback"
-                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono text-sm"
-                  />
-                  <p className="text-[9px] text-gray-400 italic">Required for Daraja STK push in this system. Stored in organization settings under payment-gateway.stk_callback_url.</p>
-                </div>
-              </div>
-            </Card>
-            
-            <div className="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30 flex items-start gap-3">
-              <svg className="w-5 h-5 text-blue-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              <div className="text-xs text-blue-700 dark:text-blue-300 font-medium space-y-1">
-                <p>Register your C2B confirmation and validation URLs with Daraja. M-Pesa requires publicly accessible HTTPS URLs.</p>
-                <p className="text-[10px] mt-1"><strong>For local testing:</strong> Use ngrok (ngrok http 8000) to expose your server with HTTPS.</p>
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={handleRegisterC2BUrls}
-                disabled={isRegistering}
-                className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold px-6 py-3 rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center space-x-2 active:scale-95"
-              >
-                {isRegistering ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Registering...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14m-7-7v14" /></svg>
-                    <span>Register C2B URLs</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        );
+      case 'payment-gateway': return ( <PaymentGatewayCard onSave={onSave} /> );
 
       case 'sms-gateway':
         return (
@@ -658,7 +477,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
           </div>
         )}
 
-        {mode !== 'licence' && mode !== 'change-password' && (
+        {mode !== 'licence' && mode !== 'change-password' && mode !== 'payment-gateway' && (
           <div className="mt-8 flex justify-end">
             <button 
               type="submit" 

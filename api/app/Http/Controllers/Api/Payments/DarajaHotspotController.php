@@ -14,24 +14,19 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
 use Jenssegers\Agent\Agent;
 use App\Services\HotspotCustomerRadiusService;
 use Illuminate\Support\Str;
 
 class DarajaHotspotController extends Controller
 {
-    /**
-     * Initiate an STK Push for a hotspot package payment.
-     *
-     * Request params:
-     *   - phone        (required) : customer phone e.g. 0712345678
-     *   - site_id      (required) : site that owns the portal, used to resolve the organization
-    *   - package_id   (required) : package being purchased
-     *   - mac          (optional) : MAC address of the hotspot client device
-     *   - ip           (optional) : IP address of the hotspot client device
-     *   - transaction_type (optional) : CustomerPayBillOnline|CustomerBuyGoodsOnline
-     */
+    private $allHotspotPaymentController;
+
+    public function __construct(AllHotspotPaymentController $allHotspotPaymentController)
+    {
+        $this->allHotspotPaymentController = $allHotspotPaymentController;
+    }
+
     public function stkPush(Request $request)
     {
         $request->validate([
@@ -43,21 +38,19 @@ class DarajaHotspotController extends Controller
             'transaction_type' => 'nullable|in:CustomerPayBillOnline,CustomerBuyGoodsOnline',
         ]);
 
-        Log::info('Daraja STK (hotspot) payment request received', [
-            'request' => $request->all(),
-            'ip' => $request->ip(),
-        ]);
         // Resolve organization from site (guest portal — no authenticated user)
-        $siteIp= (string) $request->input('site_ip');
-        $site = Site::query()
+        $siteIp = (string) $request->input('site_ip');
+        $siteId = $request->input('site_id');
+        $site = $siteId ? Site::find($siteId) : Site::query()
             ->where('ip_address', $siteIp)
             ->first();
 
-            Log::info('Daraja STK (hotspot) payment request site resolved', [
-                'site_input' => $siteIp,
-                'site_id' => $site?->id,
-                'site_ip' => $site?->ip_address,
-            ]);
+        Log::info('Daraja STK (hotspot) payment request site resolved', [
+            'site_input' => $siteIp,
+            'site_id' => $site?->id,
+            'site_ip' => $site?->ip_address,
+        ]);
+
         if (!$site) {
             return response()->json([
                 'success' => false,
@@ -65,7 +58,9 @@ class DarajaHotspotController extends Controller
             ], 422);
         }
 
-        $organization = Organization::find($site->organization_id);
+        $organization = $request->input('organization')
+            ? Organization::find((int) $request->input('organization'))
+            : Organization::find($site->organization_id);
         if (!$organization) {
             Log::error('Daraja STK (hotspot): Organization not found for site', [
                 'site_id' => $site->id,
@@ -76,12 +71,6 @@ class DarajaHotspotController extends Controller
                 'message' => 'Organization not found.'
             ], 422);
         }
-
-
-        Log::info('Daraja STK (hotspot) payment request organization resolved', [
-            'organization_id' => $organization->id,
-            'organization_name' => $organization->name,
-        ]);
 
         $package = HotspotPackage::query()
             ->where('id', $request->input('package_id'))
@@ -94,11 +83,7 @@ class DarajaHotspotController extends Controller
                 'organization_id' => $organization->id,
             ]);
 
-        if (!$package) {
-            Log::warning('Daraja STK (hotspot): Invalid package selected', [
-                'package_id' => $request->input('package_id'),
-                'organization_id' => $organization->id,
-            ]);     
+        if (!$package) {     
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid package selected.'
@@ -116,7 +101,10 @@ class DarajaHotspotController extends Controller
             ], 422);
         }
 
-        $settings = $this->extractPaymentGatewaySettings($organization->settings);
+        $defaultGateway = $request->input('default_gateway');
+        $settings = is_array($defaultGateway)
+            ? (array) data_get($defaultGateway, 'config', [])
+            : (array) $organization->getPaymentGatewayConfig('mpesa');
 
         $consumerKey = trim((string) (data_get($settings, 'consumer_key') ?? ''));
         $consumerSecret = trim((string) (data_get($settings, 'consumer_secret') ?? ''));
@@ -139,7 +127,7 @@ class DarajaHotspotController extends Controller
         }
 
 
-        $normalizedPhone = $this->normalizeKenyanPhone((string) $request->input('phone'));
+        $normalizedPhone = $this->allHotspotPaymentController->normalizeKenyanPhone((string) $request->input('phone'));
         if (!$normalizedPhone) {
             Log::warning('Daraja STK (hotspot): Invalid phone format', [
                 'organization_id' => $organization->id,
@@ -157,7 +145,7 @@ class DarajaHotspotController extends Controller
 
         // Build the hotspot callback URL from this portal's own app URL + the org token.
         $appUrl = rtrim((string) config('app.url'), '/');
-        $callbackUrl = $appUrl . '/api/payments/hotspot/' . urlencode((string) $organization->mpesa_callback_token) . '/callback';
+        $callbackUrl = $settings['callback_url'] ?? $appUrl . '/api/payments/hotspot/' . urlencode((string) $organization->mpesa_callback_token) . '/callback';
         $timestamp = now()->format('YmdHis');
         $password = base64_encode($shortCode . $passkey . $timestamp);
 
@@ -167,10 +155,10 @@ class DarajaHotspotController extends Controller
         $mac = (string) ($request->input('mac') ?? '');
         $packageId = (string) ($request->input('package_id') ?? '');
 
-        $normalizedMac = $this->normalizeMacAddress((string) ($request->input('mac') ?? ''));
+        $normalizedMac = $this->allHotspotPaymentController->normalizeMacAddress((string) ($request->input('mac') ?? ''));
         $hotspotCustomer = null;
         if ($normalizedMac !== null) {
-            $hotspotCustomer = $this->upsertHotspotCustomer(
+            $hotspotCustomer = $this->allHotspotPaymentController->upsertHotspotCustomer(
                 organizationId: $organization->id,
                 siteId: $site->id,
                 phone: $normalizedPhone,
@@ -313,106 +301,6 @@ class DarajaHotspotController extends Controller
         }
     }
 
-    public function checkStatus(Request $request)
-    {
-        Log::info('Hotspot payment status check initiated', [
-            'query' => $request->query(),
-            'ip' => $request->ip(),
-        ]);
-        $reference = (string) $request->query('reference', '');
-        if (!$reference) {
-            return response()->json([
-                'status' => 'pending',
-                'message' => 'No reference provided',
-            ], 400);
-        }
-
-        // Query the payment by account_reference or checkout_request_id
-        $payment = \App\Models\HotspotPayment::query()
-            ->where('account_reference', 'LIKE', $reference . '%')
-            ->orWhere('checkout_request_id', $reference)
-            ->latest('updated_at')
-            ->first();
-
-        if (!$payment) {
-            return response()->json([
-                'status' => 'pending',
-                'message' => 'Payment not found or still processing',
-            ], 200);
-        }
-
-        // Payment still pending
-        if ($payment->status === 'pending') {
-            return response()->json([
-                'status' => 'pending',
-                'message' => 'Waiting for M-Pesa confirmation...',
-            ], 200);
-        }
-
-        // Payment failed or cancelled
-        if ($payment->status === 'failed' || $payment->status === 'cancelled') {
-            return response()->json([
-                'status' => 'failed',
-                'message' => 'Transaction was cancelled or declined by user.',
-            ], 200);
-        }
-
-        // Payment completed successfully
-        if ($payment->status === 'paid') {
-            $macAddress = $this->normalizeMacAddress((string) ($payment->mac_address ?? ''));
-            if ($macAddress === null) {
-                return response()->json([
-                    'status' => 'failed',
-                    'message' => 'Payment verified but MAC address is missing. Contact support.',
-                ], 200);
-            }
-
-            // Use MAC address as both username and password (as set in callback)
-            $voucherCode = $macAddress;
-
-            Log::info('Hotspot payment status check completed', [
-                'payment_id' => $payment->id,
-                'organization_id' => $payment->organization_id,
-                'status' => $payment->status,
-                'mac' => $macAddress,
-            ]);
-
-            // Attempt to return the device token if present on the payment (encrypted in DB).
-            $deviceTokenPlain = null;
-            if (!empty($payment->device_token)) {
-                try {
-                    $deviceTokenPlain = decrypt($payment->device_token);
-                } catch (\Throwable $e) {
-                    Log::warning('Failed to decrypt device token for payment', [
-                        'payment_id' => $payment->id,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
-
-            $response = [
-                'status' => 'completed',
-                'message' => 'Payment verified! Connecting to internet...',
-                'code' => $voucherCode,
-                'voucher_code' => $voucherCode,
-                'mac' => $macAddress,
-                'username' => $macAddress,
-                'password' => $macAddress,
-            ];
-
-            if ($deviceTokenPlain !== null) {
-                $response['device_token'] = $deviceTokenPlain;
-            }
-
-            return response()->json($response, 200);
-        }
-
-        return response()->json([
-            'status' => 'pending',
-            'message' => 'Unknown payment status',
-        ], 200);
-    }
-
     public function stkCallback(Request $request, string $token)
     {
         $organization = Organization::where('mpesa_callback_token', $token)->first();
@@ -441,13 +329,35 @@ class DarajaHotspotController extends Controller
         $stkCallback = data_get($payload, 'Body.stkCallback', []);
         $resultCode = (int) data_get($stkCallback, 'ResultCode', 1);
         $resultDesc = (string) data_get($stkCallback, 'ResultDesc', 'No description');
+        $checkoutRequestId = (string) data_get($stkCallback, 'CheckoutRequestID', '');
 
         if ($resultCode !== 0) {
-            Log::warning('Daraja STK callback unsuccessful', [
-                'organization_id' => $organization->id,
-                'result_code' => $resultCode,
-                'result_desc' => $resultDesc,
-            ]);
+            $payment = null;
+
+            if ($checkoutRequestId !== '') {
+                $payment = HotspotPayment::query()
+                    ->where('organization_id', $organization->id)
+                    ->where('checkout_request_id', $checkoutRequestId)
+                    ->whereIn('status', ['pending', 'failed'])
+                    ->latest('id')
+                    ->first();
+            }
+
+            if (!$payment && $checkoutRequestId !== '') {
+                $payment = HotspotPayment::query()
+                    ->where('organization_id', $organization->id)
+                    ->where('account_reference', 'LIKE', '%' . $checkoutRequestId . '%')
+                    ->whereIn('status', ['pending', 'failed'])
+                    ->latest('id')
+                    ->first();
+            }
+
+            if ($payment) {
+                $payment->update([
+                    'status' => 'failed',
+                    'reason' => $resultDesc,
+                ]);
+            }
 
             return response()->json([
                 'success' => false,
@@ -462,7 +372,7 @@ class DarajaHotspotController extends Controller
         $amount = (float) ($metadataItems->firstWhere('Name', 'Amount')['Value'] ?? 0);
         $mpesaReceiptNumber = (string) ($metadataItems->firstWhere('Name', 'MpesaReceiptNumber')['Value'] ?? '');
         $phoneRaw = (string) ($metadataItems->firstWhere('Name', 'PhoneNumber')['Value'] ?? '');
-        $phone = $this->normalizeKenyanPhone($phoneRaw) ?: $phoneRaw;
+        $phone = $this->allHotspotPaymentController->normalizeKenyanPhone($phoneRaw) ?: $phoneRaw;
         $accountReference = (string) (data_get($stkCallback, 'AccountReference')
             ?? data_get($payload, 'AccountReference')
             ?? data_get($payload, 'account_reference')
@@ -495,17 +405,32 @@ class DarajaHotspotController extends Controller
             ], 400);
         }
 
-        // Resolve payment by callback phone (latest pending for this organization).
-        $payment = HotspotPayment::query()
-            ->where('organization_id', $organization->id)
-            ->where('phone', $phone)
-            ->where('status', 'pending')
-            ->latest('id')
-            ->first();
+        $payment = null;
+
+        if ($checkoutRequestId !== '') {
+            $payment = HotspotPayment::query()
+                ->where('organization_id', $organization->id)
+                ->where('checkout_request_id', $checkoutRequestId)
+                ->where('status', 'pending')
+                ->latest('id')
+                ->first();
+        }
+
+        if (!$payment && $phone !== '') {
+            $payment = HotspotPayment::query()
+                ->where('organization_id', $organization->id)
+                ->where('phone', $phone)
+                ->where('status', 'pending')
+                ->latest('id')
+                ->first();
+        }
 
         if (!$payment) {
             Log::error('Hotspot payment not found', [
-                'account_reference' => $accountReference
+                'organization_id' => $organization->id,
+                'checkout_request_id' => $checkoutRequestId,
+                'phone' => $phone,
+                'account_reference' => $accountReference,
             ]);
 
             return response()->json([
@@ -521,7 +446,7 @@ class DarajaHotspotController extends Controller
             ], 404);
         }
 
-        $macAddress = $this->normalizeMacAddress((string) ($payment->mac_address ?? ''));
+        $macAddress = $this->allHotspotPaymentController->normalizeMacAddress((string) ($payment->mac_address ?? ''));
         if ($macAddress === null) {
             Log::error('Daraja STK (hotspot) callback missing/invalid MAC for RADIUS credentials', [
                 'organization_id' => $organization->id,
@@ -545,7 +470,7 @@ class DarajaHotspotController extends Controller
         $expiresAt = $seconds > 0 ? now()->addSeconds($seconds) : null;
 
         if (!$customer) {
-            $customer = $this->upsertHotspotCustomer(
+            $customer = $this->allHotspotPaymentController->upsertHotspotCustomer(
                 organizationId: $organization->id,
                 siteId: $payment->site_id,
                 phone: $payment->phone,
@@ -649,362 +574,8 @@ class DarajaHotspotController extends Controller
         return response()->json(['success' => true], 200);
     }
 
-    private function normalizeKenyanPhone(string $phone): ?string
-    {
-        $digits = preg_replace('/\D+/', '', $phone ?? '');
-        if (!$digits) {
-            return null;
-        }
-
-        if (strlen($digits) === 10 && str_starts_with($digits, '0')) {
-            return '254' . substr($digits, 1);
-        }
-
-        if (strlen($digits) === 9 && (str_starts_with($digits, '7') || str_starts_with($digits, '1'))) {
-            return '254' . $digits;
-        }
-
-        if (preg_match('/^254(7|1)\d{8}$/', $digits)) {
-            return $digits;
-        }
-
-        return null;
-    }
-
-    private function extractPaymentGatewaySettings(mixed $rawSettings): array
-    {
-        if (!is_array($rawSettings)) {
-            return [];
-        }
-
-        $paymentGateway = data_get($rawSettings, 'payment-gateway');
-        if (is_array($paymentGateway)) {
-            return $paymentGateway;
-        }
-
-        if (is_string($paymentGateway)) {
-            $decoded = json_decode($paymentGateway, true);
-            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                return $decoded;
-            }
-        }
-
-        return $rawSettings;
-    }
-
     private function radiusConnection()
     {
         return DB::connection('radius');
-    }
-
-    private function normalizeMacAddress(string $mac): ?string
-    {
-        $raw = strtoupper(trim($mac));
-        if ($raw === '') {
-            return null;
-        }
-
-        $hexOnly = preg_replace('/[^A-F0-9]/', '', $raw) ?? '';
-        if (strlen($hexOnly) !== 12) {
-            return null;
-        }
-
-        return implode(':', str_split($hexOnly, 2));
-    }
-
-    private function upsertHotspotCustomer(
-        int $organizationId,
-        ?int $siteId,
-        string $phone,
-        int $packageId,
-        string $macAddress,
-        array $attributes = []
-    ): HotspotCustomer {
-        return HotspotCustomer::query()->updateOrCreate(
-            [
-                'radius_username' => $macAddress,
-            ],
-            array_merge([
-                'organization_id' => $organizationId,
-                'site_id' => $siteId,
-                'phone' => $phone,
-                'package_id' => $packageId,
-                'mac_address' => $macAddress,
-                'radius_password' => $macAddress,
-            ], $attributes)
-        );
-    }
-
-    /**
-     * Claim a device token and bind a new MAC to the associated hotspot customer.
-     * Expects JSON: { token: string, mac: string }
-     */
-    public function claimCode(Request $request)
-    {
-
-        $validator = Validator::make($request->all(), [
-            'code' => 'required|string',
-            'mac' => 'required|string',
-            'code_type' => 'required|string|in:token,mpesa_receipt,mpesa_code,voucher,voucher_code',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'The claim code request is invalid.',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
-        $data = $validator->validated();
-        $codeType = match ($data['code_type']) {
-            'mpesa_code' => 'mpesa_receipt',
-            'voucher_code' => 'voucher',
-            default => $data['code_type'],
-        };
-
-        if ($codeType === 'token') {
-            return $this->claimToken($request);
-        }
-
-        if ($codeType === 'mpesa_receipt') {
-            return $this->claimMpesaReceipt($request);
-        }
-
-        if ($codeType === 'voucher') {
-            return $this->claimVoucher($request);
-        }
-
-        return response()->json([
-            'success' => false,
-            'message' => 'Unsupported code type.',
-        ], 422);
-    }
-
-    private function claimToken(Request $request)
-    {
-        $data = $request->validate([
-            'code' => 'required|string',
-            'mac' => 'required|string',
-        ]);
-
-        $tokenHash = hash('sha256', $data['code']);
-        $macRaw = $data['mac'];
-        $mac = $this->normalizeMacAddress($macRaw);
-        if ($mac === null) {
-            return response()->json(['success' => false, 'message' => 'Invalid MAC address'], 422);
-        }
-
-        $device = \App\Models\HotspotDevice::where('device_token_hash', $tokenHash)->first();
-        if (!$device) {
-            return response()->json(['success' => false, 'message' => 'Invalid or expired token'], 404);
-        }
-
-        // Ensure the device has an associated customer
-        if (empty($device->customer_id)) {
-            return response()->json(['success' => false, 'message' => 'No customer linked to this token'], 400);
-        }
-
-        $customer = HotspotCustomer::find($device->customer_id);
-        if (!$customer) {
-            return response()->json(['success' => false, 'message' => 'Customer not found'], 404);
-        }
-
-        // Update device record
-        try {
-            if ($device->current_mac && $device->current_mac !== $mac) {
-                $device->previous_mac = $device->current_mac;
-            }
-            $device->current_mac = $mac;
-            $device->last_seen_at = now();
-            $device->customer_id = $customer->id;
-            $device->save();
-        } catch (\Throwable $e) {
-            Log::error('Failed to update hotspot_devices: ' . $e->getMessage());
-        }
-
-        // Bind the MAC in RADIUS
-        app(HotspotSubscriptionService::class)->applyActiveStatus($customer, $mac);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Token claimed and MAC bound successfully',
-            'username' => $mac,
-            'mac' => $mac,
-        ]);
-
-    }
-
-    private function claimMpesaReceipt(Request $request)
-    {
-        $data = $request->validate([
-            'code' => 'required|string',
-            'mac' => 'required|string',
-        ]);
-
-        $mpesaReceipt = $data['code'];
-        $macRaw = $data['mac'];
-        $mac = $this->normalizeMacAddress($macRaw);
-        if ($mac === null) {
-            return response()->json(['success' => false, 'message' => 'Invalid MAC address', 'code_type' => 'mpesa_receipt', 'error' => 'Opps! Something went wrong'], 422);
-        }
-
-        // Find the payment by M-Pesa receipt
-        $payment = HotspotPayment::where('mpesa_receipt', $mpesaReceipt)->first();
-        if (!$payment) {
-            return response()->json(['success' => false, 'code_type' =>'mpesa_receipt', 'message' => 'Payment not found for this M-Pesa code', 'error' => 'Payment not found'], 404);
-        }
-
-        // Ensure the payment is completed
-        if ($payment->status !== 'paid') {
-            return response()->json(['success' => false, 'code_type' =>'mpesa_receipt', 'message' => 'Payment is not completed', 'error' => 'Payment not completed'], 400);
-        }
-
-        // Ensure the payment has an associated customer
-        if (empty($payment->customer_id)) {
-            return response()->json(['success' => false, 'code_type' =>'mpesa_receipt', 'message' => 'No customer linked to this payment', 'error' => 'Opps! Something went wrong'], 400);
-        }
-
-        $customer = HotspotCustomer::find($payment->customer_id);
-        if (!$customer) {
-            return response()->json(['success' => false, 'code_type' =>'mpesa_receipt', 'message' => 'Customer not found', 'error' => 'Opps! Something went wrong'], 404);
-        }   
-
-
-
-        // Update device record
-        try {
-            $device = HotspotDevice::where('current_mac', $mac)->orWhere('previous_mac', $mac)->first();
-            if (!$device) {
-                // Create a new device record if none exists
-                $rawToken = null;
-                $tokenHash = null;
-                if ($customer->status === 'active' && $customer->expiry_date && $customer->expiry_date->isFuture()) {
-                    // generate a new device token for the customer
-                    $rawToken = bin2hex(random_bytes(32));
-                    $tokenHash = hash('sha256', $rawToken);
-                }
-
-                $device = new HotspotDevice();
-                $device->current_mac = $mac;
-                $device->customer_id = $customer->id;
-                $device->device_token_hash = $tokenHash;
-                $device->last_seen_at = now();
-                $device->save();
-
-                app(HotspotSubscriptionService::class)->applyActiveStatus($customer, $mac);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'M-Pesa receipt claimed and MAC bound successfully',
-                    'username' => $mpesaReceipt,
-                    'mac' => $mac,
-                    'device_token' => $rawToken ?? null,
-                ]);
-            } else {
-                // Update existing device record
-                if ($device->current_mac && $device->current_mac !== $mac) {
-                    $device->previous_mac = $device->current_mac;
-                }
-                $device->current_mac = $mac;
-                $device->last_seen_at = now();
-                $device->customer_id = $customer->id;
-                $device->save();
-
-                app(HotspotSubscriptionService::class)->applyActiveStatus($customer, $mac);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'M-Pesa receipt claimed and MAC bound successfully',
-                    'username' => $mpesaReceipt,
-                    'mac' => $mac,
-                ]);
-            }
-        } catch (\Throwable $e) {
-            Log::error('Failed to update hotspot_devices for M-Pesa receipt claim: ' . $e->getMessage());
-            return response()->json([
-                    'success' => true,
-                    'message' => 'Failed to bind MAC address',
-                    'username' => $mpesaReceipt,
-                    'mac' => $mac,
-                ]);
-        }
-    }
-
-    public function claimVoucher(Request $request)
-    {
-        $data = $request->validate([
-            'code' => 'required|string',
-            'mac' => 'required|string',
-        ]);
-
-        $voucherCode = $data['code'];
-        $macRaw = $data['mac'];
-        $mac = $this->normalizeMacAddress($macRaw);
-        if ($mac === null) {
-            return response()->json(['success' => false, 'message' => 'Invalid MAC address', 'code_type' => 'voucher', 'error' => 'Opps! Something went wrong'], 422);
-        }
-
-        // Find the customer by voucher code
-        $customer = HotspotCustomer::where('voucher', $voucherCode)->first();
-        if (!$customer) {
-            return response()->json(['success' => false, 'code_type' => 'voucher', 'message' => 'Customer not found for this voucher', 'error' => 'Invalid voucher code'], 404);
-        }
-
-        // Update device record
-        try {
-            $device = HotspotDevice::where('current_mac', $mac)->orWhere('previous_mac', $mac)->first();
-            if (!$device) {
-                // Create a new device record if none exists
-                $rawToken = null;
-                $tokenHash = null;
-                if ($customer->status === 'active' && $customer->expiry_date && $customer->expiry_date->isFuture()) {
-                    // generate a new device token for the customer
-                    $rawToken = bin2hex(random_bytes(32));
-                    $tokenHash = hash('sha256', $rawToken);
-                }
-
-                $device = new HotspotDevice();
-                $device->current_mac = $mac;
-                $device->customer_id = $customer->id;
-                $device->device_token_hash = $tokenHash;
-                $device->last_seen_at = now();
-                $device->save();
-
-                app(HotspotSubscriptionService::class)->applyActiveStatus($customer, $mac);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Voucher claimed and MAC bound successfully',
-                    'username' => $voucherCode,
-                    'mac' => $mac,
-                    'device_token' => $rawToken ?? null,
-                ]);
-            } else {
-                // Update existing device record
-                if ($device->current_mac && $device->current_mac !== $mac) {
-                    $device->previous_mac = $device->current_mac;
-                }
-                $device->current_mac = $mac;
-                $device->last_seen_at = now();
-                $device->customer_id = $customer->id;
-                $device->save();
-                app(HotspotSubscriptionService::class)->applyActiveStatus($customer, $mac);
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Voucher claimed and MAC bound successfully',
-                    'username' => $voucherCode,
-                    'mac' => $mac,
-                ]);
-            }
-        } catch (\Throwable $e) {   
-            Log::error('Failed to update hotspot_devices for voucher claim: ' . $e->getMessage());
-            return response()->json([
-                    'success' => true,
-                    'message' => 'Voucher claimed and MAC bound successfully',
-                    'username' => $voucherCode,
-                    'mac' => $mac,
-                ]);
-        }
     }
 }

@@ -254,7 +254,11 @@ export const PPPoECustomersPage: React.FC = () => {
         for (const alias of aliases) {
           const index = headerMap.get(normalizeHeader(alias));
           if (index !== undefined) {
-            return row[index]?.trim() || '';
+            const raw = row[index] ?? '';
+            const val = String(raw).trim();
+            // Treat literal NULL / null / nil as empty (exported DB NULLs)
+            if (!val || ['null', 'nil'].includes(val.toLowerCase())) return '';
+            return val;
           }
         }
         return '';
@@ -364,7 +368,8 @@ export const PPPoECustomersPage: React.FC = () => {
         const statusValue = getColumnValue(row, ['Status']).toLowerCase();
         const phoneValue = getColumnValue(row, ['Tel', 'Phone']);
         const usernameValue = getColumnValue(row, ['Account2', 'Username', 'Radius Username']);
-        const passwordValue = getColumnValue(row, ['Password']) || usernameValue;
+        // Prefer an explicit "Radius Password" column if present; fall back to generic "Password" or username
+        const passwordValue = getColumnValue(row, ['Radius Password', 'Password']) || usernameValue;
         const packageMbpsValue = getColumnValue(row, ['Package MBPS', 'Package Mbps', 'Package']);
         const matchedPackage = findPackageBySpeedPair(packageMbpsValue);
 

@@ -848,6 +848,15 @@ export const organizationApi = {
     });
     return response.data;
   },
+  // Payment gateways via dedicated endpoints
+  getPaymentGateways: async () => {
+    const response = await axiosInstance.get('/organization/payment-gateways');
+    return response.data;
+  },
+  createPaymentGateway: async (data: any) => {
+    const response = await axiosInstance.post('/organization/payment-gateways', data);
+    return response.data;
+  },
 };
 
 // SMS Endpoints

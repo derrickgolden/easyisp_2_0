@@ -26,6 +26,7 @@ class HotspotPayment extends Model
         'mpesa_code',
         'voucher',
         'status',
+        'reason',
         'expires_at',
     ];
 

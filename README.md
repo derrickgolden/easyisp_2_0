@@ -204,58 +204,15 @@ add name=PCQ-10M-20M-UPLOAD \
     packet-mark=pcq-20M-10M-upload \
     queue=pcq-20M-upload
 
-
-
-## adding organization_id to database
--- Update radreply table to allow NULL organization_id
-ALTER TABLE `radreply` 
-  ADD COLUMN `organization_id` int DEFAULT NULL AFTER `value`,
-  ADD KEY `idx_reply_user_org` (`username`, `organization_id`);
-
--- Update radusergroup table to allow NULL organization_id
-ALTER TABLE `radusergroup` 
-  ADD COLUMN `organization_id` int DEFAULT NULL AFTER `groupname`,
-  ADD KEY `idx_usergroup_org` (`username`, `organization_id`);
-
--- Update radpostauth table to allow NULL organization_id
-ALTER TABLE `radpostauth` 
-  ADD COLUMN `nasipaddress` varchar(64) DEFAULT NULL AFTER `authdate`,
-  ADD KEY `idx_nasipaddress` (`nasipaddress`);
-
-# insert for radposauth
-/etc/freeradius/3.0/mods-config/sql/main/mysql/queries.conf
-
-post-auth {
-        # Write SQL queries to a logfile. This is potentially useful for bulk inserts
-        # when used with the rlm_sql_null driver.
-#       logfile = ${logdir}/post-auth.sql
-
-        query = "\
-                INSERT INTO ${..postauth_table} \
-                        (username, pass, reply, authdate, nasipaddress, reason, class) \
-                VALUES ( \
-                        '%{SQL-User-Name}', \
-                        '%{%{User-Password}:-%{Chap-Password}}', \
-                        '%{reply:Packet-Type}', \
-                        '%S.%M', \
-                        '%{NAS-IP-Address}', \
-                        '%{%{Module-Failure-Message}:-No reason}', \
-                        '${..class.reply_xlat}')"
+# mpesa daraja testing
+  {
+    "passkey": "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919",
+    "paybill": "174379",
+    "provider": "mpesa",
+    "environment": "Sandbox (Testing)",
+    "consumer_key": "CGJ1NkFOaz18cfm481m3Z3nixxskpUmQoj3CzPDCdgoet6Uw",
+    "validation_url": null,
+    "consumer_secret": "v5swlxa8MOogv9uzPqnGgagGDRmeGinMvTNLekpKcgxbIfB3KB4GaYBBy18dtEFV",
+    "confirmation_url": null,
+    "stk_callback_url": null
 }
-
-group_membership_query = " \
-  SELECT rug.groupname \
-  FROM radusergroup rug \
-  JOIN nas n ON n.nasname = '%{NAS-IP-Address}' \
-  WHERE rug.username = '%{SQL-User-Name}' \
-  AND rug.organization_id = n.organization_id \
-  AND n.status = 'active' \
-  ORDER BY rug.priority"
-
-authorize_reply_query = " \
-  SELECT rr.id, rr.username, rr.attribute, rr.value, rr.op \
-  FROM radreply rr \
-  JOIN nas n ON n.nasname = '%{NAS-IP-Address}' \
-  WHERE rr.username = '%{User-Name}' \
-  AND rr.organization_id = n.organization_id \
-  AND n.status = 'active'"

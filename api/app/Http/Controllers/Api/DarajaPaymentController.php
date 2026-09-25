@@ -88,7 +88,23 @@ class DarajaPaymentController extends Controller
             ], 422);
         }
 
-        $settings = $this->extractPaymentGatewaySettings($organization->settings);
+        $gateway = $organization->paymentGateways()
+            ->where('provider', 'mpesa')
+            ->where('active', true)
+            ->orderByDesc('is_default')
+            ->first();
+
+        if (!$gateway) {
+            Log::error('Daraja STK: Active M-Pesa gateway not found', [
+                'organization_id' => $organization->id,
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'M-Pesa gateway is not configured or active for this organization.',
+            ], 422);
+        }
+
+        $settings = (array) ($gateway->config ?? []);
 
         $consumerKey = trim((string) (data_get($settings, 'consumer_key') ?? ''));
         $consumerSecret = trim((string) (data_get($settings, 'consumer_secret') ?? ''));
@@ -105,7 +121,7 @@ class DarajaPaymentController extends Controller
                 'passkey_set' => !empty($passkey),
             ]);
             return response()->json([
-                'success' => false,
+                'success' => false, 
                 'message' => 'Daraja settings are incomplete. Ensure paybill, consumer key, consumer secret and passkey are saved in payment gateway settings.',
             ], 422);
         }
@@ -347,19 +363,7 @@ class DarajaPaymentController extends Controller
             ], 400);
         }
 
-        $resolvedOrganization = $this->resolveOrganizationFromCallback($accountReference, $phone, $organization);
-        if (!$resolvedOrganization) {
-            Log::warning('Daraja STK callback could not resolve organization', [
-                'organization_id' => $organization->id,
-                'account_reference' => $accountReference,
-                'phone' => $phone,
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Organization not resolved',
-            ], 404);
-        }
+        $resolvedOrganization = $organization;
 
         if ($mpesaReceiptNumber === '') {
             Log::warning('Daraja STK callback missing receipt number', [
@@ -445,49 +449,6 @@ class DarajaPaymentController extends Controller
             ->where('phone', $phone)
             ->latest('id')
             ->first();
-    }
-
-    private function resolveOrganizationFromCallback(?string $accountReference, string $phone, Organization $fallbackOrganization): ?Organization
-    {
-        if (!empty($accountReference) && preg_match('/ORG-(\d+)-/i', $accountReference, $matches)) {
-            $organization = Organization::find((int) $matches[1]);
-            if ($organization) {
-                return $organization;
-            }
-        }
-
-        $customer = Customer::where('phone', $phone)->latest('id')->first();
-
-        if ($customer) {
-            return Organization::find($customer->organization_id);
-        }
-
-        $organizationFromUserPhone = Organization::whereHas('users', function ($query) use ($phone) {
-            $query->where('phone', $phone);
-        })->first();
-
-        return $organizationFromUserPhone ?: $fallbackOrganization;
-    }
-
-    private function extractPaymentGatewaySettings(mixed $rawSettings): array
-    {
-        if (!is_array($rawSettings)) {
-            return [];
-        }
-
-        $paymentGateway = data_get($rawSettings, 'payment-gateway');
-        if (is_array($paymentGateway)) {
-            return $paymentGateway;
-        }
-
-        if (is_string($paymentGateway)) {
-            $decoded = json_decode($paymentGateway, true);
-            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                return $decoded;
-            }
-        }
-
-        return $rawSettings;
     }
 
 }

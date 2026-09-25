@@ -38,6 +38,35 @@ class PayheroPaymentController extends Controller
         ]);
 
         try {
+            $organization = $request->user()->organization;
+            $settings = $organization->getPaymentGatewayConfig('payhero');
+            $providerSetting = trim((string) (data_get($settings, 'provider') ?? ''));
+            if ($providerSetting !== 'payhero') {
+                Log::error('Payhero STK: payment gateway provider not set to payhero', [
+                    'organization_id' => $organization?->id,
+                    'provider' => $providerSetting,
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Payhero is not configured as the payment provider for this organization.',
+                ], 422);
+            }
+
+            $channelId = trim((string) (data_get($settings, 'channel_id') ?? ''));
+            $callbackUrl = trim((string) (data_get($settings, 'callback_url') ?? ''));
+
+            if ($channelId === '' || $callbackUrl === '') {
+                Log::error('Payhero STK: missing payhero settings', [
+                    'organization_id' => $organization?->id,
+                    'channel_id_set' => $channelId !== '',
+                    'callback_url_set' => $callbackUrl !== '',
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Payhero configuration incomplete. Set channel_id and callback_url in payment gateway settings.',
+                ], 422);
+            }
+
             $response =  Http::withOptions([
                 'verify' => true, // <- ignore SSL verification
             ])->withHeaders([
@@ -46,10 +75,10 @@ class PayheroPaymentController extends Controller
             ])->post($this->baseUrl, [
                 'amount' => $request->amount,
                 'phone_number' => $request->phone,
-                'channel_id' => env('CHANNEL_ID'),
-                'provider' => 'm-pesa',
+                'channel_id' => $channelId,
+                'provider' => 'payhero',
                 'external_reference' => 'ORG-' . $request->user()->organization_id . '-INV-' . now()->timestamp,
-                'callback_url' =>  env('PAYHERO_CALLBACK_URL'),
+                'callback_url' =>  $callbackUrl,
             ]);
 
             if ($response->successful()) {
@@ -129,16 +158,6 @@ class PayheroPaymentController extends Controller
             ]);
 
             return response()->json(['success' => false, 'message' => 'Invalid callback payload'], 400);
-        }
-
-        $organization = $this->resolveOrganizationFromCallback($externalReference, $phone);
-        if (!$organization) {
-            Log::warning('Payhero STK callback could not resolve organization', [
-                'external_reference' => $externalReference,
-                'phone' => $phone,
-            ]);
-
-            return response()->json(['success' => false, 'message' => 'Organization not resolved'], 404);
         }
 
         $amountAsDecimal = number_format($amount, 2, '.', '');

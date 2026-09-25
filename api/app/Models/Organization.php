@@ -74,4 +74,71 @@ class Organization extends Model
     {
         return $this->hasOne(OrganizationLicenseSnapshot::class)->latestOfMany('snapshot_month');
     }
+
+    public function paymentGateways()
+    {
+        return $this->hasMany(OrganizationPaymentGateway::class);
+    }
+
+    public function defaultPaymentGateway()
+    {
+        return $this->hasOne(OrganizationPaymentGateway::class)->where('is_default', true);
+    }
+
+    public function getPaymentGatewayConfig(?string $provider = null): array
+    {
+        $query = $this->paymentGateways()->where('active', true);
+
+        if ($provider) {
+            $query->where('provider', $provider);
+        } else {
+            $query->where('is_default', true);
+        }
+
+        $gateway = $query->first();
+
+        if (!$gateway && $provider) {
+            $gateway = $this->paymentGateways()->where('active', true)->where('provider', $provider)->first();
+        }
+
+        if (!$gateway && !$provider) {
+            $gateway = $this->paymentGateways()->where('active', true)->first();
+        }
+
+        if ($gateway) {
+            $cfg = (array) ($gateway->config ?? []);
+            $cfg['provider'] = $gateway->provider;
+            return $cfg;
+        }
+
+        // Fallback to legacy organization.settings.payment-gateway only if no DB gateway exists.
+        $raw = $this->settings ?? [];
+        $paymentGateway = data_get($raw, 'payment-gateway');
+        if (is_array($paymentGateway)) {
+            if ($provider) {
+                $providerConfig = data_get($paymentGateway, $provider);
+                if (is_array($providerConfig)) {
+                    return array_merge($providerConfig, ['provider' => $provider]);
+                }
+            }
+
+            return $paymentGateway;
+        }
+
+        if (is_string($paymentGateway)) {
+            $decoded = json_decode($paymentGateway, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                if ($provider) {
+                    $providerConfig = data_get($decoded, $provider);
+                    if (is_array($providerConfig)) {
+                        return array_merge($providerConfig, ['provider' => $provider]);
+                    }
+                }
+
+                return $decoded;
+            }
+        }
+
+        return [];
+    }
 }

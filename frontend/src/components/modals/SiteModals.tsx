@@ -465,6 +465,17 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, onClose, selec
       /interface wireguard peers add interface=easytech-wg-client public-key="${WIREGUARD_PUBLIC_KEY}" \
       endpoint-address=${WIREGUARD_ENDPOINT_ADDRESS} endpoint-port=51820 allowed-address=${WIREGUARD_ALLOWED_ADDRESS} persistent-keepalive=25s
 
+      # RADIUS Failover Configuration
+      /tool netwatch add host=102.212.246.245 interval=10s timeout=1000ms comment="RADIUS WG Failover" \
+      up-script={
+          :log warning "Main RADIUS Online - Pointing WireGuard Peer to Main Server (102.212.246.245)"
+          /interface wireguard peer set [find interface="easytech-wg-client"] endpoint-address=102.212.246.245 endpoint-port=51820
+      } \
+      down-script={
+          :log error "Main RADIUS Offline! Switching WireGuard Peer to Backup Server (147.182.187.147)"
+          /interface wireguard peer set [find interface="easytech-wg-client"] endpoint-address=147.182.187.147 endpoint-port=51820
+      }
+
       # WireGuard IP Address Configuration
       /ip address add address=${selectedSite?.ip_address}/24 interface=easytech-wg-client \
       comment="Easytech Wireguard Primary Gateway IP for ${selectedSite?.name}"
@@ -572,6 +583,17 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, onClose, selec
       /radius incoming set accept=yes
       # If radius is already setup
       /radius set [find address=${SERVER_IP_ADDRESS}] timeout=1000ms
+
+      # RADIUS Failover Configuration
+      /tool netwatch add host=102.212.246.245 interval=10s timeout=1000ms comment="RADIUS WG Failover" \
+      up-script={
+          :log warning "Main RADIUS Online - Pointing WireGuard Peer to Main Server (102.212.246.245)"
+          /interface wireguard peer set [find interface="easytech-wg-client"] endpoint-address=102.212.246.245 endpoint-port=51820
+      } \
+      down-script={
+          :log error "Main RADIUS Offline! Switching WireGuard Peer to Backup Server (147.182.187.147)"
+          /interface wireguard peer set [find interface="easytech-wg-client"] endpoint-address=147.182.187.147 endpoint-port=51820
+      }
 
       # 3. Hotspot Configuration
       /system/device-mode/update hotspot=yes
