@@ -206,6 +206,11 @@ export const sitesApi = {
 		const response = await axiosInstance.put(`/sites/${id}`, data);
 		return response.data;
 	},
+
+	delete: async (id: number | string) => {
+		const response = await axiosInstance.delete(`/sites/${id}`);
+		return response.data;
+	},
 };
 
 export const customersApi = {

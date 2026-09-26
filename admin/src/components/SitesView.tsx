@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Globe, Search, Plus, CheckCircle, XCircle, Edit2, X } from 'lucide-react';
 import { Site } from '../types';
 import { sitesApi, ApiError } from '../services/apiService';
+import Swal from 'sweetalert2';
 
 export const SitesView: React.FC = () => {
   const [sites, setSites] = useState<Site[]>([]);
@@ -115,6 +116,56 @@ export const SitesView: React.FC = () => {
     }
   };
 
+  const deleteSite = async (site: Site) => {
+    const isDark = document.documentElement.classList.contains('dark');
+
+    const confirmation = await Swal.fire({
+      title: 'Confirm Site Deletion',
+      html: `
+        <div style="text-align:left; display:grid; gap:10px;">
+          <div style="padding:12px; border-radius:10px; border:1px solid ${isDark ? '#7f1d1d' : '#fecaca'}; background:${isDark ? '#450a0a' : '#fef2f2'};">
+            <div style="font-weight:700; color:${isDark ? '#fca5a5' : '#b91c1c'}; margin-bottom:6px;">${site.name} (${site.ip_address})</div>
+            <div style="font-size:13px; color:${isDark ? '#fecaca' : '#7f1d1d'};">Clients will no longer be able to connect to this site.</div>
+          </div>
+          <div style="font-size:13px; color:${isDark ? '#cbd5e1' : '#334155'};">Type <b>delete</b> to confirm.</div>
+        </div>
+      `,
+      input: 'text',
+      inputPlaceholder: 'Type delete here...',
+      inputAutoTrim: true,
+      showCancelButton: true,
+      confirmButtonText: 'Delete',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#64748b',
+      background: isDark ? '#0f172a' : '#ffffff',
+      color: isDark ? '#e2e8f0' : '#0f172a',
+      preConfirm: (value: string) => {
+        if (value !== 'delete') {
+          Swal.showValidationMessage('Please type delete exactly to continue');
+          return false;
+        }
+        return value;
+      },
+    });
+
+    if (!confirmation.isConfirmed) {
+      return;
+    }
+
+    try {
+      await sitesApi.delete(site.id);
+      setSites((prevSites) => prevSites.filter((site) => String(site.id) !== String(site.id)));
+    } catch (error) {
+      console.error('Error deleting site:', error);
+      if (error instanceof ApiError) {
+        alert(`Failed to delete site: ${error.message}`);
+      } else {
+        alert('Failed to delete site. Please try again.');
+      }
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -182,10 +233,17 @@ export const SitesView: React.FC = () => {
                     <td className="px-6 py-4 text-right">
                       <button
                         onClick={() => openEditModal(site)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 border border-indigo-100 hover:border-indigo-200 bg-indigo-50/60 hover:bg-indigo-50 rounded-lg transition-colors"
+                        className="inline-flex items-center cursor-pointer gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 border border-indigo-100 hover:border-indigo-200 bg-indigo-50/60 hover:bg-indigo-50 rounded-lg transition-colors"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                         Edit
+                      </button>
+                      <button
+                        onClick={() => deleteSite(site)}
+                        className="ml-2 inline-flex items-center cursor-pointer gap-1.5 px-3 py-1.5 text-xs font-medium text-rose-600 hover:text-rose-700 border border-rose-100 hover:border-rose-200 bg-rose-50/60 hover:bg-rose-50 rounded-lg transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        Delete
                       </button>
                     </td>
                   </tr>

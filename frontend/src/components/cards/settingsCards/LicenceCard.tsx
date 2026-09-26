@@ -3,6 +3,15 @@ import { Badge, Modal } from "../../UI";
 import { organizationApi, paymentsApi } from "../../../services/apiService";
 import { toast } from "sonner";
 
+const formatMonthName = (value?: string) => {
+  if (!value) return 'Not generated';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Not generated';
+
+  return new Intl.DateTimeFormat('en', { month: 'long' }).format(date);
+};
+
 const LicenceCard: React.FC<{ orgSettings: any }> = ({orgSettings}) => {
   const paymentPhoneNumber = '0714475702';
     const [licenceStatus, setLicenceStatus] = useState<'Active' | 'Trial' | 'Expired'>('Trial');
@@ -11,6 +20,7 @@ const LicenceCard: React.FC<{ orgSettings: any }> = ({orgSettings}) => {
     const [paymentStep, setPaymentStep] = useState<'idle' | 'processing' | 'success'>('idle');
     const [phoneNumber, setPhoneNumber] = useState('');
     const [billingSummary, setBillingSummary] = useState<any>(null);
+    const [amountDue, setAmountDue] = useState<number>(0);
     const currentBillStatus = billingSummary?.current?.status;
     const walletBalance = Number(orgSettings?.balance || 0);
     
@@ -36,7 +46,9 @@ const LicenceCard: React.FC<{ orgSettings: any }> = ({orgSettings}) => {
         const fetchLicenseBilling = async () => {
             try {
                 const response = await organizationApi.getLicenseBilling();
+                console.log('Fetched license billing summary:', response);
                 setBillingSummary(response || null);
+                setAmountDue(Math.max(1, Number(response?.current?.total_amount || 0)) - walletBalance);
             } catch (error) {
                 console.error('Failed to fetch license billing summary:', error);
             }
@@ -147,19 +159,35 @@ const LicenceCard: React.FC<{ orgSettings: any }> = ({orgSettings}) => {
                           <h3 className="text-3xl font-black">{licenceStatus === 'Trial' ? 'Free Trial' : (activeTier || 'Enterprise')}</h3>
                           <Badge variant={licenceStatus.toLowerCase()}>{licenceStatus.toUpperCase()}</Badge>
                         </div>
-                        <p className="text-slate-400 font-medium font-mono text-sm uppercase">ET-CLOUD-8821-X991-A122</p>
+                        <p className="text-slate-400 font-medium font-mono text-sm uppercase">
+                          {formatMonthName(billingSummary?.current?.snapshot_month)} Billing Summary
+                        </p>
                       </div>
                     </div>
                     <div className="text-center md:text-right">
-                      <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Wallet Balance</p>
-                      <p className="text-2xl font-black text-emerald-300">KSH {walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                      <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Current Month Bill</p>
-                      <p className="text-2xl font-black text-white">
-                        {billingSummary?.current?.total_amount ? `KSH ${Number(billingSummary.current.total_amount).toLocaleString()}` : 'KSH 0'}
-                      </p>
-                      <p className={`text-[10px] font-black uppercase tracking-widest mt-2 ${currentBillStatus === 'paid' ? 'text-emerald-300' : 'text-amber-300'}`}>
-                        {currentBillStatus === 'paid' ? 'Paid' : 'Unpaid'}
-                      </p>
+                      <div className="flex items-center justify-center md:justify-end gap-2 mb-2">
+                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Wallet Balance</p>
+                        <p className="text-2xl font-black text-emerald-300">
+                          KSH {walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between md:justify-end gap-2">
+                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Current Month Bill</p>
+                        <p className="text-2xl font-black text-red-400">
+                          KSH {amountDue.toFixed(2)}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-center md:justify-end gap-2 my-2">
+                        <p className={`text-[20px] font-black uppercase tracking-widest mt-2 ${currentBillStatus === 'paid' ? 'text-emerald-300' : 'text-amber-300'}`}>
+                          {currentBillStatus === 'paid' ? 'Paid' : 'Unpaid'}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center md:justify-end gap-2">
+                        <p className="text-slate-400 text-[20px] font-black uppercase tracking-widest mb-1">Pay <span className="text-2xl font-black text-red-400">
+                            KSH {amountDue.toFixed(2)}
+                          </span> to stay connected
+                        </p>
+                      </div>
                       {/* {currentBillStatus !== 'paid' && (
                         <button
                           type="button"
@@ -170,8 +198,8 @@ const LicenceCard: React.FC<{ orgSettings: any }> = ({orgSettings}) => {
                         </button>
                       )} */}
                     </div>
-                  </div>
-                    <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-2xl p-4 max-w-sm">
+                  </div >
+                  <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-2xl p-4 max-w-sm mt-6">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                     <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Payment Details</p>
@@ -189,20 +217,46 @@ const LicenceCard: React.FC<{ orgSettings: any }> = ({orgSettings}) => {
                   </button>
                 </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-gray-100 dark:border-slate-800">
-                    <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black">Snapshot Month</p>
-                    <p className="text-lg font-black text-gray-900 dark:text-white mt-1">
-                        {billingSummary?.current?.snapshot_month ? new Date(billingSummary.current.snapshot_month).toDateString() : 'Not generated'}
-                    </p>
+                <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-gray-100 dark:border-slate-800">
+                  <h3 className="text-sm font-black text-blue-900 dark:text-white mb-4">PPPoE Billing Summary</h3>
+                  <div className="flex flex-wrap gap-4 justify-between">
+                    <div className="flex-grow bg-white dark:bg-slate-900 rounded-2xl p-4 border border-gray-100 dark:border-slate-800">
+                      <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black">Active Users</p>
+                      <p className="text-lg font-black text-gray-900 dark:text-white mt-1">
+                        {billingSummary?.current?.active_pppoe_users_count?.toFixed(0) ?? '0'}
+                      </p>
+                    </div>
+                    <div className="bg-white flex-grow dark:bg-slate-900 rounded-2xl p-4 border border-gray-100 dark:border-slate-800">
+                      <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black">Charged Amount</p>
+                      <p className="text-lg font-black text-gray-900 dark:text-white mt-1">
+                        KSH {Number(billingSummary?.current?.pppoe_amount)?.toFixed(2) ?? '0.00'}
+                      </p>
+                    </div>
+                    <div className=" flex-grow bg-white dark:bg-slate-900 rounded-2xl p-4 border border-gray-100 dark:border-slate-800">
+                      <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black">Rate</p>
+                      <p className="text-lg font-black text-gray-900 dark:text-white mt-1">KSH 15 / active user</p>
+                    </div>
                   </div>
-                  <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-gray-100 dark:border-slate-800">
-                    <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black">Active Users</p>
-                    <p className="text-lg font-black text-gray-900 dark:text-white mt-1">{billingSummary?.current?.active_users_count ?? 0}</p>
-                  </div>
-                  <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-gray-100 dark:border-slate-800">
-                    <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black">Rate</p>
-                    <p className="text-lg font-black text-gray-900 dark:text-white mt-1">KSH 15 / active user</p>
+                </div>
+                <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-gray-100 dark:border-slate-800">
+                  <h3 className="text-sm font-black text-yellow-900 dark:text-white mb-4">Hotspot Billing Summary</h3>
+                  <div className="flex flex-wrap gap-4 justify-between">
+                    <div className="flex-grow bg-white dark:bg-slate-900 rounded-2xl p-4 border border-gray-100 dark:border-slate-800">
+                      <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black">Total Revenue</p>
+                      <p className="text-lg font-black text-gray-900 dark:text-white mt-1">
+                        KSH {Number(billingSummary?.current?.hotspot_payments)?.toFixed(2) ?? '0.00'}
+                      </p>
+                    </div>
+                    <div className="bg-white flex-grow dark:bg-slate-900 rounded-2xl p-4 border border-gray-100 dark:border-slate-800">
+                      <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black">Charged Amount</p>
+                      <p className="text-lg font-black text-gray-900 dark:text-white mt-1">
+                        KSH {Number(billingSummary?.current?.hotspot_amount)?.toFixed(2) ?? '0.00'}
+                      </p>
+                    </div>
+                    <div className=" flex-grow bg-white dark:bg-slate-900 rounded-2xl p-4 border border-gray-100 dark:border-slate-800">
+                      <p className="text-[10px] uppercase tracking-widest text-gray-400 font-black">Rate</p>
+                      <p className="text-lg font-black text-gray-900 dark:text-white mt-1">3% of monthly revenue</p>
+                    </div>
                   </div>
                 </div>
                 <div className="bg-slate-900 backdrop-blur-md border border-white/10 rounded-2xl p-4 max-w-sm">
