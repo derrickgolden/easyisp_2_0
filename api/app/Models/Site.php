@@ -14,6 +14,7 @@ class Site extends Model
         'name',
         'location',
         'ip_address',
+        'backup_ip_address',
         'mikrotik_username',
         'mikrotik_password',
         'mikrotik_port',

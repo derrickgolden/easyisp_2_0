@@ -23,6 +23,7 @@ class SiteResource extends JsonResource
             'routers_count' => 1,
             'status' => $this->is_online ? 'online' : 'offline',
             'ip_address' => $this->ip_address,
+            'backup_ip_address' => $this->backup_ip_address,
             'mikrotik_username' => $this->mikrotik_username,
             'mikrotik_password' => $this->mikrotik_password,
             'mikrotik_port' => $this->mikrotik_port,

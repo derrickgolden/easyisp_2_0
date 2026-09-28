@@ -121,6 +121,7 @@ class SiteController extends Controller
             'name' => 'required|string|max:255',
             'location' => 'required|string',
             'ip_address' => 'required|string',
+            'backup_ip_address' => 'nullable|string',
             'mikrotik_username' => 'nullable|string|max:255',
             'mikrotik_password' => 'nullable|string|max:255',
             'mikrotik_port' => 'nullable|integer|min:1|max:65535',
@@ -172,6 +173,7 @@ class SiteController extends Controller
             'name' => 'sometimes|string|max:255',
             'location' => 'sometimes|string',
             'ip_address' => 'sometimes|string',
+            'backup_ip_address' => 'nullable|string',
             'mikrotik_username' => 'nullable|string|max:255',
             'mikrotik_password' => 'nullable|string|max:255',
             'mikrotik_port' => 'nullable|integer|min:1|max:65535',
@@ -190,10 +192,11 @@ class SiteController extends Controller
         }
 
         $oldIpAddress = $site->ip_address;
+        $oldBackupIpAddress = $site->backup_ip_address;
 
-        DB::transaction(function () use ($site, $data, $oldIpAddress) {
+        DB::transaction(function () use ($site, $data, $oldIpAddress, $oldBackupIpAddress) {
             $site->update($data);
-            $this->syncNas($site, $oldIpAddress);
+            $this->syncNas($site, $oldIpAddress, $oldBackupIpAddress);
         });
 
         return response()->json([
@@ -217,7 +220,7 @@ class SiteController extends Controller
         return response()->json(['message' => 'Site deleted successfully']);
     }
 
-    private function syncNas(Site $site, ?string $oldIpAddress = null): void
+    private function syncNas(Site $site, ?string $oldIpAddress = null, ?string $oldBackupIpAddress = null): void
     {
         $description = 'Site: ' . $site->name . ' (' . ($site->location ?? 'Not specified') . ')';
         $radiusConnection = DB::connection('radius');
@@ -226,6 +229,12 @@ class SiteController extends Controller
         if ($oldIpAddress && $oldIpAddress !== $site->ip_address) {
             $radiusConnection->table('nas')
                 ->where('nasname', $oldIpAddress)
+                ->where('organization_id', $site->organization_id)
+                ->delete();
+        }
+        if ($oldBackupIpAddress && $oldBackupIpAddress !== $site->backup_ip_address) {
+            $radiusConnection->table('nas')
+                ->where('nasname', $oldBackupIpAddress)
                 ->where('organization_id', $site->organization_id)
                 ->delete();
         }
@@ -242,6 +251,21 @@ class SiteController extends Controller
                 'status'          => 'active',
             ]
         );
+
+        if ($site->backup_ip_address) {
+            $radiusConnection->table('nas')->updateOrInsert(
+                ['nasname' => $site->backup_ip_address, 'organization_id' => $site->organization_id],
+                [
+                    'nasname'         => $site->backup_ip_address,
+                    'shortname'       => $site->name . ' (Backup)',
+                    'type'            => 'other',
+                    'secret'          => $site->radius_secret ?? 'secret',
+                    'description'     => $description . ' (Backup)',
+                    'organization_id' => $site->organization_id,
+                    'status'          => 'active',
+                ]
+            );
+        }
     }
 
     private function deleteNas(Site $site): void
@@ -250,6 +274,12 @@ class SiteController extends Controller
             ->where('nasname', $site->ip_address)
             ->where('organization_id', $site->organization_id)
             ->delete();
+        if ($site->backup_ip_address) {
+            DB::connection('radius')->table('nas')
+                ->where('nasname', $site->backup_ip_address)
+                ->where('organization_id', $site->organization_id)
+                ->delete();
+        }
     }
 
     /**

@@ -16,6 +16,7 @@ export const SitesView: React.FC = () => {
     name: '',
     location: '',
     ip_address: '',
+    backup_ip_address: '',
     notify_on_down: false,
   });
 
@@ -59,6 +60,7 @@ export const SitesView: React.FC = () => {
       name: site.name ?? '',
       location: site.location ?? '',
       ip_address: site.ip_address ?? '',
+      backup_ip_address: site.backup_ip_address ?? '',
       notify_on_down: !!site.notify_on_down,
     });
     setFormError(null);
@@ -86,6 +88,7 @@ export const SitesView: React.FC = () => {
         name: formData.name.trim(),
         location: formData.location.trim(),
         ip_address: formData.ip_address.trim(),
+        backup_ip_address: formData.backup_ip_address.trim(),
         notify_on_down: formData.notify_on_down,
       };
 
@@ -299,6 +302,16 @@ export const SitesView: React.FC = () => {
                   onChange={(e) => setFormData((prev) => ({ ...prev, ip_address: e.target.value }))}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 rounded-xl outline-none transition-all text-sm"
                   required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Backup IP Address</label>
+                <input
+                  type="text"
+                  value={formData.backup_ip_address}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, backup_ip_address: e.target.value }))}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 rounded-xl outline-none transition-all text-sm"
                 />
               </div>
 

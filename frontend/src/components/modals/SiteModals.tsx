@@ -7,6 +7,8 @@ import { toast } from 'sonner';
 const WIREGUARD_PUBLIC_KEY = import.meta.env.VITE_WIREGUARD_PUBLIC_KEY;
 const WIREGUARD_ALLOWED_ADDRESS = import.meta.env.VITE_WIREGUARD_ALLOWED_ADDRESS;
 const WIREGUARD_ENDPOINT_ADDRESS = import.meta.env.VITE_WIREGUARD_ENDPOINT_ADDRESS;
+const BACKUP_WIREGUARD_ALLOWED_ADDRESS = import.meta.env.VITE_BACKUP_WIREGUARD_ALLOWED_ADDRESS;
+const BACKUP_WIREGUARD_ENDPOINT_ADDRESS = import.meta.env.VITE_BACKUP_WIREGUARD_ENDPOINT_ADDRESS;
 const SERVER_IP_ADDRESS = import.meta.env.VITE_SERVER_IP_ADDRESS;
 const RADIUS_SECRET = import.meta.env.VITE_RADIUS_SECRET;
 const DST_HOST = import.meta.env.VITE_DST_HOST;
@@ -21,6 +23,7 @@ interface SiteProvisionModalProps {
 export const SiteProvisionModal: React.FC<SiteProvisionModalProps> = ({ isOpen, onClose, onSuccess, editingSite }) =>{
   const [name, setName] = useState('');
   const [gateway, setGateway] = useState('');
+  const [backupGateway, setBackupGateway] = useState('');
   const [location, setLocation] = useState('');
   const [mikrotikUsername, setMikrotikUsername] = useState('');
   const [mikrotikPassword, setMikrotikPassword] = useState('');
@@ -34,6 +37,7 @@ export const SiteProvisionModal: React.FC<SiteProvisionModalProps> = ({ isOpen, 
     if (editingSite) {
       setName(editingSite.name || '');
       setGateway(editingSite.ip_address || '');
+      setBackupGateway(editingSite.backup_ip_address || '');
       setLocation(editingSite.location || '');
       setMikrotikUsername(editingSite.mikrotik_username || '');
       setMikrotikPassword(editingSite.mikrotik_password || '');
@@ -41,6 +45,7 @@ export const SiteProvisionModal: React.FC<SiteProvisionModalProps> = ({ isOpen, 
     } else {
       setName('');
       setGateway('');
+      setBackupGateway('');
       setLocation('');
       setMikrotikUsername('');
       setMikrotikPassword('');
@@ -79,6 +84,7 @@ export const SiteProvisionModal: React.FC<SiteProvisionModalProps> = ({ isOpen, 
         mikrotik_username: mikrotikUsername.trim() || null,
         mikrotik_port: mikrotikPort ? Number(mikrotikPort) : null,
         notify_on_down: true,
+        backup_ip_address: backupGateway.trim() || null,
       };
 
       if (mikrotikPassword.trim()) {
@@ -137,6 +143,20 @@ export const SiteProvisionModal: React.FC<SiteProvisionModalProps> = ({ isOpen, 
             className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 text-gray-900 dark:text-white" 
             value={gateway} 
             onChange={(e) => setGateway(e.target.value)}
+            disabled={loading}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            Backup Gateway IP
+          </label>
+          <input 
+            type="text" 
+            placeholder="Backup Gateway IP" 
+            className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 text-gray-900 dark:text-white" 
+            value={backupGateway} 
+            onChange={(e) => setBackupGateway(e.target.value)}
             disabled={loading}
           />
         </div>
@@ -461,24 +481,25 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, onClose, selec
       /radius incoming set accept=yes
 
       # WireGuard Configuration
-      /interface wireguard add name=easytech-wg-client listen-port=13231
-      /interface wireguard peers add interface=easytech-wg-client public-key="${WIREGUARD_PUBLIC_KEY}" \
+      /interface wireguard add name=easytech-wg-client-main-server listen-port=13231 comment="EasyTech Wireguard Client for ${selectedSite?.name}"
+      /interface wireguard peers add interface=easytech-wg-client-main-server public-key="${WIREGUARD_PUBLIC_KEY}" \
       endpoint-address=${WIREGUARD_ENDPOINT_ADDRESS} endpoint-port=51820 allowed-address=${WIREGUARD_ALLOWED_ADDRESS} persistent-keepalive=25s
-
-      # RADIUS Failover Configuration
-      /tool netwatch add host=102.212.246.245 interval=10s timeout=1000ms comment="RADIUS WG Failover" \
-      up-script={
-          :log warning "Main RADIUS Online - Pointing WireGuard Peer to Main Server (102.212.246.245)"
-          /interface wireguard peer set [find interface="easytech-wg-client"] endpoint-address=102.212.246.245 endpoint-port=51820
-      } \
-      down-script={
-          :log error "Main RADIUS Offline! Switching WireGuard Peer to Backup Server (147.182.187.147)"
-          /interface wireguard peer set [find interface="easytech-wg-client"] endpoint-address=147.182.187.147 endpoint-port=51820
-      }
+      # WireGuard Backup Configuration
+      /interface wireguard add name=easytech-wg-client-backup-server listen-port=51821 comment="EasyTech Wireguard Backup for ${selectedSite?.name}"
+      /interface wireguard peers add interface=easytech-wg-client-backup-server public-key="${WIREGUARD_PUBLIC_KEY}" \
+      endpoint-address=${BACKUP_WIREGUARD_ENDPOINT_ADDRESS} endpoint-port=51820 allowed-address=${BACKUP_WIREGUARD_ALLOWED_ADDRESS} persistent-keepalive=25s
 
       # WireGuard IP Address Configuration
-      /ip address add address=${selectedSite?.ip_address}/24 interface=easytech-wg-client \
+      /ip address add address=${selectedSite?.ip_address}/24 interface=easytech-wg-client-main-server \
       comment="Easytech Wireguard Primary Gateway IP for ${selectedSite?.name}"
+      /ip address add address=${selectedSite?.backup_ip_address}/24 interface=easytech-wg-client-backup-server \
+      comment="Easytech Wireguard Backup Gateway IP for ${selectedSite?.name}"
+
+      # Set Up the Automatic Routing Failover Rules
+      /ip route
+      add dst-address=${SERVER_IP_ADDRESS}/32 gateway=easytech-wg-client-main-server distance=1 comment="Preferred Path to Main Server"
+      add dst-address=${SERVER_IP_ADDRESS}/32 gateway=easytech-wg-client-backup-server distance=2 comment="Failover Path to Backup Server"
+
 
       # Firewall Rules
       # Allow RADIUS and COA from the WireGuard Tunnel only
@@ -561,12 +582,16 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, onClose, selec
       /ip dns set servers=8.8.8.8,1.1.1.1 allow-remote-requests=no
 
       # WireGuard Configuration
-      /interface wireguard add name=easytech-wg-client listen-port=13231
-      /interface wireguard peers add interface=easytech-wg-client public-key="${WIREGUARD_PUBLIC_KEY}" \
+      /interface wireguard add name=easytech-wg-client-main-server listen-port=13231 comment="EasyTech Wireguard Client for ${selectedSite?.name}"
+      /interface wireguard peers add interface=easytech-wg-client-main-server public-key="${WIREGUARD_PUBLIC_KEY}" \
       endpoint-address=${WIREGUARD_ENDPOINT_ADDRESS} endpoint-port=51820 allowed-address=${WIREGUARD_ALLOWED_ADDRESS} persistent-keepalive=25s
+      # WireGuard Backup Configuration
+      /interface wireguard add name=easytech-wg-client-backup-server listen-port=51821 comment="EasyTech Wireguard Backup for ${selectedSite?.name}"
+      /interface wireguard peers add interface=easytech-wg-client-backup-server public-key="${WIREGUARD_PUBLIC_KEY}" \
+      endpoint-address=147.182.187.147 endpoint-port=51820 allowed-address=0.0.0.0/0 persistent-keepalive=25s
 
       # WireGuard IP Address Configuration
-      /ip address add address=${selectedSite?.ip_address}/24 interface=easytech-wg-client \
+      /ip address add address=${selectedSite?.ip_address}/24 interface=easytech-wg-client-main-server \
       comment="EasyTech Wireguard Primary Gateway IP for ${selectedSite?.name}"
 
       # Hotspot Server Configuration
@@ -583,17 +608,6 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, onClose, selec
       /radius incoming set accept=yes
       # If radius is already setup
       /radius set [find address=${SERVER_IP_ADDRESS}] timeout=1000ms
-
-      # RADIUS Failover Configuration
-      /tool netwatch add host=102.212.246.245 interval=10s timeout=1000ms comment="RADIUS WG Failover" \
-      up-script={
-          :log warning "Main RADIUS Online - Pointing WireGuard Peer to Main Server (102.212.246.245)"
-          /interface wireguard peer set [find interface="easytech-wg-client"] endpoint-address=102.212.246.245 endpoint-port=51820
-      } \
-      down-script={
-          :log error "Main RADIUS Offline! Switching WireGuard Peer to Backup Server (147.182.187.147)"
-          /interface wireguard peer set [find interface="easytech-wg-client"] endpoint-address=147.182.187.147 endpoint-port=51820
-      }
 
       # 3. Hotspot Configuration
       /system/device-mode/update hotspot=yes

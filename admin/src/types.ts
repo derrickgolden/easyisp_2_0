@@ -44,6 +44,10 @@ export interface Site {
   status: "online" | "offline";
   location?: string | null;
   ip_address?: string | null;
+  backup_ip_address?: string | null;
+  mikrotik_username?: string | null;
+  mikrotik_password?: string | null;
+  mikrotik_port?: number | null;
   notify_on_down?: boolean;
   last_seen?: string | null;
   radius_secret?: string | null;
