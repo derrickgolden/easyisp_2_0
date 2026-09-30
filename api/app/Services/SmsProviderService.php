@@ -12,6 +12,8 @@ class SmsProviderService
      */
     public function send($phone, $message, $provider, $apiKey, $senderId, $apiUsername = null, array $context = [])
     {
+        $provider = $this->normalizeProviderName((string) $provider);
+
         $context = array_merge([
             'organization_id' => $context['organization_id'] ?? null,
             'user_id' => $context['user_id'] ?? null,
@@ -21,6 +23,18 @@ class SmsProviderService
             'provider' => $provider,
             'type' => $context['type'] ?? 'system',
         ], $context);
+
+        Log::info('SMS dispatch start', [
+            'provider' => $provider,
+            'organization_id' => $context['organization_id'] ?? null,
+            'customer_id' => $context['customer_id'] ?? null,
+            'phone' => $phone,
+            'api_key_preview' => is_string($apiKey) ? substr($apiKey, 0, 12) . '...' : null,
+            'api_key_contains_colon' => is_string($apiKey) && str_contains($apiKey, ':'),
+            'sender_id' => $senderId,
+            'api_username' => $apiUsername,
+            'type' => $context['type'] ?? 'system',
+        ]);
 
         try {
             $result = match ($provider) {
@@ -136,8 +150,11 @@ class SmsProviderService
      */
     public function sendViaTwilio($phone, $message, $senderId, $apiKey)
     {
-        // Extract Account SID and Auth Token from apiKey (format: "account_sid:auth_token")
-        [$accountSid, $authToken] = explode(':', $apiKey);
+        [$accountSid, $authToken] = $this->parseColonSeparatedCredentials(
+            (string) $apiKey,
+            'Twilio',
+            '"account_sid:auth_token"'
+        );
 
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, "https://api.twilio.com/2010-04-01/Accounts/{$accountSid}/Messages.json");
@@ -202,8 +219,11 @@ class SmsProviderService
      */
     public function sendViaBulkSMS($phone, $message, $senderId, $apiKey)
     {
-        // apiKey format: "username:password"
-        [$username, $password] = explode(':', $apiKey);
+        [$username, $password] = $this->parseColonSeparatedCredentials(
+            (string) $apiKey,
+            'BulkSMS.com',
+            '"username:password"'
+        );
 
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, 'https://api.bulksms.com/v1/messages?auto-unicode=true');
@@ -235,6 +255,10 @@ class SmsProviderService
     public function sendViaOnfon($phone, $message, $senderId, $apiKey, $apiUsername = null)
     {
         $apiKey = trim((string) $apiKey);
+        if ($apiKey === '') {
+            throw new \InvalidArgumentException('Onfon API key is invalid or missing.');
+        }
+
         $clientId = trim((string) ($apiUsername ?? $senderId ?? ''));
         $normalizedPhone = preg_replace('/\D+/', '', (string) $phone);
 
@@ -334,5 +358,37 @@ class SmsProviderService
     private function getProviderResponseFromException(\Exception $e)
     {
         return null;
+    }
+
+    private function normalizeProviderName(string $provider): string
+    {
+        $provider = trim($provider);
+        if ($provider === '') {
+            return $provider;
+        }
+
+        return match (strtolower($provider)) {
+            "africa's talking", 'africastalking' => "Africa's Talking",
+            'twilio' => 'Twilio',
+            'infobip' => 'Infobip',
+            'bulksms.com', 'bulksms' => 'BulkSMS.com',
+            'onfon' => 'Onfon',
+            default => $provider,
+        };
+    }
+
+    private function parseColonSeparatedCredentials(string $value, string $providerName, string $expectedFormat): array
+    {
+        $credentials = explode(':', $value, 2);
+
+        if (count($credentials) !== 2 || trim($credentials[0]) === '' || trim($credentials[1]) === '') {
+            throw new \InvalidArgumentException(sprintf(
+                '%s API key is invalid. Expected format: %s',
+                $providerName,
+                $expectedFormat
+            ));
+        }
+
+        return [$credentials[0], $credentials[1]];
     }
 }
