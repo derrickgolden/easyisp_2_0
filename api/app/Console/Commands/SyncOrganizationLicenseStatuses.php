@@ -31,6 +31,8 @@ class SyncOrganizationLicenseStatuses extends Command
         $this->info('Organization license statuses synced successfully.');
         $this->line('Suspended: ' . $result['suspended']);
         $this->line('Active: ' . $result['active']);
+        $this->line('NAS suspended: ' . $result['nas_suspended']);
+        $this->line('NAS active: ' . $result['nas_active']);
         $this->line('Organizations with unpaid snapshots: ' . $result['organizations_with_unpaid_snapshots']);
 
         return self::SUCCESS;

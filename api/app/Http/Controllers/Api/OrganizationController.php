@@ -7,6 +7,7 @@ use App\Models\Organization;
 use App\Models\OrganizationLicenseSnapshot;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class OrganizationController extends Controller
@@ -255,6 +256,10 @@ class OrganizationController extends Controller
         if ($latestThreeStatuses->count() > 0 && $latestThreeStatuses->every(fn ($itemStatus) => $itemStatus === 'paid')) {
             $organization->status = 'active';
             $organization->save();
+
+            DB::connection('radius')->table('nas')
+                ->where('organization_id', $organization->id)
+                ->update(['status' => 'active']);
         }
 
         return response()->json([
