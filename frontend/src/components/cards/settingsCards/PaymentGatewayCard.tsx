@@ -16,16 +16,20 @@ const PaymentGatewayCard: React.FC<{ onSave: (message: string) => void }>  = ({ 
     const [payheroForm, setPayheroForm] = useState({
         id: null,
         provider: '',
+        api_username: '',
+        api_password: '',
         channel_id: '',
-        callback_url: '',
         is_active: false,
         is_default: false,
     });
     const [kopokopoForm, setKopokopoForm] = useState({
         id: null,
         provider: '',
+        client_id: '',
+        client_secret: '',
         api_key: '',
-        callback_url: '',
+        till_number: '',
+        environment: 'Production',
         is_active: false,
         is_default: false,
     });
@@ -39,7 +43,6 @@ const PaymentGatewayCard: React.FC<{ onSave: (message: string) => void }>  = ({ 
         environment: 'Production',
         confirmation_url: '',
         validation_url: '',
-        stk_callback_url: '',
         is_active: false,
         is_default: false,
     });
@@ -59,11 +62,11 @@ const PaymentGatewayCard: React.FC<{ onSave: (message: string) => void }>  = ({ 
                         setDefaultPaymentGateway(e.provider);
                     }
                     if (e.provider === 'payhero') {
-                        setPayheroForm({ id: e.id, provider: 'payhero', channel_id: e.config?.channel_id || '', callback_url: e.config?.callback_url || '', is_active: e.active || false, is_default: e.is_default || false });
+                        setPayheroForm({ id: e.id, provider: 'payhero', api_username: e.config?.api_username || '', api_password: e.config?.api_password || '', channel_id: e.config?.channel_id || '', is_active: e.active || false, is_default: e.is_default || false });
                     } if (e.provider === 'kopokopo') {
-                        setKopokopoForm({ id: e.id, provider: 'kopokopo', api_key: e.config?.api_key || '', callback_url: e.config?.callback_url || '', is_active: e.active || false, is_default: e.is_default || false });
+                        setKopokopoForm({ id: e.id, provider: 'kopokopo', client_id: e.config?.client_id || '', client_secret: e.config?.client_secret || '', api_key: e.config?.api_key || '', till_number: e.config?.till_number || '', environment: e.config?.environment || 'Production', is_active: e.active || false, is_default: e.is_default || false });
                     } if (e.provider === 'mpesa') {
-                        setMpesaForm({ id: e.id, provider: 'mpesa', paybill: e.config?.paybill || '', consumer_key: e.config?.consumer_key || '', consumer_secret: e.config?.consumer_secret || '', passkey: e.config?.passkey || '', environment: e.config?.environment || 'Production', confirmation_url: e.config?.confirmation_url || '', validation_url: e.config?.validation_url || '', stk_callback_url: e.config?.stk_callback_url || '', is_active: e.active || false, is_default: e.is_default || false });
+                        setMpesaForm({ id: e.id, provider: 'mpesa', paybill: e.config?.paybill || '', consumer_key: e.config?.consumer_key || '', consumer_secret: e.config?.consumer_secret || '', passkey: e.config?.passkey || '', environment: e.config?.environment || 'Production', confirmation_url: e.config?.confirmation_url || '', validation_url: e.config?.validation_url || '', is_active: e.active || false, is_default: e.is_default || false });
                     }
                 });
             } catch (err) {
@@ -105,15 +108,14 @@ const PaymentGatewayCard: React.FC<{ onSave: (message: string) => void }>  = ({ 
                         environment: mpesaForm.environment,
                         confirmation_url: mpesaForm.confirmation_url,
                         validation_url: mpesaForm.validation_url,
-                        stk_callback_url: mpesaForm.stk_callback_url,
                     },
                     is_default: defaultPaymentGateway === 'mpesa',
                     active: mpesaForm.is_active || false
                 }];
 
             } else if (paymentGatewayMode === 'payhero') {
-                if (!payheroForm.channel_id || !payheroForm.callback_url) {
-                    const message = 'Channel ID and callback URL are required for Payhero.';
+                if (!payheroForm.channel_id) {
+                    const message = 'Channel ID is required for Payhero.';
                     setError(message);
                     onSave(`Error: ${message}`);
                     return;
@@ -122,16 +124,17 @@ const PaymentGatewayCard: React.FC<{ onSave: (message: string) => void }>  = ({ 
                 gateways = [{
                     provider: 'payhero',
                     config: {
+                        api_username: payheroForm.api_username,
+                        api_password: payheroForm.api_password,
                         channel_id: payheroForm.channel_id,
-                        callback_url: payheroForm.callback_url,
                     },
                     is_default: defaultPaymentGateway === 'payhero',
                     active: payheroForm.is_active || false
                 }];
 
             } else if (paymentGatewayMode === 'kopokopo') {
-                if (!kopokopoForm.api_key || !kopokopoForm.callback_url) {
-                    const message = 'API key and callback URL are required for KopoKopo.';
+                if (!kopokopoForm.client_id || !kopokopoForm.client_secret || !kopokopoForm.api_key || !kopokopoForm.till_number) {
+                    const message = 'Client ID, client secret, API key, and till number are required for KopoKopo.';
                     setError(message);
                     onSave(`Error: ${message}`);
                     return;
@@ -140,8 +143,11 @@ const PaymentGatewayCard: React.FC<{ onSave: (message: string) => void }>  = ({ 
                 gateways = [{
                     provider: 'kopokopo',
                     config: {
+                        client_id: kopokopoForm.client_id,
+                        client_secret: kopokopoForm.client_secret,
                         api_key: kopokopoForm.api_key,
-                        callback_url: kopokopoForm.callback_url,
+                        till_number: kopokopoForm.till_number,
+                        environment: kopokopoForm.environment,
                     },
                     is_default: defaultPaymentGateway === 'kopokopo',
                     active: kopokopoForm.is_active || false
@@ -391,17 +397,6 @@ const PaymentGatewayCard: React.FC<{ onSave: (message: string) => void }>  = ({ 
                       />
                       <p className="text-[9px] text-gray-400 italic">Leave empty to use default server URL. Use ngrok/localtunnel for local testing.</p>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">STK Callback URL</label>
-                      <input
-                        type="url"
-                        value={mpesaForm.stk_callback_url}
-                        onChange={e => setMpesaForm({ ...mpesaForm, stk_callback_url: e.target.value })}
-                        placeholder="https://your-domain.com/api/payments/daraja/{token}/stk/callback"
-                        className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono text-sm"
-                      />
-                      <p className="text-[9px] text-gray-400 italic">Required for Daraja STK push in this system. Stored in organization settings under payment-gateway.stk_callback_url.</p>
-                    </div>
                   </div>
                 </Card>
                 
@@ -455,6 +450,28 @@ const PaymentGatewayCard: React.FC<{ onSave: (message: string) => void }>  = ({ 
             {paymentGatewayMode === 'payhero' && ( <>
               <Card title={`Payhero Integration - ${payheroForm.provider}`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">API Username</label>
+                                        <input
+                                            type="text"
+                                            autoComplete="username"
+                                            value={payheroForm.api_username}
+                                            onChange={e => setPayheroForm({ ...payheroForm, api_username: e.target.value })}
+                                            placeholder="PayHero API username"
+                                            className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-yellow-500 text-gray-900 dark:text-white font-mono"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">API Password</label>
+                                        <input
+                                            type="password"
+                                            autoComplete="new-password"
+                                            value={payheroForm.api_password}
+                                            onChange={e => setPayheroForm({ ...payheroForm, api_password: e.target.value })}
+                                            placeholder="PayHero API password"
+                                            className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-yellow-500 text-gray-900 dark:text-white font-mono"
+                                        />
+                                    </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Channel ID</label>
                     <input
@@ -475,17 +492,6 @@ const PaymentGatewayCard: React.FC<{ onSave: (message: string) => void }>  = ({ 
                                 <option value="false">No</option>
                             </select>
                     </div>
-                  <div className="md:col-span-2 space-y-2">
-                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Callback URL</label>
-                    <input
-                      type="url"
-                      value={payheroForm.callback_url}
-                      onChange={e => setPayheroForm({ ...payheroForm, callback_url: e.target.value })}
-                      placeholder="https://isp.easytech.africa/api/payments/payhero/{token}/stk/callback"
-                      className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-yellow-500 text-gray-900 dark:text-white font-mono text-sm"
-                    />
-                    <p className="text-[9px] text-gray-400 italic">Payhero callback URL used for STK callbacks. Keep this publicly accessible.</p>
-                  </div>
                 </div>
                 <div className="flex mt-4 justify-end">
                         <button 
@@ -512,8 +518,87 @@ const PaymentGatewayCard: React.FC<{ onSave: (message: string) => void }>  = ({ 
             )}
             {paymentGatewayMode === 'kopokopo' && ( <>
                 <Card title={`KopoKopo Integration - ${kopokopoForm.provider}`}>
-                    <div className="text-sm text-gray-600 dark:text-gray-300 space-y-2">
-                        <p>KopoKopo integration is currently under development. Please check back later for updates.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Client ID</label>
+                        <input 
+                            type="text" 
+                            value={kopokopoForm.client_id}
+                            onChange={e => setKopokopoForm({ ...kopokopoForm, client_id: e.target.value })}
+                            placeholder="••••••••••••••••" 
+                            className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold" 
+                        />
+                        </div>
+                        <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Client Secret</label>
+                        <input 
+                            type="password" 
+                            value={kopokopoForm.client_secret}
+                            onChange={e => setKopokopoForm({ ...kopokopoForm, client_secret: e.target.value })}
+                            placeholder="••••••••••••••••" 
+                            className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono" 
+                        />
+                        </div>
+                        <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">API Key</label>
+                        <input 
+                            type="password" 
+                            value={kopokopoForm.api_key}
+                            onChange={e => setKopokopoForm({ ...kopokopoForm, api_key: e.target.value })}
+                            placeholder="••••••••••••••••" 
+                            className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono" 
+                        />
+                        </div>
+                        <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Till Number</label>
+                        <input 
+                            type="text" 
+                            value={kopokopoForm.till_number}
+                            onChange={e => setKopokopoForm({ ...kopokopoForm, till_number: e.target.value })}
+                            placeholder="K000000" 
+                            className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold" 
+                        />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Environment</label>
+                            <select 
+                                value={kopokopoForm.environment}
+                                onChange={e => setKopokopoForm({ ...kopokopoForm, environment: e.target.value })}
+                                className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold">
+                                <option>Production</option>
+                                <option>Sandbox (Testing)</option>
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Is Active</label>
+                            <select 
+                                value={kopokopoForm.is_active ? 'true' : 'false'}
+                                onChange={e => setKopokopoForm({ ...kopokopoForm, is_active: e.target.value === 'true' })}
+                                className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold">
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div className="flex mt-4 justify-end">
+                        <button 
+                            onClick={handleSave}
+                            disabled={isRegistering}
+                            type="button"
+                            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold px-8 py-3 rounded-xl shadow-lg shadow-blue-500/20 transition-all flex items-center space-x-2 active:scale-95"
+                        >
+                            {isRegistering ? (
+                                <>
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                <span>Registering...</span>
+                                </>
+                            ) : (
+                                <>
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                <span>Apply Changes</span>
+                                </>
+                            )}
+                        </button>
                     </div>
                 </Card>
             </>

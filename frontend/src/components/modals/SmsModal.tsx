@@ -1,13 +1,20 @@
 import React, { useEffect } from "react";
 import { Modal } from "../UI";
 import { toast } from "sonner";
-import { organizationApi, smsApi } from "@/src/services/apiService";
+import { organizationApi, smsApi, whatsappApi } from "@/src/services/apiService";
 import { Customer, Template } from "@/src/types";
 
 const SmsModal = ({ state, actions, customer }: any) => {
     const [smsText, setSmsText] = React.useState('');
     const [templates, setTemplates] = React.useState<Template[]>([]);
     const [selectedTemplate, setSelectedTemplate] = React.useState<string>('custom');
+    
+    const messagingType = state.messagingType || 'sms';
+    const modalTitle = messagingType === 'whatsapp' 
+      ? `WhatsApp Message to ${customer.firstName}`
+      : `Compose Transmission to ${customer.firstName}`;
+    const buttonText = messagingType === 'whatsapp' ? 'Send WhatsApp' : 'Transmit SMS';
+    const channelLabel = messagingType === 'whatsapp' ? 'WhatsApp' : 'SMS';
 
     useEffect(() => {
         const fetchTemplates = async () => {
@@ -22,11 +29,11 @@ const SmsModal = ({ state, actions, customer }: any) => {
 
     // Reset state when modal closes
     useEffect(() => {
-        if (!state.isSmsModalOpen) {
+        if (!state.isMessagingModalOpen) {
             setSelectedTemplate('custom');
             setSmsText('');
         }
-    }, [state.isSmsModalOpen]);
+    }, [state.isMessagingModalOpen]);
 
     // Handle template selection
     const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -75,40 +82,39 @@ const SmsModal = ({ state, actions, customer }: any) => {
             .replace(/{RadiusUsername}/gi, customer.radiusUsername || '');
     };
 
-    const handleSendSms = async (customer: Customer) => {
+    const handleSendMessage = async (customer: Customer) => {
       if (!smsText.trim()) {
-          alert('Please enter a message');
+          alert(`Please enter a ${messagingType === 'whatsapp' ? 'WhatsApp' : 'SMS'} message`);
           return;
       }
   
       try {
-          actions.setIsSmsModalOpen(false);
+          actions.setIsMessagingModalOpen(false);
           const originalText = personalizeMessage(smsText, customer);
           
           // Clear text or show loading
           setSmsText(''); 
 
-          const response = await smsApi.send(customer.phone, originalText, customer.id);
-          toast.success(`SMS sent successfully!`);
+          // Choose API based on messaging type
+          const api = messagingType === 'whatsapp' ? whatsappApi : smsApi;
+          const response = await api.send(customer.phone, originalText, customer.id);
+          
+          toast.success(`${messagingType === 'whatsapp' ? 'WhatsApp' : 'SMS'} sent successfully!`);
           
       } catch (err: any) {
-          console.error('SMS send error:', err);
+          console.error(`${messagingType === 'whatsapp' ? 'WhatsApp' : 'SMS'} send error:`, err);
   
-          // 1. Extract the specific error from the Laravel JSON response
-          // This targets the 'error' or 'message' keys you defined in PHP
           const serverError = err.response?.data?.error || err.response?.data?.message;
           const fallbackError = err.message || 'Unknown error';
           
-          // 2. Display the specific reason (e.g., "InvalidPhoneNumber")
           toast.error(`Failed: ${serverError || fallbackError}`);
           
-          // 3. Restore the text so the user doesn't lose their draft
           setSmsText(smsText); 
-          actions.setIsSmsModalOpen(true); // Re-open modal so they can fix the number/text
+          actions.setIsMessagingModalOpen(true);
       }
     };
     return (
-        <Modal isOpen={state.isSmsModalOpen} onClose={() => actions.setIsSmsModalOpen(false)} title={`Compose Transmission to ${customer.firstName}`}>
+        <Modal isOpen={state.isMessagingModalOpen} onClose={() => actions.setIsMessagingModalOpen(false)} title={modalTitle}>
                  <div className="space-y-4">
                     <div className="p-4 bg-emerald-50 dark:bg-emerald-900/10 rounded-2xl border border-emerald-100 dark:border-emerald-800 flex items-center gap-3">
                        <div className="p-2 bg-emerald-600 rounded-lg text-white">
@@ -155,14 +161,19 @@ const SmsModal = ({ state, actions, customer }: any) => {
 
                     <div>
                        <div className="flex justify-between items-end mb-2">
-                          <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Message Body</label>
+                          <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">{channelLabel} Message Body</label>
                           <select 
                              value={selectedTemplate}
                              onChange={handleTemplateChange}
                              className="text-[10px] font-bold bg-transparent border-none text-emerald-600 p-0 focus:ring-0 cursor-pointer"
                           >
                              <option value="custom">Custom Message</option>
-                             {templates.filter(t => t.category === 'SMS').map(template => (
+                             {templates.filter(t => {
+                               if (messagingType === 'whatsapp') {
+                                 return t.category === 'WhatsApp';
+                               }
+                               return t.category === 'SMS';
+                             }).map(template => (
                              <option 
                                 key={template.id}
                                 value={template.id}
@@ -181,7 +192,7 @@ const SmsModal = ({ state, actions, customer }: any) => {
                              }
                           }}
                           rows={4}
-                          placeholder="Enter SMS content or select a template..."
+                          placeholder={`Enter ${messagingType === 'whatsapp' ? 'WhatsApp' : 'SMS'} content or select a template...`}
                           className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-2xl p-4 text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
                        />
                        <p className="text-[10px] text-right text-gray-400 font-bold mt-1 uppercase tracking-tighter">{smsText.length} Characters</p>
@@ -189,16 +200,16 @@ const SmsModal = ({ state, actions, customer }: any) => {
         
                     <div className="grid grid-cols-2 gap-3 pt-2">
                        <button 
-                          onClick={() => actions.setIsSmsModalOpen(false)}
+                          onClick={() => actions.setIsMessagingModalOpen(false)}
                           className="py-3 bg-gray-100 dark:bg-slate-800 text-gray-500 text-[10px] font-black uppercase rounded-xl"
                        >
                           Discard
                        </button>
                        <button 
-                          onClick={() => handleSendSms(customer) }
+                          onClick={() => handleSendMessage(customer) }
                           className="py-3 bg-emerald-600 text-white text-[10px] font-black uppercase rounded-xl shadow-lg shadow-emerald-500/20 active:scale-95"
                        >
-                          Transmit SMS
+                          {buttonText}
                        </button>
                     </div>
                  </div>

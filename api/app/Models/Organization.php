@@ -16,7 +16,7 @@ class Organization extends Model
         'status',
         'client_type',
         'balance',
-        'mpesa_callback_token',
+        'callback_token',
         'settings',
     ];
 

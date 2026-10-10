@@ -29,19 +29,16 @@ class PayheroHotspotController extends Controller
         $this->allHotspotPaymentController = $allHotspotPaymentController;
     }
 
-    private function getBasicAuthToken()
+    private function getBasicAuthToken(array $settings = [])
     {
-        $credentials = $this->apiUsername . ':' . $this->apiPassword;
+        $username = data_get($settings, 'api_username') ?: $this->apiUsername;
+        $password = data_get($settings, 'api_password') ?: $this->apiPassword;
+        $credentials = $username . ':' . $password;
         return 'Basic ' . base64_encode($credentials);
     }
 
     public function stkPush(Request $request)
     {
-        Log::info('Payhero STK (hotspot) payment request received', [
-            'request' => $request->all(),
-            'ip' => $request->ip(),
-        ]);
-
         $request->validate([
             'phone' => 'required|string',
             'site_ip' => 'required',
@@ -53,12 +50,6 @@ class PayheroHotspotController extends Controller
         $siteIp = (string) $request->input('site_ip');
         $siteId = $request->input('site_id');
         $site = $siteId ? Site::find($siteId) : Site::query()->where('ip_address', $siteIp)->first();
-
-        Log::info('Payhero STK (hotspot) payment request site resolved', [
-            'site_input' => $siteIp,
-            'site_id' => $site?->id,
-            'site_ip' => $site?->ip_address,
-        ]);
 
         if (!$site) {
             return response()->json([
@@ -86,12 +77,6 @@ class PayheroHotspotController extends Controller
             ->where('id', $request->input('package_id'))
             ->where('organization_id', $organization->id)
             ->first();
-
-        Log::info('Payhero STK (hotspot) payment request package resolved', [
-            'package_id' => $package?->id,
-            'package_name' => $package?->name,
-            'organization_id' => $organization->id,
-        ]);
 
         if (!$package) {
             Log::warning('Payhero STK (hotspot): Invalid package selected', [
@@ -188,13 +173,16 @@ class PayheroHotspotController extends Controller
         }
 
         $channelId = trim((string) (data_get($settings, 'channel_id') ?? ''));
-        $callbackUrl = trim((string) (data_get($settings, 'callback_url') ?? ''));
+        $appUrl = rtrim((string) config('app.url'), '/');
+        $callbackToken = trim((string) $organization->callback_token);
+        $callbackUrl = $appUrl . '/api/payments/payhero/hotspot/' . urlencode($callbackToken) . '/stk/callback';
 
-        if ($channelId === '' || $callbackUrl === '') {
+        if ($channelId === '' || $appUrl === '' || $callbackToken === '') {
             Log::error('Payhero STK (hotspot): missing payhero settings', [
                 'organization_id' => $organization->id,
                 'channel_id_set' => $channelId !== '',
-                'callback_url_set' => $callbackUrl !== '',
+                'app_url_set' => $appUrl !== '',
+                'callback_token_set' => $callbackToken !== '',
             ]);
 
             return response()->json([
@@ -207,7 +195,7 @@ class PayheroHotspotController extends Controller
             $response = Http::withOptions([
                 'verify' => true,
             ])->withHeaders([
-                'Authorization' => $this->getBasicAuthToken(),
+                'Authorization' => $this->getBasicAuthToken($settings),
                 'Content-Type' => 'application/json',
             ])->post($this->baseUrl, [
                 'amount' => $amount,
@@ -276,7 +264,7 @@ class PayheroHotspotController extends Controller
 
     public function stkCallback(Request $request, $token)
     {
-        $organization = Organization::where('mpesa_callback_token', $token)->first();
+        $organization = Organization::where('callback_token', $token)->first();
 
         if (!$organization) {
             Log::warning('Payhero STK callback invalid token', [
@@ -545,6 +533,34 @@ class PayheroHotspotController extends Controller
         }
 
         return response()->json(['success' => true], 200);
+    }
+
+    public function resolvePayheroErrorMessage($response): string
+    {
+        $payload = method_exists($response, 'json') ? $response->json() : [];
+        $body = method_exists($response, 'body') ? $response->body() : '';
+        $decodedBody = is_string($body) && $body !== '' ? json_decode($body, true) : null;
+
+        $message = (string) (
+            data_get($payload, 'error_message')
+            ?? data_get($payload, 'errorMessage')
+            ?? data_get($payload, 'message')
+            ?? data_get($decodedBody, 'error_message')
+            ?? data_get($decodedBody, 'errorMessage')
+            ?? data_get($decodedBody, 'message')
+            ?? ''
+        );
+
+        if ($message === '') {
+            return 'Payhero payment request failed. Please verify the channel ID, API credentials, and callback configuration.';
+        }
+
+        $lower = strtolower($message);
+        if (str_contains($lower, 'channel') || str_contains($lower, 'same payhero account') || str_contains($lower, 'account')) {
+            return 'The Payhero channel ID appears to be invalid or belongs to a different Payhero account. Confirm the channel ID and callback URL are from the same Payhero account.';
+        }
+
+        return $message;
     }
 }
 

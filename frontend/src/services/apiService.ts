@@ -579,7 +579,7 @@ export const paymentsApi = {
     }
   },
 
-  stkPushPayhero: async (data: { phone: string; amount: number }) => {
+  stkPushPayhero: async (data: { phone: string; amount: number; customer_id?: number | string }) => {
     const normalizeKenyanPhone = (phone: string) => {
       const digits = (phone || '').replace(/\D/g, '');
       if (!digits) return null;
@@ -665,6 +665,48 @@ export const paymentsApi = {
         (responseData?.errors ? JSON.stringify(responseData.errors) : null) ||
         err?.message ||
         'Failed to initiate Daraja STK push';
+      throw new Error(message);
+    }
+  },
+
+  stkPushKopokopo: async (data: { customer_id: string | number; phone: string; amount: number }) => {
+    const normalizeKenyanPhone = (phone: string) => {
+      const digits = (phone || '').replace(/\D/g, '');
+      if (!digits) return null;
+
+      if (digits.startsWith('0') && digits.length === 10) {
+        return `254${digits.slice(1)}`;
+      }
+      if ((digits.startsWith('7') || digits.startsWith('1')) && digits.length === 9) {
+        return `254${digits}`;
+      }
+      if (/^254(7|1)\d{8}$/.test(digits)) {
+        return digits;
+      }
+
+      return null;
+    };
+
+    const phone = normalizeKenyanPhone(data.phone);
+
+    if (!phone) {
+      throw new Error('Invalid phone format. Use 07XXXXXXXX, 7XXXXXXXX, or 2547XXXXXXXX.');
+    }
+
+    try {
+      const response = await axiosInstance.post('/payments/kopokopo/stkpush', {
+        ...data,
+        phone,
+      });
+      return response.data;
+    } catch (err: any) {
+      const responseData = err?.response?.data;
+      const message =
+        responseData?.message ||
+        responseData?.error ||
+        (responseData?.errors ? JSON.stringify(responseData.errors) : null) ||
+        err?.message ||
+        'Failed to initiate KopoKopo STK push';
       throw new Error(message);
     }
   },
@@ -879,6 +921,18 @@ export const smsApi = {
 
   getLogs: async (customerId: number, perPage: number = 5) => {
     const response = await axiosInstance.get(`/sms/logs?customer_id=${customerId}&per_page=${perPage}`);
+    return response.data;
+  },
+};
+
+// WhatsApp Endpoints
+export const whatsappApi = {
+  send: async (phone: string, message: string, customerId?: number | string) => {
+    const response = await axiosInstance.post('/whatsapp/send', {
+      phone,
+      message,
+      customer_id: customerId,
+    });
     return response.data;
   },
 };

@@ -71,6 +71,8 @@ systemctl restart freeradius
 
 # moving files for god admin
 cp -r /var/www/easyisp_2_0/admin/dist/* /var/www/easyisp_god_admin/
+#or
+cp -rf dist/* /var/www/easyisp_god_admin/
 
 # Generating CALLBACK ULRS token using artisan command
 artisan org:generate-callback-tokens <organizationAcronym> only generates if org <organizationAcronym> has no token, otherwise no change
@@ -103,6 +105,11 @@ Callback URL: /payments/c2b/azAVf52VENWZCWZA2lCn/confirmation
 Callback URL: /payments/payhero/azAVf52VENWZCWZA2lCn/stk/callback
 Callback URL: /payments/daraja/azAVf52VENWZCWZA2lCn/stk/callback
 
+Generated token for organization 10 (ANNEX CYBER).
+Callback URL: /payments/c2b/OHzuCHdLemeYvQPZi4jJ/validation
+Callback URL: /payments/c2b/OHzuCHdLemeYvQPZi4jJ/confirmation
+Callback URL: /payments/payhero/OHzuCHdLemeYvQPZi4jJ/stk/callback
+Callback URL: /payments/daraja/OHzuCHdLemeYvQPZi4jJ/stk/callback
 
 
 #reversing wrongly closed sessions
@@ -216,3 +223,10 @@ add name=PCQ-10M-20M-UPLOAD \
     "confirmation_url": null,
     "stk_callback_url": null
 }
+
+
+
+# Annex cyber payhero
+apiUser = sIF0OD6sURZtki5BxD1E
+apipass = V3SGwR1sV7dhStuluEy0IHongn3wzOvrzvqu5Fzr
+Basic c0lGME9ENnNVUlp0a2k1QnhEMUU6VjNTR3dSMXNWN2RoU3R1bHVFeTBJSG9uZ24zd3pPdnJ6dnF1NUZ6cg==

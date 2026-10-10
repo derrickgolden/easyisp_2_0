@@ -39,7 +39,7 @@ class PaymentController extends Controller
 
     public function c2bValidation(Request $request, $token)
     {
-        $organization = Organization::where('mpesa_callback_token', $token)->first();
+        $organization = Organization::where('callback_token', $token)->first();
         
         if (!$organization) {
             Log::warning('C2B Validation invalid token', [
@@ -68,7 +68,7 @@ class PaymentController extends Controller
 
     public function c2bConfirmation(Request $request, $token)
     {
-        $organization = Organization::where('mpesa_callback_token', $token)->first();
+        $organization = Organization::where('callback_token', $token)->first();
         
         if (!$organization) {
             Log::warning('C2B Confirmation invalid token', [

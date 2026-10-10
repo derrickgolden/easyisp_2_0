@@ -45,12 +45,6 @@ class DarajaHotspotController extends Controller
             ->where('ip_address', $siteIp)
             ->first();
 
-        Log::info('Daraja STK (hotspot) payment request site resolved', [
-            'site_input' => $siteIp,
-            'site_id' => $site?->id,
-            'site_ip' => $site?->ip_address,
-        ]);
-
         if (!$site) {
             return response()->json([
                 'success' => false,
@@ -77,12 +71,6 @@ class DarajaHotspotController extends Controller
             ->where('organization_id', $organization->id)
             ->first();
 
-            Log::info('Daraja STK (hotspot) payment request package resolved', [
-                'package_id' => $package?->id,
-                'package_name' => $package?->name,
-                'organization_id' => $organization->id,
-            ]);
-
         if (!$package) {     
             return response()->json([
                 'success' => false,
@@ -90,7 +78,7 @@ class DarajaHotspotController extends Controller
             ], 422);
         }
 
-        if (empty($organization->mpesa_callback_token)) {
+        if (empty($organization->callback_token)) {
             Log::error('Daraja STK (hotspot): Organization callback token missing', [
                 'organization_id' => $organization->id,
                 'site_id' => $site->id,
@@ -145,7 +133,7 @@ class DarajaHotspotController extends Controller
 
         // Build the hotspot callback URL from this portal's own app URL + the org token.
         $appUrl = rtrim((string) config('app.url'), '/');
-        $callbackUrl = $settings['callback_url'] ?? $appUrl . '/api/payments/hotspot/' . urlencode((string) $organization->mpesa_callback_token) . '/callback';
+        $callbackUrl = $appUrl . '/api/payments/daraja/hotspot/' . urlencode((string) $organization->callback_token) . '/callback';
         $timestamp = now()->format('YmdHis');
         $password = base64_encode($shortCode . $passkey . $timestamp);
 
@@ -303,7 +291,7 @@ class DarajaHotspotController extends Controller
 
     public function stkCallback(Request $request, string $token)
     {
-        $organization = Organization::where('mpesa_callback_token', $token)->first();
+        $organization = Organization::where('callback_token', $token)->first();
 
         if (!$organization) {
             Log::warning('Daraja STK callback invalid token', [

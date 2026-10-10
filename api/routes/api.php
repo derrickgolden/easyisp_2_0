@@ -11,8 +11,6 @@ use App\Http\Controllers\Api\PackageController;
 use App\Http\Controllers\Api\HotspotPackageController;
 use App\Http\Controllers\Api\SiteController;
 use App\Http\Controllers\Api\PaymentController;
-use App\Http\Controllers\Api\PayheroPaymentController;
-use App\Http\Controllers\Api\DarajaPaymentController;
 use App\Http\Controllers\Api\HotspotPaymentController;
 use App\Http\Controllers\Api\HotspotTransactionController;
 use App\Http\Controllers\Api\TransactionController;
@@ -23,6 +21,7 @@ use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\RadiusController;
 use App\Http\Controllers\Api\SmsController;
+use App\Http\Controllers\Api\WhatsappController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\HotspotDashboardController;
 use App\Http\Controllers\Api\LeadController;
@@ -30,7 +29,11 @@ use App\Http\Controllers\Api\MikrotikController;
 use App\Http\Controllers\Api\PortalContextController;
 use App\Http\Controllers\Api\PosUserStatusController;
 use App\Http\Controllers\Api\Payments\DarajaHotspotController;
+use App\Http\Controllers\Api\Payments\DarajaPaymentController;
+use App\Http\Controllers\Api\Payments\PayheroPaymentController;
 use App\Http\Controllers\Api\Payments\PayheroHotspotController;
+use App\Http\Controllers\Api\Payments\KopokopoTillController;
+use App\Http\Controllers\Api\Payments\KopokopoTillHotspotController;
 use App\Http\Controllers\Api\OrganizationPaymentGatewayController;
 use App\Http\Controllers\Api\Payments\AllHotspotPaymentController;
 use App\Events\RandomNumberBroadcasted;
@@ -78,12 +81,16 @@ Route::post('/hotspot/sync-device', [HotspotCustomerController::class, 'syncDevi
 // Public M-Pesa C2B routes
 Route::post('/payments/c2b/{token}/validation', [PaymentController::class, 'c2bValidation']);
 Route::post('/payments/c2b/{token}/confirmation', [PaymentController::class, 'c2bConfirmation']);
-// Public Hotspot M-Pesa STK callback routes
-Route::post('/payments/hotspot/{token}/callback', [DarajaHotspotController::class, 'stkCallback']);
-// Public Payhero STK callback routes
-Route::post('/payments/payhero/{token}/stk/callback', [PayheroHotspotController::class, 'stkCallback']);
-// Public PPPoE Mpesa STK callback routes
+
+// HOTSPOT CALLBACK ROUTES
+Route::post('/payments/daraja/hotspot/{token}/callback', [DarajaHotspotController::class, 'stkCallback']);
+Route::post('/payments/kopokopo/hotspot/{token}/stk/callback', [KopokopoTillHotspotController::class, 'stkCallback']);
+Route::post('/payments/payhero/hotspot/{token}/stk/callback', [PayheroHotspotController::class, 'stkCallback']);
+
+// PPPOE CALLBACK ROUTES
 Route::post('/payments/daraja/{token}/stk/callback', [DarajaPaymentController::class, 'stkCallback']);
+Route::post('/payments/kopokopo/{token}/stk/callback', [KopokopoTillController::class, 'stkCallback']);
+Route::post('/payments/payhero/{token}/stk/callback', [PayheroPaymentController::class, 'stkCallback']);
 
 
 // system-admin-only routes
@@ -230,6 +237,7 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     // Payment management
     Route::post('/payments/payhero/stkpush', [PayheroPaymentController::class, 'stkPush']);
     Route::post('/payments/daraja/stkpush', [DarajaPaymentController::class, 'adminStkPush']);
+    Route::post('/payments/kopokopo/stkpush', [KopokopoTillController::class, 'adminStkPush']);
     Route::get('/payments/payhero/check-status', [PaymentController::class, 'checkPaymentStatus']);
     Route::get('/payments/pending', [PaymentController::class, 'pending']);
     Route::get('/payments/customer/{customerId}', [PaymentController::class, 'getByCustomer']);
@@ -277,6 +285,9 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     Route::post('/sms/send', [SmsController::class, 'send']);
     Route::post('/sms/send-bulk', [SmsController::class, 'sendBulk']);
     Route::get('/sms/logs', [SmsController::class, 'getLogs']);
+
+    // WhatsApp sending routes
+    Route::post('/whatsapp/send', [WhatsappController::class, 'send']);
 
 });
 

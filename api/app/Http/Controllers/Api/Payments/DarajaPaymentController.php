@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers\Api\Payments;
 
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
@@ -62,10 +62,6 @@ class DarajaPaymentController extends Controller
             'transaction_type' => 'nullable|in:CustomerPayBillOnline,CustomerBuyGoodsOnline',
             'organization' => 'nullable|exists:organizations,id',
         ]);
-        Log::info('Daraja STK push request received', [
-            'request_data' => $request->all(),
-            'request_ip' => $request->ip(),
-        ]);
 
         $organization = $request->input('organization') ? Organization::find($request->input('organization')) : $request->user()->organization;
         if (!$organization) {
@@ -78,7 +74,7 @@ class DarajaPaymentController extends Controller
             ], 404);
         }
 
-        if (empty($organization->mpesa_callback_token)) {
+        if (empty($organization->callback_token)) {
             Log::error('Daraja STK: Organization callback token missing', [
                 'organization_id' => $organization->id,
             ]);
@@ -143,48 +139,17 @@ class DarajaPaymentController extends Controller
             ? 'https://sandbox.safaricom.co.ke'
             : 'https://api.safaricom.co.ke';
 
-        // Strict mode: only one DB key is accepted for STK callback URL.
-        $callbackUrl = trim((string) ($settings['stk_callback_url'] ?? ''));
-        $callbackSource = 'stk_callback_url';
-
-        if ($callbackUrl === '') {
-            Log::error('Daraja STK: Missing required stk_callback_url', [
+        $appUrl = rtrim((string) config('app.url'), '/');
+        if ($appUrl === '') {
+            Log::error('Daraja STK: Application URL is missing', [
                 'organization_id' => $organization->id,
-                'required_setting_key' => 'payment-gateway.stk_callback_url',
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Daraja STK callback URL is missing. Set payment-gateway.stk_callback_url in Organization Settings.',
+                'message' => 'Application URL is not configured. Set APP_URL before initiating Daraja STK payments.',
             ], 422);
         }
-
-        if (!filter_var($callbackUrl, FILTER_VALIDATE_URL)) {
-            Log::error('Daraja STK: Invalid stk_callback_url format', [
-                'organization_id' => $organization->id,
-                'stk_callback_url' => $callbackUrl,
-            ]);
-            return response()->json([
-                'success' => false,
-                'message' => 'Daraja STK callback URL is invalid. Set payment-gateway.stk_callback_url to a valid absolute URL (https://...).',
-            ], 422);
-        }
-
-        $callbackPath = (string) parse_url($callbackUrl, PHP_URL_PATH);
-        if (!preg_match('#/api/payments/daraja/([^/]+)/stk/callback$#', $callbackPath, $matches)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Daraja STK callback URL path is invalid. Expected /api/payments/daraja/{mpesa_callback_token}/stk/callback.',
-            ], 422);
-        }
-
-        $callbackTokenFromUrl = (string) ($matches[1] ?? '');
-        $expectedToken = (string) $organization->mpesa_callback_token;
-        if (!hash_equals($expectedToken, $callbackTokenFromUrl)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Daraja STK callback URL token does not match the organization token. Update payment-gateway.stk_callback_url.',
-            ], 422);
-        }
+        $callbackUrl = $appUrl . '/api/payments/daraja/' . urlencode((string) $organization->callback_token) . '/stk/callback';
 
         $timestamp = now()->format('YmdHis');
         $password = base64_encode($shortCode . $passkey . $timestamp);
@@ -264,7 +229,6 @@ class DarajaPaymentController extends Controller
                 'phone' => $normalizedPhone,
                 'amount' => $amount,
                 'callback_url' => $callbackUrl,
-                'callback_url_source' => $callbackSource,
                 'response_body_preview' => mb_substr($stkResponseBody, 0, 600),
             ]);
 
@@ -296,7 +260,7 @@ class DarajaPaymentController extends Controller
 
     public function stkCallback(Request $request, string $token)
     {
-        $organization = Organization::where('mpesa_callback_token', $token)->first();
+        $organization = Organization::where('callback_token', $token)->first();
 
         if (!$organization) {
             Log::warning('Daraja STK callback invalid token', [
@@ -311,13 +275,6 @@ class DarajaPaymentController extends Controller
         }
 
         $payload = $request->all();
-
-        Log::info('Daraja STK callback received', [
-            'organization_id' => $organization->id,
-            'payload' => $payload,
-            'ip' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-        ]);
 
         $stkCallback = data_get($payload, 'Body.stkCallback', []);
         $resultCode = (int) data_get($stkCallback, 'ResultCode', 1);
@@ -380,14 +337,6 @@ class DarajaPaymentController extends Controller
 
         $customer = $this->resolveCustomerFromCallback($resolvedOrganization->id, $accountReference, $phone);
 
-        Log::info('Daraja STK callback customer resolution', [
-            'organization_id' => $resolvedOrganization->id,
-            'customer_id' => $customer?->id,
-            'customer_found' => $customer !== null,
-            'account_reference' => $accountReference,
-            'phone' => $phone,
-        ]);
-
         try {
             $result = app(IncomingPaymentService::class)->processC2BPayment(
                 $resolvedOrganization,
@@ -407,16 +356,6 @@ class DarajaPaymentController extends Controller
             }
 
             $payment = $result['payment'];
-
-            Log::info('Daraja STK callback payment processed successfully', [
-                'organization_id' => $resolvedOrganization->id,
-                'payment_id' => $payment?->id,
-                'customer_id' => $customer?->id,
-                'amount' => $amount,
-                'mpesa_receipt_number' => $mpesaReceiptNumber,
-                'account_reference' => $accountReference,
-                'status' => $payment?->status,
-            ]);
 
             return response()->json(['success' => true], 200);
         } catch (\Throwable $e) {

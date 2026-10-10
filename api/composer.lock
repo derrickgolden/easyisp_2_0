@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "c0fa5e0afb497f44ad75946faa0954b2",
+    "content-hash": "ec50975f4fbed1ce3e5a40ccb386b2ee",
     "packages": [
         {
             "name": "brick/math",
@@ -1446,6 +1446,57 @@
                 }
             ],
             "time": "2020-06-13T08:05:20+00:00"
+        },
+        {
+            "name": "kopokopo/k2-connect-php",
+            "version": "v2.0.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/kopokopo/k2-connect-php.git",
+                "reference": "1b4531617937b8269cd318436b47c861caf12b29"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/kopokopo/k2-connect-php/zipball/1b4531617937b8269cd318436b47c861caf12b29",
+                "reference": "1b4531617937b8269cd318436b47c861caf12b29",
+                "shasum": ""
+            },
+            "require": {
+                "ext-json": "*",
+                "guzzlehttp/guzzle": "^6.3 || ^7.0",
+                "php": "^7.4 || ^8.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^9.6"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Kopokopo\\SDK\\": "src/",
+                    "Kopokopo\\SDK\\Data\\": "src/data",
+                    "Kopokopo\\SDK\\Tests\\": "tests",
+                    "Kopokopo\\SDK\\Helpers\\": "src/helpers",
+                    "Kopokopo\\SDK\\Requests\\": "src/requests",
+                    "Kopokopo\\SDK\\Requests\\SendMoneyDestinations\\": "src/requests/send_money_destinations"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Nicollet Njora",
+                    "email": "nicollet.njora05@gmail.com"
+                }
+            ],
+            "description": "Kopokopo's php SDK",
+            "homepage": "https://github.com/kopokopo/k2-connect-php",
+            "support": {
+                "issues": "https://github.com/kopokopo/k2-connect-php/issues",
+                "source": "https://github.com/kopokopo/k2-connect-php/tree/v2.0.0"
+            },
+            "time": "2026-05-15T11:59:03+00:00"
         },
         {
             "name": "laravel/framework",

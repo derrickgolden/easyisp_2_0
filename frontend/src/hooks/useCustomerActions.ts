@@ -9,7 +9,8 @@ import { STORAGE_KEYS } from "../constants/storage";
 // hooks/useCustomerActions.ts
 export function useCustomerActions() {
     const [smsText, setSmsText] = useState('');
-    const [isSmsModalOpen, setIsSmsModalOpen] = useState(false);
+    const [messagingType, setMessagingType] = useState<'sms' | 'whatsapp'>('sms');
+    const [isMessagingModalOpen, setIsMessagingModalOpen] = useState(false);
     const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState<Partial<Customer> | null>(null);
     const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
@@ -202,6 +203,10 @@ export function useCustomerActions() {
                   `<input id="swal-stk-provider-daraja" type="radio" name="swal-stk-provider" value="daraja" checked/>` +
                   `<span>Daraja</span>` +
                 `</label>` +
+                `<label for="swal-stk-provider-kopokopo" style="flex:1; display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; border:1px solid ${theme.inputBorder}; border-radius:12px; padding:10px 12px; background:${theme.inputBg}; color:${theme.inputText}; font-weight:800; font-size:12px;">` +
+                  `<input id="swal-stk-provider-kopokopo" type="radio" name="swal-stk-provider" value="kopokopo" />` +
+                  `<span>KopoKopo</span>` +
+                `</label>` +
               `</div>` +
               `<p style="margin:10px 0 0; font-size:12px; color:${theme.helperText};">The customer will receive a prompt and must enter their M-Pesa PIN.</p>` +
             `</div>` +
@@ -223,7 +228,7 @@ export function useCustomerActions() {
 
           const phone = (phoneInput?.value || '').trim();
           const amount = Number(amountInput?.value || 0);
-          const provider = (providerInput?.value || 'payhero').trim();
+          const provider = (providerInput?.value || 'daraja').trim();
 
           if (!phone) {
             Swal.showValidationMessage('Enter a phone number');
@@ -249,22 +254,30 @@ export function useCustomerActions() {
             },
           });
 
-          const provider = result.value.provider === 'daraja' ? 'daraja' : 'payhero';
+          const provider = result.value.provider;
 
           if (provider === 'daraja') {
             await paymentsApi.stkPushDaraja({
               phone: result.value.phone,
               amount: Number(result.value.amount),
             });
-          } else {
+          } else if (provider === 'payhero') {
             await paymentsApi.stkPushPayhero({
+              phone: result.value.phone,
+              amount: Number(result.value.amount),
+              customer_id: customer.id,
+            });
+          } else if (provider === 'kopokopo') {
+            await paymentsApi.stkPushKopokopo({
+              customer_id: customer.id,
               phone: result.value.phone,
               amount: Number(result.value.amount),
             });
           }
 
           Swal.close();
-          toast.success(`${provider === 'daraja' ? 'Daraja' : 'PayHero'} STK push initiated. Ask the customer to enter their PIN.`);
+          const providerName = provider === 'daraja' ? 'Daraja' : provider === 'payhero' ? 'PayHero' : 'KopoKopo';
+          toast.success(`${providerName} STK push initiated. Ask the customer to enter their PIN.`);
         } catch (err: any) {
           Swal.close();
           toast.error(err?.message || 'Failed to initiate STK push');
@@ -322,9 +335,9 @@ export function useCustomerActions() {
 // startLiveUptime('2026-01-31T17:26:00Z', 'uptime-display');
 
   return {
-    state: { smsText, isSmsModalOpen, isCustomerModalOpen, editingCustomer, isDepositModalOpen, 
+    state: { smsText, messagingType, isMessagingModalOpen, isCustomerModalOpen, editingCustomer, isDepositModalOpen, 
       isPackageModalOpen, isReconcileModalOpen, payments },
-    actions: { setSmsText, setIsSmsModalOpen, deleteCustomer, handleEdit, 
+    actions: { setSmsText, setMessagingType, setIsMessagingModalOpen, deleteCustomer, handleEdit, 
       handlePauseService, handleAddChild, handleStkPush, handleShare, setIsCustomerModalOpen, setEditingCustomer, 
       setIsDepositModalOpen, setIsPackageModalOpen, setIsReconcileModalOpen, setPayments },
   };

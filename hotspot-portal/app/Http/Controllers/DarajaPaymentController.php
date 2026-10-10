@@ -74,7 +74,7 @@ class DarajaPaymentController extends Controller
             return redirect()->back()->withErrors(['package_id' => 'Invalid package selected.'])->withInput();
         }
 
-        if (empty($organization->mpesa_callback_token)) {
+        if (empty($organization->callback_token)) {
             Log::error('Daraja STK (hotspot): Organization callback token missing', [
                 'organization_id' => $organization->id,
                 'site_id' => $site->id,
@@ -119,7 +119,7 @@ class DarajaPaymentController extends Controller
         // The route is: POST /daraja/{token}/callback
         $appUrl = rtrim((string) config('app.url'), '/');
         $appUrl = 'https://8f95-102-210-173-182.ngrok-free.app';
-        $callbackUrl = $appUrl . '/daraja/' . urlencode((string) $organization->mpesa_callback_token) . '/callback';
+        $callbackUrl = $appUrl . '/daraja/' . urlencode((string) $organization->callback_token) . '/callback';
 
         $timestamp = now()->format('YmdHis');
         $password = base64_encode($shortCode . $passkey . $timestamp);
@@ -259,7 +259,7 @@ class DarajaPaymentController extends Controller
 
     public function stkCallback(Request $request, string $token)
     {
-        $organization = Organization::where('mpesa_callback_token', $token)->first();
+        $organization = Organization::where('callback_token', $token)->first();
 
         if (!$organization) {
             Log::warning('Daraja STK callback invalid token', [

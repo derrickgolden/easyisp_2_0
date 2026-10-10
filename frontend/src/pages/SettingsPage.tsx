@@ -38,6 +38,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
     api_username: ''
   });
 
+  // --- WHATSAPP GATEWAY ---
+  const [whatsappForm, setWhatsappForm] = useState({
+    phone_number: '',
+    access_token: '',
+    phone_number_id: '',
+    business_account_id: '',
+    meta_callback_url: 'https://api.easytech.com/webhooks/whatsapp',
+    webhook_verify_token: ''
+  });
+
   // --- EMAIL GATEWAY ---
   const [emailForm, setEmailForm] = useState({
     mail_server: 'smtp.gmail.com',
@@ -69,6 +79,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
         return generalForm;
       case 'sms-gateway':
         return smsForm;
+      case 'whatsapp-gateway':
+        return whatsappForm;
       case 'email-gateway':
         return emailForm;
       default:
@@ -84,6 +96,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
         const orgSettings = response?.settings || {};
         const generalSettings = orgSettings.general || {};
         const smsSettings = orgSettings['sms-gateway'] || {};
+        const whatsappSettings = orgSettings['whatsapp-gateway'] || {};
         const emailSettings = orgSettings['email-gateway'] || {};
 
         setOrgSettings(response || {});
@@ -98,6 +111,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
         setSmsForm(prev => ({
           ...prev,
           ...smsSettings
+        }));
+
+        setWhatsappForm(prev => ({
+          ...prev,
+          ...whatsappSettings
         }));
 
         setEmailForm(prev => ({
@@ -127,6 +145,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
       const settingsPayload: any = {
         settings: {
           [mode]: formData,
+          ...(mode === 'sms-gateway' ? { 'whatsapp-gateway': whatsappForm } : {}),
         }
       };
 
@@ -335,19 +354,35 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
               </div>
             </Card>
 
-            <Card title="Meta WhatsApp Cloud API (UNDER CONSTRUCTION)">
+            <Card title="Meta WhatsApp Cloud API">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">WhatsApp Phone Number</label>
+                  <input type="tel" placeholder="e.g. +254 700 000 000"
+                    value={whatsappForm.phone_number}
+                    onChange={e => setWhatsappForm({ ...whatsappForm, phone_number: e.target.value })}
+                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold" />
+                </div>
                 <div className="md:col-span-2 space-y-2">
                   <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Permanent Access Token</label>
-                  <input type="password" placeholder="EAABw..." className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono text-sm" />
+                  <input type="password" placeholder="EAABw..." 
+                    value={whatsappForm.access_token}
+                    onChange={e => setWhatsappForm({ ...whatsappForm, access_token: e.target.value })}
+                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono text-sm" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Phone Number ID</label>
-                  <input type="text" placeholder="e.g. 1092..." className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold" />
+                  <input type="text" placeholder="e.g. 1092..." 
+                    value={whatsappForm.phone_number_id}
+                    onChange={e => setWhatsappForm({ ...whatsappForm, phone_number_id: e.target.value })}
+                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Business Account ID</label>
-                  <input type="text" placeholder="e.g. 1045..." className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold" />
+                  <input type="text" placeholder="e.g. 1045..." 
+                    value={whatsappForm.business_account_id}
+                    onChange={e => setWhatsappForm({ ...whatsappForm, business_account_id: e.target.value })}
+                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold" />
                 </div>
                 <div className="md:col-span-2 p-4 bg-blue-50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-900/20">
                   <div className="flex items-center gap-2 mb-2">
@@ -356,12 +391,18 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
                   </div>
                    <div className="space-y-3">
                     <div>
-                      <p className="text-[9px] font-bold text-gray-500 uppercase tracking-tighter">Callback URL</p>
-                      <code className="text-[10px] font-mono bg-white dark:bg-slate-900 px-2 py-1 rounded select-all block mt-1">https://api.easytech.com/webhooks/whatsapp</code>
+                      <label className="text-[9px] font-bold text-gray-500 uppercase tracking-tighter">Callback URL</label>
+                      <input type="url" placeholder="https://example.com/webhooks/whatsapp"
+                        value={whatsappForm.meta_callback_url}
+                        onChange={e => setWhatsappForm({ ...whatsappForm, meta_callback_url: e.target.value })}
+                        className="w-full bg-white dark:bg-slate-900 border-none rounded-lg p-2 mt-1 focus:ring-1 focus:ring-blue-500 text-xs font-mono" />
                     </div>
                     <div>
                       <label className="text-[9px] font-bold text-gray-500 uppercase tracking-tighter">Webhook Verify Token</label>
-                      <input type="text" placeholder="Set custom token for Meta verification" className="w-full bg-white dark:bg-slate-900 border-none rounded-lg p-2 mt-1 focus:ring-1 focus:ring-blue-500 text-xs font-bold" />
+                      <input type="text" placeholder="Set custom token for Meta verification" 
+                        value={whatsappForm.webhook_verify_token}
+                        onChange={e => setWhatsappForm({ ...whatsappForm, webhook_verify_token: e.target.value })}
+                        className="w-full bg-white dark:bg-slate-900 border-none rounded-lg p-2 mt-1 focus:ring-1 focus:ring-blue-500 text-xs font-bold" />
                     </div>
                   </div>
                 </div>

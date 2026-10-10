@@ -77,13 +77,18 @@ class AllHotspotPaymentController extends Controller
             ],
         ]);
 
+        if (in_array($provider, ['mpesa', 'daraja'], true)) {
+            return app(DarajaHotspotController::class)->stkPush($request);
+        }
+
         if ($provider === 'payhero') {
             return app(PayheroHotspotController::class)->stkPush($request);
         }
 
-        if (in_array($provider, ['mpesa', 'daraja'], true)) {
-            return app(DarajaHotspotController::class)->stkPush($request);
+        if ($provider === 'kopokopo') {
+            return app(KopokopoTillHotspotController::class)->stkPush($request);
         }
+        
 
         return response()->json([
             'success' => false,

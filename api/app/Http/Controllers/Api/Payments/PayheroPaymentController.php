@@ -1,11 +1,14 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers\Api\Payments;
 
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\OrganizationLicenseSnapshot;
 use App\Models\Organization;
+use App\Services\CallbackResolverService;
+use App\Services\IncomingPaymentService;
+use App\Services\PhoneNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -14,19 +17,17 @@ use Illuminate\Support\Facades\DB;
 class PayheroPaymentController extends Controller
 {
     //
-    private $apiUsername;
-    private $apiPassword;
     private $baseUrl = 'https://backend.payhero.co.ke/api/v2/payments';
     
     public function __construct(){
         $this->middleware('permission:stk-push')->only(['stkPush']);
-        $this->apiUsername = env('API_USERNAME');
-        $this->apiPassword = env('API_PASSWORD');
     }
 
-    private function getBasicAuthToken()
+    private function getBasicAuthToken(array $settings = [])
     {
-        $credentials = $this->apiUsername . ':' . $this->apiPassword;
+        $username = data_get($settings, 'api_username');
+        $password = data_get($settings, 'api_password');
+        $credentials = $username . ':' . $password;
         return 'Basic ' . base64_encode($credentials);
     }
 
@@ -35,6 +36,7 @@ class PayheroPaymentController extends Controller
         $request->validate([
             'phone' => 'required|string',
             'amount' => 'required|numeric|min:1',
+            'customer_id' => 'required|integer|exists:customers,id',
         ]);
 
         try {
@@ -53,31 +55,46 @@ class PayheroPaymentController extends Controller
             }
 
             $channelId = trim((string) (data_get($settings, 'channel_id') ?? ''));
-            $callbackUrl = trim((string) (data_get($settings, 'callback_url') ?? ''));
+            $appUrl = rtrim((string) config('app.url'), '/');
+            $callbackToken = trim((string) $organization->callback_token);
+            $callbackUrl = $appUrl . '/api/payments/payhero/' . urlencode($callbackToken) . '/stk/callback';
 
-            if ($channelId === '' || $callbackUrl === '') {
+            if ($channelId === '' || $appUrl === '' || $callbackToken === '') {
                 Log::error('Payhero STK: missing payhero settings', [
                     'organization_id' => $organization?->id,
                     'channel_id_set' => $channelId !== '',
-                    'callback_url_set' => $callbackUrl !== '',
+                    'app_url_set' => $appUrl !== '',
+                    'callback_token_set' => $callbackToken !== '',
                 ]);
                 return response()->json([
                     'success' => false,
-                    'message' => 'Payhero configuration incomplete. Set channel_id and callback_url in payment gateway settings.',
+                    'message' => 'Payhero configuration incomplete. Set channel_id and configure the application URL and callback token.',
                 ], 422);
             }
+
+            $customerId = $request->input('customer_id');
+            $customerReference = null;
+
+            if ($customerId) {
+                $customerReference = trim((string) Customer::where('id', $customerId)
+                    ->value('radius_username'));
+            }
+
+            $externalReference = $customerReference !== ''
+                ? $customerReference
+                : 'ORG-' . $request->user()->organization_id . '-INV-' . now()->timestamp;
 
             $response =  Http::withOptions([
                 'verify' => true, // <- ignore SSL verification
             ])->withHeaders([
-                'Authorization' => $this->getBasicAuthToken(),
+                'Authorization' => $this->getBasicAuthToken($settings),
                 'Content-Type' => 'application/json',
             ])->post($this->baseUrl, [
                 'amount' => $request->amount,
                 'phone_number' => $request->phone,
                 'channel_id' => $channelId,
-                'provider' => 'payhero',
-                'external_reference' => 'ORG-' . $request->user()->organization_id . '-INV-' . now()->timestamp,
+                'provider' => 'm-pesa',
+                'external_reference' => $externalReference,
                 'callback_url' =>  $callbackUrl,
             ]);
 
@@ -110,7 +127,7 @@ class PayheroPaymentController extends Controller
 
     public function stkCallback(Request $request, $token)
     {
-        $organization = Organization::where('mpesa_callback_token', $token)->first();
+        $organization = Organization::where('callback_token', $token)->first();
         
         if (!$organization) {
             Log::warning('Payhero STK callback invalid token', [
@@ -150,6 +167,14 @@ class PayheroPaymentController extends Controller
         $externalReference = $response['ExternalReference']
             ?? $response['external_reference']
             ?? $request->input('external_reference');
+        $mpesaReceiptNumber = (string) (
+            $response['MpesaReceiptNumber']
+            ?? $response['M-PesaReceiptNumber']
+            ?? $response['ReceiptNumber']
+            ?? $response['receipt_number']
+            ?? $response['receipt']
+            ?? ''
+        );
 
         if ($amount <= 0 || !$phone) {
             Log::warning('Payhero STK callback missing required success fields', [
@@ -160,9 +185,40 @@ class PayheroPaymentController extends Controller
             return response()->json(['success' => false, 'message' => 'Invalid callback payload'], 400);
         }
 
+        $normalizedPhone = PhoneNumberService::normalizeToE164((string) $phone) ?: (string) $phone;
+        $customer = app(CallbackResolverService::class)
+            ->resolveCustomerFromCallback($organization->id, $externalReference, $normalizedPhone);
+
         $amountAsDecimal = number_format($amount, 2, '.', '');
 
         try {
+            if ($customer) {
+                $result = app(IncomingPaymentService::class)->processC2BPayment(
+                    $organization,
+                    $customer,
+                    $mpesaReceiptNumber !== '' ? $mpesaReceiptNumber : ('PAYHERO-' . $organization->id . '-' . now()->timestamp),
+                    $amount,
+                    $externalReference,
+                    $normalizedPhone,
+                    null,
+                );
+
+                if ($result['duplicate']) {
+                    return response()->json(['success' => true, 'message' => 'Duplicate callback ignored'], 200);
+                }
+
+                Log::info('Payhero STK callback customer payment applied', [
+                    'organization_id' => $organization->id,
+                    'customer_id' => $customer->id,
+                    'amount' => $amount,
+                    'phone' => $normalizedPhone,
+                    'external_reference' => $externalReference,
+                    'mpesa_code' => $mpesaReceiptNumber,
+                ]);
+
+                return response()->json(['success' => true], 200);
+            }
+
             $settledSnapshot = DB::transaction(function () use ($organization, $amountAsDecimal, $amount, $phone, $externalReference) {
                 $lockedOrganization = Organization::where('id', $organization->id)
                     ->lockForUpdate()
@@ -221,26 +277,6 @@ class PayheroPaymentController extends Controller
 
             return response()->json(['success' => false, 'message' => 'Server error'], 500);
         }
-    }
-
-    private function resolveOrganizationFromCallback(?string $externalReference, string $phone): ?Organization
-    {
-        if (!empty($externalReference) && preg_match('/ORG-(\d+)-/i', $externalReference, $matches)) {
-            $organization = Organization::find((int) $matches[1]);
-            if ($organization) {
-                return $organization;
-            }
-        }
-
-        $customer = Customer::where('phone', $phone)->latest('id')->first();
-
-        if ($customer) {
-            return Organization::find($customer->organization_id);
-        }
-
-        return Organization::whereHas('users', function ($query) use ($phone) {
-            $query->where('phone', $phone);
-        })->first();
     }
 
 }

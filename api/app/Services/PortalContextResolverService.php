@@ -93,7 +93,7 @@ class PortalContextResolverService
                 'radius_username' => $subscriber['radius_username'],
             ],
             'payment' => [
-                'has_callback_token' => !empty($subscriber['organization']->mpesa_callback_token),
+                'has_callback_token' => !empty($subscriber['organization']->callback_token),
                 'gateway' => $this->extractSafePaymentGatewayConfig($subscriber['organization']->settings),
             ],
         ];

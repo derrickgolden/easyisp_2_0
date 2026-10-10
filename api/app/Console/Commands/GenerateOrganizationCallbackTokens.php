@@ -12,7 +12,7 @@ class GenerateOrganizationCallbackTokens extends Command
                             {organizationAcronym : Generate token for a single organization acronym (if missing)}
                             {--length=20 : Token length (minimum 12)}';
 
-    protected $description = 'Generate unique M-Pesa callback tokens for organizations';
+    protected $description = 'Generate unique callback tokens for organizations';
 
     public function handle(): int
     {
@@ -38,13 +38,13 @@ class GenerateOrganizationCallbackTokens extends Command
 
         $organization = $organizations->first();
 
-        if (!empty($organization->mpesa_callback_token)) {
+        if (!empty($organization->callback_token)) {
             $this->warn("Organization {$organization->id} already has a callback token. No changes made.");
             return self::SUCCESS;
         }
 
         $token = $this->generateUniqueToken($length);
-        $organization->mpesa_callback_token = $token;
+        $organization->callback_token = $token;
         $organization->save();
 
         $this->info("Generated token for organization {$organization->id} ({$organization->name}).");
@@ -60,7 +60,7 @@ class GenerateOrganizationCallbackTokens extends Command
     {
         do {
             $token = Str::random($length);
-        } while (Organization::where('mpesa_callback_token', $token)->exists());
+        } while (Organization::where('callback_token', $token)->exists());
 
         return $token;
     }
