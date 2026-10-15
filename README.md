@@ -4,6 +4,7 @@
 crontab -e
 # add
 * * * * * cd /var/www/easyisp_2_0/api && php artisan schedule:run >> /dev/null 2>&1
+# The Laravel scheduler runs hotspot:purge-expired daily at 02:10 to purge customers expired for over a month, retaining payments but deleting transactions.
 
 # enable restart on reboot
 # Web & Database

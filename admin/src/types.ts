@@ -33,6 +33,7 @@ export interface Organization {
     total_amount: string | number;
     status: 'billed' | 'paid';
     active_users_count: number;
+    active_pppoe_users_count: number;
     price_per_user: string | number;
   } | null;
 }
@@ -109,7 +110,7 @@ export interface BillingSummary {
 export interface LicenseBillingSnapshot {
   id: number;
   snapshot_month: string;
-  active_users_count: number;
+  active_pppoe_users_count: number;
   price_per_user: string | number;
   total_amount: string | number;
   status: 'billed' | 'paid';

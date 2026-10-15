@@ -57,6 +57,7 @@ const Organizations: React.FC<{ handleDelete?: (id: number) => void }> = ({ hand
       setBillingError(null);
       try {
         const response = await organizationsApi.getLicenseBillingHistory(orgId);
+        console.log('Fetched license billing history:', response);
         setLicenseBilling(response);
       } catch (error) {
         setLicenseBilling(null);
@@ -209,7 +210,7 @@ const Organizations: React.FC<{ handleDelete?: (id: number) => void }> = ({ hand
                                   <td className="py-2 text-sm font-semibold text-slate-900">
                                     KSH {Number(item.total_amount || 0).toLocaleString()}
                                   </td>
-                                  <td className="py-2 text-sm text-slate-700">{item.active_users_count}</td>
+                                  <td className="py-2 text-sm text-slate-700">{item.active_pppoe_users_count}</td>
                                   <td className="py-2">
                                     <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${item.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
                                       {item.status}
