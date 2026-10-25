@@ -925,6 +925,22 @@ export const smsApi = {
   },
 };
 
+// Notification Endpoints
+export const notificationsApi = {
+  getAll: async () => {
+    const response = await axiosInstance.get('/notifications');
+    return response.data;
+  },
+  markAsRead: async (id: string) => {
+    const response = await axiosInstance.patch(`/notifications/${id}/read`);
+    return response.data;
+  },
+  markAllAsRead: async () => {
+    const response = await axiosInstance.patch('/notifications/read-all');
+    return response.data;
+  },
+};
+
 // WhatsApp Endpoints
 export const whatsappApi = {
   send: async (phone: string, message: string, customerId?: number | string) => {

@@ -43,6 +43,17 @@
         .transition-theme {
             transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
         }
+        @keyframes notification-badge-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+        .notification-badge-pulse {
+            animation: notification-badge-pulse 1.2s ease-in-out infinite;
+            transform-origin: center;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .notification-badge-pulse { animation: none; }
+        }
     </style>
     <script type="importmap">
     {
@@ -61,4 +72,3 @@
   <script type="module" src="/index.tsx"></script>
   </body>
 </html>
-

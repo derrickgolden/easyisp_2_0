@@ -3,7 +3,9 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use App\Models\Notification;
 use App\Models\Site;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Log;
 use App\Services\SmsProviderService;
@@ -118,6 +120,8 @@ class SyncRouterStatus extends Command
 
     private function notifySiteStatus(Site $site, bool $isOnline): void
     {
+        $this->recordSiteStatusNotification($site, $isOnline);
+
         try {
             $organization = $site->organization;
             if (!$organization) {
@@ -149,15 +153,63 @@ class SyncRouterStatus extends Command
                 }
             }
 
-            Log::info("Site status notifications sent for {$site->name}", [
-                'site_id' => $site->id,
-                'status' => $isOnline ? 'online' : 'offline',
-                'recipients' => $users->count(),
-                'sms_enabled' => $smsConfig !== null,
-            ]);
         } catch (\Throwable $e) {
             Log::error("Failed to send site status notifications for {$site->name}", [
                 'site_id' => $site->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function recordSiteStatusNotification(Site $site, bool $isOnline): void
+    {
+        try {
+            DB::transaction(function () use ($site, $isOnline): void {
+                $organization = $site->organization;
+                $status = $isOnline ? 'online' : 'offline';
+                $title = $isOnline ? 'Site recovered' : 'Site offline';
+                $body = $isOnline
+                    ? "Site '{$site->name}' ({$site->ip_address}) is back online."
+                    : "Site '{$site->name}' ({$site->ip_address}) is offline.";
+
+                $notification = Notification::create([
+                    'type' => 'site_status',
+                    'title' => $title,
+                    'body' => $body,
+                    'data' => [
+                        'organization_id' => $site->organization_id,
+                        'site_id' => $site->id,
+                        'site_name' => $site->name,
+                        'ip_address' => $site->ip_address,
+                        'location' => $site->location,
+                        'status' => $status,
+                    ],
+                ]);
+
+                if (!$organization) {
+                    return;
+                }
+
+                $now = now();
+                $states = $organization->users()
+                    ->pluck('id')
+                    ->map(fn ($adminId) => [
+                        'admin_id' => $adminId,
+                        'notification_id' => $notification->id,
+                        'is_read' => false,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ])
+                    ->all();
+
+                if ($states !== []) {
+                    DB::table('admin_notifications_states')->insert($states);
+                }
+            });
+        } catch (\Throwable $e) {
+            Log::error("Failed to record site status notification for {$site->name}", [
+                'site_id' => $site->id,
+                'status' => $isOnline ? 'online' : 'offline',
                 'error' => $e->getMessage(),
             ]);
         }

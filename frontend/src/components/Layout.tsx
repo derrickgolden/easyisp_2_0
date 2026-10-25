@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AdminUser } from '../types';
 import Footer from './modals/FooterModal';
+import NotificationModal from './modals/NotificationModal';
 import { organizationApi } from '../services/apiService';
 import { NavItem } from '../utils/navItems';
 
@@ -30,6 +31,8 @@ export const Layout: React.FC<LayoutProps> = ({
   const [latestBillStatus, setLatestBillStatus] = useState<string | null>(null);
   const [latestBillSnapshotMonth, setLatestBillSnapshotMonth] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(() => new Date());
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
 
   useEffect(() => {
     const pathParts = location.pathname.split('/').filter(Boolean);
@@ -260,6 +263,21 @@ export const Layout: React.FC<LayoutProps> = ({
             </h1>
           </div>
           <div className="flex items-center space-x-2 lg:space-x-4">
+            <button
+              onClick={() => setIsNotificationsOpen(true)}
+              className="p-2 lg:p-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl relative transition-colors"
+              aria-label={`Open notifications${notificationCount ? `: ${notificationCount} unread` : ''}`}
+              title={`${notificationCount} unread notification${notificationCount === 1 ? '' : 's'}`}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />
+              </svg>
+              {notificationCount > 0 && (
+                <span aria-hidden="true" className="notification-badge-pulse absolute -top-1 -right-1 min-w-[1.125rem] h-[1.125rem] px-1 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900 bg-rose-600 text-[10px] font-bold leading-none text-white shadow-sm">
+                  {notificationCount > 99 ? '99+' : notificationCount}
+                </span>
+              )}
+            </button>
              <button onClick={toggleTheme} className="p-2 lg:p-2.5 rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400 hover:scale-110 transition-transform">
                 {theme === 'dark' ? '☀️' : '🌙'}
              </button>
@@ -284,6 +302,11 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
         </main>
       </div>
+      <NotificationModal
+        isOpen={isNotificationsOpen}
+        onClose={() => setIsNotificationsOpen(false)}
+        onCountChange={setNotificationCount}
+      />
     </div>
   );
 };

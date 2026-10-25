@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\PermissionController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\RadiusController;
 use App\Http\Controllers\Api\SmsController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\WhatsappController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\HotspotDashboardController;
@@ -123,6 +124,9 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     // Auth routes
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::patch('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+    Route::patch('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
     
     // Dashboard routes
     Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);

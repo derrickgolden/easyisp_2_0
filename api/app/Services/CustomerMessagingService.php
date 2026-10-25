@@ -3,9 +3,12 @@
 namespace App\Services;
 
 use App\Models\Customer;
+use App\Models\Notification;
 use App\Services\PhoneNumberService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
  * Centralized messaging service for customers
@@ -120,6 +123,7 @@ class CustomerMessagingService
             $organization = $customer->organization;
             if (!$organization) {
                 Log::warning("Organization not found for customer {$customer->id}");
+                $this->recordMessageFailure($customer, 'Organization not found');
                 return false;
             }
 
@@ -129,12 +133,14 @@ class CustomerMessagingService
 
             if (!$smsSettings || !$smsSettings['provider'] || !$smsSettings['api_key']) {
                 Log::warning("SMS gateway not configured for organization {$organization->id}. Message type: {$messageType}");
+                $this->recordMessageFailure($customer, 'SMS gateway is not configured');
                 return false;
             }
 
             // Skip SMS if no phone number
             if (!$customer->phone) {
                 Log::warning("No phone number for customer {$customer->id}. Cannot send {$messageType} message.");
+                $this->recordMessageFailure($customer, 'Client has no phone number');
                 return false;
             }
 
@@ -175,7 +181,72 @@ class CustomerMessagingService
                 'message_type' => $messageType,
                 'exception' => get_class($e),
             ]);
+            $this->recordMessageFailure($customer, $e->getMessage());
             return false;
+        }
+    }
+
+    private function recordMessageFailure(Customer $customer, string $reason): void
+    {
+        $failureKey = null;
+        try {
+            $reason = trim($reason) ?: 'Unknown message delivery error';
+            $failureKey = hash('sha256', json_encode(
+                [(string) $customer->id, $reason],
+                JSON_THROW_ON_ERROR
+            ));
+
+            DB::transaction(function () use ($customer, $reason, $failureKey): void {
+                Notification::query()->insertOrIgnore([
+                    'id' => (string) Str::uuid(),
+                    'type' => 'message_failure',
+                    'title' => 'Message sending failed',
+                    'body' => $reason,
+                    'data' => json_encode([
+                        'organization_id' => $customer->organization_id,
+                        'client_id' => $customer->id,
+                        'failed_count' => 0,
+                    ], JSON_THROW_ON_ERROR),
+                    'failure_key' => $failureKey,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+
+                $notification = Notification::query()
+                    ->where('failure_key', $failureKey)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $data = $notification->data ?? [];
+                $data['client_id'] = $customer->id;
+                $data['failed_count'] = (int) ($data['failed_count'] ?? 0) + 1;
+                $notification->data = $data;
+                $notification->save();
+
+                $now = now();
+                $states = DB::table('users')
+                    ->where('organization_id', $customer->organization_id)
+                    ->pluck('id')
+                    ->map(fn ($adminId) => [
+                        'admin_id' => $adminId,
+                        'notification_id' => $notification->id,
+                        'is_read' => false,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ])
+                    ->all();
+
+                if ($states !== []) {
+                    DB::table('admin_notifications_states')->insertOrIgnore($states);
+                }
+            });
+        } catch (\Throwable $e) {
+            Log::error('Failed to record message delivery failure notification', [
+                'customer_id' => $customer->id,
+                'failure_key' => $failureKey,
+                'exception' => get_class($e),
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
