@@ -66,6 +66,12 @@ const formatDate = (value?: string | Date | null) => {
   });
 };
 
+const getNotificationSeverity = (value: unknown): NotificationSeverity => (
+  value === 'critical' || value === 'warning' || value === 'success'
+    ? value
+    : 'warning'
+);
+
 const getErrorMessage = (error: unknown) => (
   error instanceof Error ? error.message : 'An unexpected error occurred.'
 );
@@ -147,6 +153,7 @@ const NotificationModal: FC<NotificationModalProps> = ({
         items.forEach(notification => {
           const isSite = notification.type === 'site_status';
           const isOffline = isSite && notification.data?.status === 'offline';
+          const severity = getNotificationSeverity(notification.data?.severity);
 
           if (isOffline && notification.data?.site_id !== undefined) {
             persistedOfflineSiteIds.add(String(notification.data.site_id));
@@ -155,7 +162,7 @@ const NotificationModal: FC<NotificationModalProps> = ({
           nextNotifications.push({
             id: notification.id,
             kind: isSite ? 'site' : 'message',
-            severity: isOffline ? 'critical' : 'success',
+            severity,
             title: notification.title,
             description: notification.body,
             timestamp: notification.created_at,

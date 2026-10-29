@@ -206,6 +206,7 @@ class CustomerMessagingService
                         'organization_id' => $customer->organization_id,
                         'client_id' => $customer->id,
                         'failed_count' => 0,
+                        'severity' => 'warning',
                     ], JSON_THROW_ON_ERROR),
                     'failure_key' => $failureKey,
                     'created_at' => now(),

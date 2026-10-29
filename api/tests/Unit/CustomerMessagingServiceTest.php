@@ -94,6 +94,7 @@ class CustomerMessagingServiceTest extends TestCase
             'organization_id' => 42,
             'client_id' => 12,
             'failed_count' => 2,
+            'severity' => 'warning',
         ], $group->data);
         $this->assertSame([21, 22], DB::table('admin_notifications_states')
             ->where('notification_id', $group->id)

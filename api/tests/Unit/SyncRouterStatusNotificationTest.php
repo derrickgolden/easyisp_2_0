@@ -92,6 +92,7 @@ class SyncRouterStatusNotificationTest extends TestCase
             'ip_address' => '192.0.2.10',
             'location' => 'Nairobi',
             'status' => 'offline',
+            'severity' => 'critical',
         ], $notification->data);
         $this->assertSame([11, 12], DB::table('admin_notifications_states')
             ->orderBy('admin_id')

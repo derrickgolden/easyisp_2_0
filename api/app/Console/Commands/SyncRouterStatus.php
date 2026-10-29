@@ -183,6 +183,7 @@ class SyncRouterStatus extends Command
                         'ip_address' => $site->ip_address,
                         'location' => $site->location,
                         'status' => $status,
+                        'severity' => $isOnline ? 'success' : 'critical',
                     ],
                 ]);
 
