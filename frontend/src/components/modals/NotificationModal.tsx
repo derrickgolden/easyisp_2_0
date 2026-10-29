@@ -39,16 +39,25 @@ interface ApiNotification {
   is_read?: boolean;
 }
 
-const getLicenseDeadline = (snapshotMonth?: string | null) => {
-  const match = snapshotMonth?.match(/^(\d{4})-(\d{2})/);
-  if (!match) return null;
+const getLicenseBillingDates = (snapshotMonth?: string | null) => {
+  console.log('Snapshot month:', snapshotMonth);
+  if (!snapshotMonth) return null;
 
-  return new Date(Number(match[1]), Number(match[2]), 5, 10);
+  const snapshotDate = new Date(snapshotMonth);
+  if (Number.isNaN(snapshotDate.getTime())) return null;
+
+  const year = snapshotDate.getFullYear();
+  const month = snapshotDate.getMonth();
+
+  return {
+    billingDate: new Date(year, month, 28),
+    deadline: new Date(year, month + 1, 5, 10),
+  };
 };
 
-const formatDate = (value?: string | null) => {
+const formatDate = (value?: string | Date | null) => {
   if (!value) return 'Time unavailable';
-  const date = new Date(value);
+  const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return 'Time unavailable';
 
   return date.toLocaleString(undefined, {
@@ -188,17 +197,22 @@ const NotificationModal: FC<NotificationModalProps> = ({
         const current = billing?.current;
         const organizationSuspended = billing?.organization_status === 'suspended';
         const isUnpaid = Boolean(current && String(current.status).toLowerCase() !== 'paid');
-        const deadline = getLicenseDeadline(current?.snapshot_month);
+        const licenseBillingDates = getLicenseBillingDates(current?.snapshot_month);
+        const deadline = licenseBillingDates?.deadline ?? null;
         const licenseExpired = isUnpaid && deadline !== null && deadline.getTime() <= Date.now();
 
-        if (organizationSuspended || licenseExpired) {
+        if (organizationSuspended || (isUnpaid && licenseBillingDates !== null)) {
           nextNotifications.push({
             id: 'license-expired',
             kind: 'license',
-            severity: 'critical',
-            title: licenseExpired ? 'License expired' : 'Organization suspended',
-            description: licenseExpired
-              ? `The license billing for ${formatDate(current?.snapshot_month)} is still unpaid. Payment was due ${formatDate(deadline?.toISOString())}.`
+            severity: licenseExpired || organizationSuspended ? 'critical' : 'warning',
+            title: licenseExpired
+              ? 'License expired'
+              : organizationSuspended
+                ? 'Organization suspended'
+                : 'License payment due',
+            description: isUnpaid && licenseBillingDates
+              ? `The license billing for ${formatDate(licenseBillingDates.billingDate)} is still unpaid. Payment ${licenseExpired ? 'was due' : 'is due on'} ${formatDate(deadline)}.`
               : 'The organization is currently suspended. Review the license billing status and resolve any outstanding payment.',
           });
         }

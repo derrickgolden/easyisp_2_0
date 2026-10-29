@@ -64,6 +64,7 @@ export const Layout: React.FC<LayoutProps> = ({
           organizationApi.get(),
           organizationApi.getLicenseBilling(),
         ]);
+        console.log('License billing response:', billingResponse);
         const settings = response?.settings || {};
         const general = settings.general || {};
         const logo = general.business_logo || '';
