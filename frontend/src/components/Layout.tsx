@@ -64,7 +64,7 @@ export const Layout: React.FC<LayoutProps> = ({
           organizationApi.get(),
           organizationApi.getLicenseBilling(),
         ]);
-        console.log('License billing response:', billingResponse);
+
         const settings = response?.settings || {};
         const general = settings.general || {};
         const logo = general.business_logo || '';
@@ -132,7 +132,7 @@ export const Layout: React.FC<LayoutProps> = ({
   };
 
   const shouldSubItemsBeOpen = (itemId: string) => {
-    if (itemId === 'management' || itemId === 'crm' || itemId === 'revenue') return true;
+    if (itemId === 'management' || itemId === 'crm' || itemId === 'olt' || itemId === 'revenue') return true;
     return activeTab === itemId;
   };
 

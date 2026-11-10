@@ -7,11 +7,11 @@ export type NavItem = { id: string; label: string; icon: React.ReactNode; perm?:
 export const navItems: NavItem[] = [
 
     { id: 'dashboard', label: 'Dashboard', icon: <ICONS.Dashboard />, 
-      css: 'text-blue-400 hover:bg-slate-800 hover:text-blue-500', 
-      cssActive: 'bg-blue-600 text-white shadow-lg shadow-blue-500/10',
-      cssSubItem: 'text-blue-400 hover:bg-slate-800 hover:text-blue-500',
-      cssSubItemActive: 'bg-blue-600 text-white shadow-lg shadow-blue-500/10',
-      cssBorder: 'border-blue-500/50',
+      css: 'text-lime-400 hover:bg-slate-800 hover:text-lime-500', 
+      cssActive: 'bg-lime-600 text-white shadow-lg shadow-lime-500/10',
+      cssSubItem: 'text-lime-400 hover:bg-slate-800 hover:text-lime-500',
+      cssSubItemActive: 'bg-lime-600 text-white shadow-lg shadow-lime-500/10',
+      cssBorder: 'border-lime-500/50',
     },
     { 
       id: 'management', label: 'Management', icon: <ICONS.Management />, 
@@ -36,6 +36,18 @@ export const navItems: NavItem[] = [
         { id: 'customers', label: 'Customers', perm: ['view-customers', 'view-customer-details'] },
         { id: 'leads', label: 'Leads', perm: 'view-leads' },
         { id: 'tickets', label: 'Tickets', perm: 'view-tickets' },
+      ]
+    },
+    { 
+      id: 'olt', label: 'OLT Management', icon: <ICONS.OLT />, 
+      css: 'text-blue-400 hover:bg-slate-800 hover:text-blue-500', 
+      cssActive: 'bg-blue-600 text-white shadow-lg shadow-blue-500/10',
+      cssSubItem: 'text-blue-200 hover:bg-slate-800 hover:text-blue-300',
+      cssSubItemActive: 'bg-blue-200 text-blue-800 shadow-lg shadow-blue-500/10',
+      cssBorder: 'border-blue-500/50',
+      subItems: [
+        { id: 'olt', label: 'OLTs', perm: 'view-olt' },
+        { id: 'onu', label: 'ONUs', perm: 'view-onu' },
       ]
     },
     { 

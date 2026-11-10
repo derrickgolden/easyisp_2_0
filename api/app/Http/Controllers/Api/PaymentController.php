@@ -563,10 +563,20 @@ class PaymentController extends Controller
 
     public function index(Request $request)
     {
-        $payments = Payment::with('customer')
+        $validated = $request->validate([
+            'status' => 'sometimes|in:completed,pending',
+            'per_page' => 'sometimes|integer|min:1|max:100',
+        ]);
+
+        $query = Payment::with('customer')
             ->where('organization_id', $request->user()->organization_id)
-            ->orderByDesc('created_at')
-            ->paginate(15);
+            ->orderByDesc('created_at');
+
+        if (isset($validated['status'])) {
+            $query->where('status', $validated['status']);
+        }
+
+        $payments = $query->paginate($validated['per_page'] ?? 15);
 
         return PaymentResource::collection($payments);
     }

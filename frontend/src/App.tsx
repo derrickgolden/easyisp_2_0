@@ -18,6 +18,7 @@ import { ExpensesPage } from './pages/ExpensesPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { LeadsPage } from './pages/LeadsPage';
 import { TicketsPage } from './pages/TicketsPage';
+import { OltManagementPage } from './pages/OltManagementPage';
 import { authApi, setAuthToken, getAuthToken, setOnUnauthorizedCallback, setIsLoggingOut, ApiError } from './services/apiService';
 import { AdminUser } from './types';
 
@@ -219,6 +220,18 @@ const App: React.FC = () => {
                 <Route path="/management/packages" element={
                   <RequirePermission perms={['view-packages']}>
                     <PackagesPage />
+                  </RequirePermission>
+                } />
+
+                {/* OLT Management Routes */}
+                <Route path="/olt/olts" element={
+                  <RequirePermission perms={['view-olt']}>
+                    <OltManagementPage />
+                  </RequirePermission>
+                } />
+                <Route path="/olt/onus" element={
+                  <RequirePermission perms={['view-onu']}>
+                    <OltManagementPage />
                   </RequirePermission>
                 } />
                 

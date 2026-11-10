@@ -1,11 +1,10 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, Badge } from '../components/UI';
 import { Payment } from '../types';
 import { paymentsApi } from '../services/apiService';
 import { ResolveMpesaModal } from '../components/modals/ResolveMpesaModal';
 import TableScrollModal from '../components/modals/TableScrollModal';
-import { STORAGE_KEYS } from '../constants/storage';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { formatPhone } from './PaymentsPage';
@@ -16,77 +15,81 @@ const formatTimestamp = (value: string | null | undefined): string => {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 };
 
+const extractPaymentsList = (payload: any): Payment[] => {
+  if (Array.isArray(payload?.data)) {
+    return payload.data as Payment[];
+  }
+
+  if (Array.isArray(payload?.data?.data)) {
+    return payload.data.data as Payment[];
+  }
+
+  if (Array.isArray(payload)) {
+    return payload as Payment[];
+  }
+
+  return [];
+};
+
 export const PPPoEPaymentsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'completed' | 'pending'>('completed');
   const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
   const [reconcilingPayment, setReconcilingPayment] = useState<Payment | null>(null);
-  const [payments, setPayments] = useState<Payment[]>(() => JSON.parse(localStorage.getItem(STORAGE_KEYS.PAYMENTS) || '[]'));
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [completedCurrentPage, setCompletedCurrentPage] = useState(1);
   const [completedRowsPerPage, setCompletedRowsPerPage] = useState(10);
   const [pendingCurrentPage, setPendingCurrentPage] = useState(1);
   const [pendingRowsPerPage, setPendingRowsPerPage] = useState(10);
+  const [completedTotalPages, setCompletedTotalPages] = useState(1);
+  const [pendingTotalPages, setPendingTotalPages] = useState(1);
+  const [pendingTotal, setPendingTotal] = useState<number | null>(null);
+  const paymentRequestId = useRef(0);
   const navigate = useNavigate();
 
-  const extractPaymentsList = (payload: any): Payment[] => {
-    if (Array.isArray(payload?.data)) {
-      return payload.data as Payment[];
-    }
+  const currentPage = activeTab === 'completed' ? completedCurrentPage : pendingCurrentPage;
+  const rowsPerPage = activeTab === 'completed' ? completedRowsPerPage : pendingRowsPerPage;
 
-    if (Array.isArray(payload?.data?.data)) {
-      return payload.data.data as Payment[];
-    }
-
-    if (Array.isArray(payload)) {
-      return payload as Payment[];
-    }
-
-    return [];
-  };
-
-  const extractLastPage = (payload: any): number => {
-    const candidate = payload?.meta?.last_page ?? payload?.last_page ?? payload?.data?.last_page ?? 1;
-    const page = Number(candidate);
-    return Number.isFinite(page) && page > 0 ? page : 1;
-  };
-
-  useEffect(() => {
-    fetchPayments();
-  }, [ ]);
-  
-  const fetchPayments = async (isToast: boolean = false) => {
+  const fetchPayments = useCallback(async (isToast = false) => {
+    const requestId = ++paymentRequestId.current;
     setIsSyncing(true);
     try {
-      const firstPage = await paymentsApi.getAll(1);
-      const paymentsList = [...extractPaymentsList(firstPage)];
-      const lastPage = extractLastPage(firstPage);
+      const response = await paymentsApi.getAll(currentPage, rowsPerPage, activeTab);
+      if (requestId !== paymentRequestId.current) return;
 
-      if (lastPage > 1) {
-        const remainingRequests: Array<Promise<any>> = [];
+      const paymentsList = extractPaymentsList(response);
+      const meta = response?.meta;
+      const lastPage = Number(meta?.last_page) || 1;
 
-        for (let page = 2; page <= lastPage; page++) {
-          remainingRequests.push(paymentsApi.getAll(page));
-        }
-
-        const remainingResults = await Promise.all(remainingRequests);
-        for (const result of remainingResults) {
-          paymentsList.push(...extractPaymentsList(result));
-        }
+      setPayments(paymentsList);
+      if (activeTab === 'completed') {
+        setCompletedTotalPages(lastPage);
+      } else {
+        setPendingTotalPages(lastPage);
+        setPendingTotal(Number(meta?.total) || 0);
       }
 
-      setPayments(paymentsList as Payment[]);
       if (isToast) {
         toast.success('Ledger synced successfully!');
       }
-      localStorage.setItem(STORAGE_KEYS.PAYMENTS, JSON.stringify(paymentsList));
     } catch (error) {
+      if (requestId !== paymentRequestId.current) return;
       console.error('Error fetching payments:', error);
       toast.error('Failed to sync ledger. Please try again.');
     } finally {
-      setIsSyncing(false);
+      if (requestId === paymentRequestId.current) {
+        setIsSyncing(false);
+      }
     }
-  };
+  }, [activeTab, currentPage, rowsPerPage]);
+
+  useEffect(() => {
+    fetchPayments();
+    return () => {
+      paymentRequestId.current += 1;
+    };
+  }, [fetchPayments]);
 
   const completedPayments = payments.filter(p => p.status === 'completed' && (
     p.mpesaCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -101,14 +104,8 @@ export const PPPoEPaymentsPage: React.FC = () => {
     p.phone.includes(searchTerm)
   ));
 
-  const completedTotalPages = Math.max(1, Math.ceil(completedPayments.length / completedRowsPerPage));
-  const pendingTotalPages = Math.max(1, Math.ceil(pendingPayments.length / pendingRowsPerPage));
-
-  const completedStartIndex = (completedCurrentPage - 1) * completedRowsPerPage;
-  const pendingStartIndex = (pendingCurrentPage - 1) * pendingRowsPerPage;
-
-  const pagedCompletedPayments = completedPayments.slice(completedStartIndex, completedStartIndex + completedRowsPerPage);
-  const pagedPendingPayments = pendingPayments.slice(pendingStartIndex, pendingStartIndex + pendingRowsPerPage);
+  const pagedCompletedPayments = completedPayments;
+  const pagedPendingPayments = pendingPayments;
 
   useEffect(() => {
     setCompletedCurrentPage(1);
@@ -164,7 +161,7 @@ export const PPPoEPaymentsPage: React.FC = () => {
             className="bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-            Export CSV
+            Export Current Page
           </button>
         </div>
       </div>
@@ -185,9 +182,9 @@ export const PPPoEPaymentsPage: React.FC = () => {
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             Pending
-            {pendingPayments.length > 0 && (
+            {pendingTotal !== null && pendingTotal > 0 && (
               <span className="ml-1 px-1.5 py-0.5 bg-amber-500 text-white text-[9px] rounded-full animate-bounce">
-                {pendingPayments.length}
+                {pendingTotal}
               </span>
             )}
           </button>
@@ -199,7 +196,7 @@ export const PPPoEPaymentsPage: React.FC = () => {
           </span>
           <input 
             type="text" 
-            placeholder={`Search ${activeTab} records...`}
+            placeholder={`Search this page's ${activeTab} records...`}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl text-sm shadow-sm focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 dark:text-white"

@@ -519,8 +519,10 @@ export const sitesApi = {
 
 // Payments Endpoints
 export const paymentsApi = {
-  getAll: async (page = 1) => {
-    const response = await axiosInstance.get(`/payments?page=${page}`);
+  getAll: async (page = 1, perPage = 15, status?: 'completed' | 'pending') => {
+    const response = await axiosInstance.get('/payments', {
+      params: { page, per_page: perPage, status },
+    });
     return response.data;
   },
 

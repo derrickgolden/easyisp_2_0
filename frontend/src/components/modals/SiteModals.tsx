@@ -450,11 +450,13 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({ isOpen, onClose, selec
 
       # IP Pools
       /ip pool
-      add name=expired_pool ranges=10.0.0.100-10.0.0.200
+      add name=suspended_pool ranges=10.10.0.100-10.10.0.200
       add name=pppoe-pool ranges=10.254.0.10-10.254.0.250
+      add name=expired_pool ranges=10.0.0.100-10.0.0.200
 
       # PPP Profiles
       /ppp profile
+      add local-address=10.10.0.1 name="Suspended_Group" remote-address=suspended_pool dns-server=8.8.8.8,8.8.4.4 rate-limit="64k/64k" comment="Suspended or paused clients"
       add local-address=10.0.0.1 name=Expired_Redirect remote-address=expired_pool dns-server=10.0.0.1
       add dns-server=8.8.8.8,1.1.1.1 local-address=10.254.0.1 name=pppoe-profile remote-address=pppoe-pool
 
