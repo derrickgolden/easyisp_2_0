@@ -46,8 +46,8 @@ export const navItems: NavItem[] = [
       cssSubItemActive: 'bg-blue-200 text-blue-800 shadow-lg shadow-blue-500/10',
       cssBorder: 'border-blue-500/50',
       subItems: [
-        { id: 'olt', label: 'OLTs', perm: 'view-olt' },
-        { id: 'onu', label: 'ONUs', perm: 'view-onu' },
+        { id: 'olts', label: 'OLTs', perm: 'view-olt' },
+        { id: 'onus', label: 'ONUs', perm: 'view-onu' },
       ]
     },
     { 
