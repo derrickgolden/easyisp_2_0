@@ -40,6 +40,7 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, revokeSession, onRe
     });
     const [trafficPollCount, setTrafficPollCount] = useState(0);
     const [lastTrafficPollAt, setLastTrafficPollAt] = useState<string | null>(null);
+    const [hasTrafficPollError, setHasTrafficPollError] = useState(false);
 
     useEffect(() => {
       if (!trafficUsername || !nasIpAddress || nasIpAddress === 'N/A') return;
@@ -47,6 +48,7 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, revokeSession, onRe
       const pollingDelay = isOnline ? 2000 : 8000;
       setTrafficPollCount(0);
       setLastTrafficPollAt(null);
+      setHasTrafficPollError(false);
 
       let isActive = true;
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -63,6 +65,8 @@ console.log('Fetched user traffic:', data);
           }
         } catch (err) {
           console.error('Error fetching user traffic:', err);
+          if (isActive) setHasTrafficPollError(true);
+          isActive = false;
         } finally {
           setIsPolling(false);
           if (isActive) {
@@ -224,8 +228,8 @@ console.log('Fetched user traffic:', data);
                  <div className="rounded-2xl border border-gray-400 dark:border-white/10 bg-gray-800/30 dark:bg-gray-800/20 p-3 space-y-2">
                     <div className="flex justify-between items-center">
                       <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Live Traffic</p>
-                      <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${traffic.status === 'online' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'}`}>
-                        {traffic.status || 'offline'}
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-black ${hasTrafficPollError ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' : `uppercase ${traffic.status === 'online' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'}`}`}>
+                        {hasTrafficPollError ? 'Unable to Poll Currently' : traffic.status || 'offline'}
                       </span>
                     </div>
 
