@@ -18,7 +18,6 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, revokeSession, onRe
     const [isResettingMac, setIsResettingMac] = useState(false);
     const [isAccountingModalOpen, setIsAccountingModalOpen] = useState(false);
     const isRequesting = useRef(false);
-    const currentDelay = useRef(2000); // Use ref to persist delay across renders
     const startTimeIso = technicalSpecs?.start_time;
     const isOnline = technicalSpecs?.is_online;
     const nasIpAddress = technicalSpecs?.nas_ip_address;
@@ -42,41 +41,46 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, revokeSession, onRe
     const [trafficPollCount, setTrafficPollCount] = useState(0);
     const [lastTrafficPollAt, setLastTrafficPollAt] = useState<string | null>(null);
 
-    // useEffect(() => {
-    //   if (!trafficUsername || !nasIpAddress || nasIpAddress === 'N/A') return;
+    useEffect(() => {
+      if (!trafficUsername || !nasIpAddress || nasIpAddress === 'N/A') return;
 
-    //   setTrafficPollCount(0);
-    //   setLastTrafficPollAt(null);
+      const pollingDelay = isOnline ? 2000 : 8000;
+      setTrafficPollCount(0);
+      setLastTrafficPollAt(null);
 
-    //   let isActive = true;
-    //   let timeoutId: ReturnType<typeof setTimeout> | undefined;
+      let isActive = true;
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-    //   const pollTraffic = async () => {
-    //     try {
-    //       const data = await customersApi.getUserTraffic(trafficUsername, nasIpAddress);
-
-    //       if (isActive) {
-    //         setTraffic(data);
-    //       }
-    //     } catch (err) {
-    //       console.error('Error fetching user traffic:', err);
-    //     } finally {
-    //       if (isActive) {
-    //         setTrafficPollCount((prev) => prev + 1);
-    //         setLastTrafficPollAt(new Date().toLocaleTimeString());
-    //         timeoutId = setTimeout(pollTraffic, 1000);
-    //       }
+      const pollTraffic = async () => {
+        try {
+          if (isPolling) return; // Prevent overlapping requests
+          console.log('Polling user traffic for:', trafficUsername, 'on NAS:', nasIpAddress);
+          setIsPolling(true);
+          const data = await customersApi.getUserTraffic(trafficUsername, nasIpAddress);
+console.log('Fetched user traffic:', data);
+          if (isActive) {
+            setTraffic(data);
+          }
+        } catch (err) {
+          console.error('Error fetching user traffic:', err);
+        } finally {
+          setIsPolling(false);
+          if (isActive) {
+            setTrafficPollCount((prev) => prev + 1);
+            setLastTrafficPollAt(new Date().toLocaleTimeString());
+            timeoutId = setTimeout(pollTraffic, pollingDelay);
+          }
           
-    //     }
-    //   };
+        }
+      };
 
-    //   pollTraffic();
+      pollTraffic();
 
-    //   return () => {
-    //     isActive = false;
-    //     if (timeoutId) clearTimeout(timeoutId);
-    //   };
-    // }, [trafficUsername, nasIpAddress]);
+      return () => {
+        isActive = false;
+        if (timeoutId) clearTimeout(timeoutId);
+      };
+    }, [trafficUsername, nasIpAddress, isOnline]);
 
     useEffect(() => {
       if (!startTimeIso) {
@@ -105,45 +109,39 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, revokeSession, onRe
       return () => clearInterval(interval);
     }, [startTimeIso, isOnline]);
 
-    // AUTO-REFRESH EFFECT (Polls API every 2s ONLY if offline)
-    // useEffect(() => {
-    //   let timeoutId;
-    //   const maxDelay = 60000; // Cap at 1 minute
+    // Poll more frequently while online and less frequently while offline.
+    useEffect(() => {
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+      let isActive = true;
+      const pollingDelay = isOnline ? 2000 : 8000;
 
-    //   // Reset delay when user comes back online
-    //   if (isOnline) {
-    //     currentDelay.current = 2000;
-    //     return;
-    //   }
+      const poll = async () => {
+        if (isRequesting.current) {
+          if (isActive) timeoutId = setTimeout(poll, pollingDelay);
+          return;
+        }
 
-    //   const poll = async () => {
-    //     if (!isOnline) {
-    //       if (!isRequesting.current) {
-    //         isRequesting.current = true;
-    //         setIsPolling(true);
-            
-    //         await onRefresh();
-            
-    //         isRequesting.current = false;
-    //         setIsPolling(false);
+        isRequesting.current = true;
+        // setIsPolling(true);
 
-    //         // Increase delay for the next run
-    //         currentDelay.current = Math.min(currentDelay.current * 2, maxDelay);
-    //         console.log('Next delay will be:', currentDelay.current);
-    //       }
+        try {
+          await onRefresh();
+        } catch (error) {
+          console.error('Error refreshing customer details:', error);
+        } finally {
+          isRequesting.current = false;
+          // setIsPolling(false);
+          if (isActive) timeoutId = setTimeout(poll, pollingDelay);
+        }
+      };
 
-    //       // Schedule the next poll with updated delay
-    //       timeoutId = setTimeout(poll, currentDelay.current);
-    //     }
-    //   };
+      timeoutId = setTimeout(poll, pollingDelay);
 
-    //   // Start polling
-    //   timeoutId = setTimeout(poll, currentDelay.current);
-
-    //   return () => {
-    //     if (timeoutId) clearTimeout(timeoutId);
-    //   };
-    // }, [isOnline, onRefresh]);
+      return () => {
+        isActive = false;
+        if (timeoutId) clearTimeout(timeoutId);
+      };
+    }, [isOnline, onRefresh]);
 
     const onResetMAC = async (customer: Customer) => {
       if (isResettingMac) return;
@@ -151,7 +149,6 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, revokeSession, onRe
 
       try {
         if (customer.connectionType === "PPPoE") {
-          console.log("Resetting MAC binding for PPPoE customer:", customer.id);
           const response = await customersApi.resetMacBinding(customer.id);
           onRefresh();
           toast.success(response.message);
@@ -224,7 +221,7 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, revokeSession, onRe
                     </div>
                  </div>
                  {/* show user traffic */}
-                 {/* <div className="rounded-2xl border border-gray-400 dark:border-white/10 bg-gray-800/30 dark:bg-gray-800/20 p-3 space-y-2">
+                 <div className="rounded-2xl border border-gray-400 dark:border-white/10 bg-gray-800/30 dark:bg-gray-800/20 p-3 space-y-2">
                     <div className="flex justify-between items-center">
                       <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Live Traffic</p>
                       <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${traffic.status === 'online' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'}`}>
@@ -248,7 +245,7 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, revokeSession, onRe
                     <p className="text-[9px] font-mono text-slate-500 uppercase tracking-wider">
                       Interface IP: {traffic.ip || technicalSpecs?.framed_ip || 'N/A'}
                     </p>
-                 </div> */}
+                 </div>
                  <div className=" border-t border-white/5 space-y-3">
                     <div className="flex justify-between items-center">
                         <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Last Uptime</span>
