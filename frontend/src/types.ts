@@ -245,7 +245,7 @@ export interface Template {
   id: string;
   name: string;
   content: string;
-  category: 'Billing' | 'SMS' | 'Email' | 'System';
+  category: 'Billing' | 'SMS' | 'Email' | 'WhatsApp' | 'System';
   isDefault?: boolean;
 }
 

@@ -172,17 +172,17 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
   return (
     <div className="space-y-6 animate-in slide-in-from-right-4 duration-500 pb-20">
       {/* Top Header Actions */}
-      <div className="flex md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row items-end justify-between gap-4">
+        <button 
+          onClick={() =>navigate('/crm/customers')}
+          className=" text-sm font-bold text-gray-500 hover:text-blue-600 transition-colors w-fit group"
+        >
+          <div className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-gray-100 dark:border-slate-800 flex items-center justify-center gap-2 group-hover:border-blue-500 transition-all">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            <span className="whitespace-nowrap">Back to customers</span>
+          </div>
+        </button>
         <div className="w-full grid grid-cols-4 gap-2 items-center">
-          <button 
-            onClick={() =>navigate('/crm/customers')}
-            className=" text-sm font-bold text-gray-500 hover:text-blue-600 transition-colors w-fit group"
-          >
-            <div className="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-gray-100 dark:border-slate-800 flex items-center justify-center gap-2 group-hover:border-blue-500 transition-all">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-              <span className='hidden sm:block'>Back to customers</span>
-            </div>
-          </button>
           {
             can('send-message') && (<>
               <button 
@@ -194,6 +194,16 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
                 SMS
+              </button>
+              <button 
+                onClick={() => {
+                  actions.setMessagingType('email');
+                  actions.setIsMessagingModalOpen(true);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 w-full"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                Email
               </button>
               {/* <button 
                 onClick={() => {
@@ -211,7 +221,7 @@ export const CustomerDetailPage: React.FC<CustomerDetailPageProps> = () => {
           
           <button 
             onClick={() => actions.handleEdit(customer)}
-            className="px-4 py-2 bg-blue-600 dark:bg-blue-900 text-white dark:text-slate-300 border border-gray-100 dark:border-slate-800 rounded-xl text-sm font-bold hover:bg-blue-700 dark:hover:bg-blue-800 transition-all flex items-center justify-center gap-2 w-full"
+            className="px-4 py-2 bg-yellow-600 dark:bg-yellow-900 text-white dark:text-slate-300 border border-gray-100 dark:border-slate-800 rounded-xl text-sm font-bold hover:bg-yellow-700 dark:hover:bg-yellow-800 transition-all flex items-center justify-center gap-2 w-full"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
             Edit

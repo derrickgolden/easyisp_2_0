@@ -143,7 +143,7 @@ const NotesTemplate = () => {
                             ...t,
                             name: editingTemplate.name as string,
                             content: editingTemplate.content as string,
-                            category: (editingTemplate.category as any) || t.category,
+                            category: editingTemplate.category || t.category,
                         }
                         : t
                 );
@@ -152,7 +152,7 @@ const NotesTemplate = () => {
                     id: Date.now().toString(),
                     name: editingTemplate.name,
                     content: editingTemplate.content,
-                    category: (editingTemplate.category as any) || 'SMS',
+                    category: editingTemplate.category || 'SMS',
                 };
                 updatedTemplates = [...templates, template];
             }
@@ -269,12 +269,13 @@ const NotesTemplate = () => {
                 <div className="relative">
                     <select 
                         value={editingTemplate?.category || 'Billing'}
-                        onChange={e => setEditingTemplate({...editingTemplate, category: e.target.value as any})}
+                        onChange={e => setEditingTemplate({...editingTemplate, category: e.target.value as Template['category']})}
                         className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3.5 mt-1 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold appearance-none"
                     >
                         <option>Billing</option>
                         <option>SMS</option>
                         <option>Email</option>
+                        <option>WhatsApp</option>
                         <option>System</option>
                     </select>
                     <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-gray-400">

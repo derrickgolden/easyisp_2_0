@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\RadiusController;
 use App\Http\Controllers\Api\SmsController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\WhatsappController;
+use App\Http\Controllers\Api\EmailController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\HotspotDashboardController;
 use App\Http\Controllers\Api\LeadController;
@@ -296,6 +297,9 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
 
     // WhatsApp sending routes
     Route::post('/whatsapp/send', [WhatsappController::class, 'send']);
+
+    // Email sending route
+    Route::post('/email/send', [EmailController::class, 'send']);
 
 });
 

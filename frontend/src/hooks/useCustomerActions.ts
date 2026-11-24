@@ -9,7 +9,7 @@ import { STORAGE_KEYS } from "../constants/storage";
 // hooks/useCustomerActions.ts
 export function useCustomerActions() {
     const [smsText, setSmsText] = useState('');
-    const [messagingType, setMessagingType] = useState<'sms' | 'whatsapp'>('sms');
+    const [messagingType, setMessagingType] = useState<'sms' | 'whatsapp' | 'email'>('sms');
     const [isMessagingModalOpen, setIsMessagingModalOpen] = useState(false);
     const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState<Partial<Customer> | null>(null);

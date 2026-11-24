@@ -979,6 +979,17 @@ export const whatsappApi = {
   },
 };
 
+export const emailApi = {
+  send: async (customerId: number | string, subject: string, message: string) => {
+    const response = await axiosInstance.post('/email/send', {
+      customer_id: customerId,
+      subject,
+      message,
+    });
+    return response.data;
+  },
+};
+
 // Dashboard Endpoints
 export const dashboardApi = {
   getStats: async (params?: {

@@ -1,20 +1,27 @@
 import React, { useEffect } from "react";
 import { Modal } from "../UI";
 import { toast } from "sonner";
-import { organizationApi, smsApi, whatsappApi } from "@/src/services/apiService";
+import { emailApi, organizationApi, smsApi, whatsappApi } from "@/src/services/apiService";
 import { Customer, Template } from "@/src/types";
 
 const SmsModal = ({ state, actions, customer }: any) => {
     const [smsText, setSmsText] = React.useState('');
     const [templates, setTemplates] = React.useState<Template[]>([]);
     const [selectedTemplate, setSelectedTemplate] = React.useState<string>('custom');
+    const [emailSubject, setEmailSubject] = React.useState('');
     
     const messagingType = state.messagingType || 'sms';
-    const modalTitle = messagingType === 'whatsapp' 
+    const modalTitle = messagingType === 'whatsapp'
       ? `WhatsApp Message to ${customer.firstName}`
-      : `Compose Transmission to ${customer.firstName}`;
-    const buttonText = messagingType === 'whatsapp' ? 'Send WhatsApp' : 'Transmit SMS';
-    const channelLabel = messagingType === 'whatsapp' ? 'WhatsApp' : 'SMS';
+      : messagingType === 'email'
+        ? `Email ${customer.firstName}`
+        : `Compose Transmission to ${customer.firstName}`;
+    const buttonText = messagingType === 'whatsapp'
+      ? 'Send WhatsApp'
+      : messagingType === 'email'
+        ? 'Send Email'
+        : 'Transmit SMS';
+    const channelLabel = messagingType === 'whatsapp' ? 'WhatsApp' : messagingType === 'email' ? 'Email' : 'SMS';
 
     useEffect(() => {
         const fetchTemplates = async () => {
@@ -32,6 +39,7 @@ const SmsModal = ({ state, actions, customer }: any) => {
         if (!state.isMessagingModalOpen) {
             setSelectedTemplate('custom');
             setSmsText('');
+            setEmailSubject('');
         }
     }, [state.isMessagingModalOpen]);
 
@@ -83,8 +91,13 @@ const SmsModal = ({ state, actions, customer }: any) => {
     };
 
     const handleSendMessage = async (customer: Customer) => {
+      if (messagingType === 'email' && !emailSubject.trim()) {
+          alert('Please enter an email subject');
+          return;
+      }
+
       if (!smsText.trim()) {
-          alert(`Please enter a ${messagingType === 'whatsapp' ? 'WhatsApp' : 'SMS'} message`);
+          alert(`Please enter a ${channelLabel} message`);
           return;
       }
   
@@ -94,15 +107,20 @@ const SmsModal = ({ state, actions, customer }: any) => {
           
           // Clear text or show loading
           setSmsText(''); 
+          setEmailSubject('');
 
           // Choose API based on messaging type
-          const api = messagingType === 'whatsapp' ? whatsappApi : smsApi;
-          const response = await api.send(customer.phone, originalText, customer.id);
+          if (messagingType === 'email') {
+            await emailApi.send(customer.id, personalizeMessage(emailSubject, customer), originalText);
+          } else {
+            const api = messagingType === 'whatsapp' ? whatsappApi : smsApi;
+            await api.send(customer.phone, originalText, customer.id);
+          }
           
-          toast.success(`${messagingType === 'whatsapp' ? 'WhatsApp' : 'SMS'} sent successfully!`);
+          toast.success(`${channelLabel} sent successfully!`);
           
       } catch (err: any) {
-          console.error(`${messagingType === 'whatsapp' ? 'WhatsApp' : 'SMS'} send error:`, err);
+          console.error(`${channelLabel} send error:`, err);
   
           const serverError = err.response?.data?.error || err.response?.data?.message;
           const fallbackError = err.message || 'Unknown error';
@@ -116,15 +134,33 @@ const SmsModal = ({ state, actions, customer }: any) => {
     return (
         <Modal isOpen={state.isMessagingModalOpen} onClose={() => actions.setIsMessagingModalOpen(false)} title={modalTitle}>
                  <div className="space-y-4">
-                    <div className="p-4 bg-emerald-50 dark:bg-emerald-900/10 rounded-2xl border border-emerald-100 dark:border-emerald-800 flex items-center gap-3">
-                       <div className="p-2 bg-emerald-600 rounded-lg text-white">
+                    <div className={`p-4 rounded-2xl border flex items-center gap-3 ${messagingType === 'email' ? 'bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800' : 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-800'}`}>
+                       <div className={`p-2 rounded-lg text-white ${messagingType === 'email' ? 'bg-blue-600' : 'bg-emerald-600'}`}>
                           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
                        </div>
                        <div>
-                          <p className="text-[10px] font-black uppercase text-emerald-600 tracking-widest leading-none mb-1">Destination Phone</p>
-                          <p className="text-sm font-bold text-gray-900 dark:text-white">{customer.phone}</p>
+                          <p className={`text-[10px] font-black uppercase tracking-widest leading-none mb-1 ${messagingType === 'email' ? 'text-blue-600' : 'text-emerald-600'}`}>
+                            Destination {messagingType === 'email' ? 'Email' : 'Phone'}
+                          </p>
+                          <p className="text-sm font-bold text-gray-900 dark:text-white">
+                            {messagingType === 'email' ? (customer.email || 'No email address') : customer.phone}
+                          </p>
                        </div>
                     </div>
+
+                    {messagingType === 'email' && (
+                      <div>
+                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Subject</label>
+                        <input
+                          type="text"
+                          value={emailSubject}
+                          onChange={e => setEmailSubject(e.target.value)}
+                          maxLength={255}
+                          placeholder="Enter email subject"
+                          className="mt-2 w-full bg-gray-50 dark:bg-slate-800 border-none rounded-2xl px-4 py-3 text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    )}
                     
                     {/* Message Template Variables */}
                     <div className="space-y-2">
@@ -172,6 +208,9 @@ const SmsModal = ({ state, actions, customer }: any) => {
                                if (messagingType === 'whatsapp') {
                                  return t.category === 'WhatsApp';
                                }
+                               if (messagingType === 'email') {
+                                 return t.category === 'Email';
+                               }
                                return t.category === 'SMS';
                              }).map(template => (
                              <option 
@@ -192,7 +231,7 @@ const SmsModal = ({ state, actions, customer }: any) => {
                              }
                           }}
                           rows={4}
-                          placeholder={`Enter ${messagingType === 'whatsapp' ? 'WhatsApp' : 'SMS'} content or select a template...`}
+                          placeholder={`Enter ${messagingType === 'whatsapp' ? 'WhatsApp' : messagingType === 'email' ? 'Email' : 'SMS'} content or select a template...`}
                           className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-2xl p-4 text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500"
                        />
                        <p className="text-[10px] text-right text-gray-400 font-bold mt-1 uppercase tracking-tighter">{smsText.length} Characters</p>
