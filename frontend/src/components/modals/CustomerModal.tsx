@@ -171,18 +171,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelClassName}>Email</label>
-              <input 
-                type="email" 
-                readOnly={isSubAccount}
-                value={editingCustomer?.email || ''} 
-                onChange={e => setEditingCustomer({...editingCustomer, email: e.target.value})}
-                className={isSubAccount ? readOnlyInputClassName : inputClassName}
-                placeholder="jane.doe@example.com"
-              />
-            </div>
+          <div className="grid grid-cols-1 gap-4">
             <div>
               <label className={labelClassName}>Phone*</label>
               <input 
@@ -193,6 +182,20 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
                 onChange={e => setEditingCustomer({...editingCustomer, phone: e.target.value})}
                 className={isSubAccount ? readOnlyInputClassName : inputClassName}
                 placeholder="+2547XXXXXXXX"
+              />
+            </div>
+            <div>
+              <label className={labelClassName}>Email</label>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                This will be used for communication and account recovery.
+              </p>
+              <input 
+                type="email" 
+                readOnly={isSubAccount}
+                value={editingCustomer?.email || ''} 
+                onChange={e => setEditingCustomer({...editingCustomer, email: e.target.value})}
+                className={isSubAccount ? readOnlyInputClassName : inputClassName}
+                placeholder="jane.doe@example.com"
               />
             </div>
           </div>

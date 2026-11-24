@@ -50,12 +50,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
 
   // --- EMAIL GATEWAY ---
   const [emailForm, setEmailForm] = useState({
-    mail_server: 'smtp.gmail.com',
-    server_port: '587',
-    auth_username: 'billing@easytech.com',
-    auth_password: '',
-    encryption: 'TLS (Recommended)',
-    from_address: 'no-reply@easytech.com'
+    provider: 'resend',
+    api_key: '',
+    from_address: '',
+    from_name: ''
   });
 
   // --- LICENCE STATE ---
@@ -82,7 +80,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
       case 'whatsapp-gateway':
         return whatsappForm;
       case 'email-gateway':
-        return emailForm;
+        return { ...emailForm, provider: 'resend' };
       default:
         return {};
     }
@@ -118,10 +116,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
           ...whatsappSettings
         }));
 
-        setEmailForm(prev => ({
-          ...prev,
-          ...emailSettings
-        }));
+        setEmailForm({
+          provider: 'resend',
+          api_key: emailSettings.api_key || '',
+          from_address: emailSettings.from_address || '',
+          from_name: emailSettings.from_name || ''
+        });
 
       } catch (err) {
         console.error('Failed to fetch settings:', err);
@@ -422,69 +422,44 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({  onSave }) => {
       case 'email-gateway':
         return (
           <div className="space-y-6">
-            <Card title="SMTP Relay Settings">
+            <Card title="Resend Email Settings">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Mail Server Host</label>
-                  <input 
-                    type="text" 
-                    value={emailForm.mail_server}
-                    onChange={e => setEmailForm({ ...emailForm, mail_server: e.target.value })}
-                    placeholder="smtp.gmail.com" 
-                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold" 
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Resend API Key</label>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    required
+                    value={emailForm.api_key}
+                    onChange={e => setEmailForm({ ...emailForm, api_key: e.target.value })}
+                    placeholder="re_..."
+                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Server Port</label>
-                  <input 
-                    type="text" 
-                    value={emailForm.server_port}
-                    onChange={e => setEmailForm({ ...emailForm, server_port: e.target.value })}
-                    placeholder="587" 
-                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold" 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Auth Username</label>
-                  <input 
-                    type="email" 
-                    value={emailForm.auth_username}
-                    onChange={e => setEmailForm({ ...emailForm, auth_username: e.target.value })}
-                    placeholder="billing@easytech.com" 
-                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold" 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Auth Password</label>
-                  <input 
-                    type="password" 
-                    value={emailForm.auth_password}
-                    onChange={e => setEmailForm({ ...emailForm, auth_password: e.target.value })}
-                    placeholder="••••••••••••••••" 
-                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono" 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Encryption Protocol</label>
-                  <select 
-                    value={emailForm.encryption}
-                    onChange={e => setEmailForm({ ...emailForm, encryption: e.target.value })}
-                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold">
-                    <option>TLS (Recommended)</option>
-                    <option>SSL</option>
-                    <option>None (Unsecured)</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Sender 'From' Address</label>
-                  <input 
-                    type="email" 
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Verified Sender Email</label>
+                  <input
+                    type="email"
+                    required
                     value={emailForm.from_address}
                     onChange={e => setEmailForm({ ...emailForm, from_address: e.target.value })}
-                    placeholder="no-reply@easytech.com" 
+                    placeholder="notifications@your-domain.com"
                     className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold" 
                   />
                 </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Sender Name</label>
+                  <input
+                    type="text"
+                    value={emailForm.from_name}
+                    onChange={e => setEmailForm({ ...emailForm, from_name: e.target.value })}
+                    placeholder="Your ISP name"
+                    className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-bold"
+                  />
+                </div>
+                <p className="md:col-span-2 text-xs text-gray-500 dark:text-gray-400">
+                  Use your ISP's Resend API key and a sender address verified in your Resend account.
+                </p>
               </div>
             </Card>
           </div>

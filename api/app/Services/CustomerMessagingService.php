@@ -7,6 +7,7 @@ use App\Models\Notification;
 use App\Services\PhoneNumberService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -127,6 +128,10 @@ class CustomerMessagingService
                 return false;
             }
 
+            if ($messageType === self::TYPE_EXPIRY_NOTIFICATION) {
+                $this->sendExpiryEmail($customer, $customReplacements);
+            }
+
             // Check SMS gateway configuration
             $settings = $organization->settings ?? [];
             $smsSettings = $settings['sms-gateway'] ?? null;
@@ -183,6 +188,56 @@ class CustomerMessagingService
             ]);
             $this->recordMessageFailure($customer, $e->getMessage());
             return false;
+        }
+    }
+
+    private function sendExpiryEmail(Customer $customer, array $customReplacements): void
+    {
+        $email = trim((string) $customer->email);
+        if ($email === '') {
+            return;
+        }
+
+        $organization = $customer->organization;
+        $settings = $organization?->settings ?? [];
+        $emailSettings = $settings['email-gateway'] ?? [];
+        if (!is_array($emailSettings)) {
+            return;
+        }
+
+        $apiKey = trim((string) ($emailSettings['api_key'] ?? ''));
+        $fromAddress = trim((string) ($emailSettings['from_address'] ?? ''));
+
+        if (($emailSettings['provider'] ?? null) !== 'resend' || $apiKey === '' || $fromAddress === '') {
+            return;
+        }
+
+        $template = self::MESSAGE_TEMPLATES[self::TYPE_EXPIRY_NOTIFICATION];
+        $message = $this->renderTemplate(
+            $customer,
+            $template['template_id'],
+            $template['default'],
+            $customReplacements
+        );
+        $fromName = trim((string) ($emailSettings['from_name'] ?? ''));
+
+        try {
+            Http::withToken($apiKey)
+                ->post('https://api.resend.com/emails', [
+                    'from' => $fromName !== '' ? "{$fromName} <{$fromAddress}>" : $fromAddress,
+                    'to' => [$email],
+                    'subject' => 'Your internet subscription has expired',
+                    'text' => $message,
+                ])
+                ->throw();
+
+        } catch (\Throwable $e) {
+            Log::warning("Failed to send expiry email to customer {$customer->id}", [
+                'organization_id' => $customer->organization_id,
+                'customer_id' => $customer->id,
+                'exception' => get_class($e),
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 

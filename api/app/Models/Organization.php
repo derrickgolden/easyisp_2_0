@@ -23,6 +23,7 @@ class Organization extends Model
     protected $casts = [
         'balance' => 'decimal:2',
         'settings' => 'array',
+        'license_reminder_sent_at' => 'date',
     ];
 
     public function users()

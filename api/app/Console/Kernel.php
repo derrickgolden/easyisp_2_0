@@ -36,6 +36,8 @@ class Kernel extends ConsoleKernel
 
         $schedule->command('license:sync-organization-statuses')->monthlyOn(5, '10:00')->withoutOverlapping();
 
+        $schedule->command('license:send-payment-reminders')->dailyAt('09:00')->withoutOverlapping();
+
         $schedule->command('radius:cleanup-logs')->daily()->withoutOverlapping();
 
         // Demo payment for organization_id = 5 every morning at 07:00 (production: org_5, local: org_2)
