@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 
 class PackageController extends Controller
 {
@@ -115,7 +116,14 @@ class PackageController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|string|max:255',
+            'name' => [
+                'sometimes',
+                'string',
+                'max:255',
+                Rule::unique('packages', 'name')
+                    ->where('organization_id', $request->user()->organization_id)
+                    ->ignore($package->id),
+            ],
             'speed_up' => 'sometimes|string',
             'speed_down' => 'sometimes|string',
             'price' => 'sometimes|numeric|min:0',

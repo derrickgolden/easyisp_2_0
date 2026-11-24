@@ -14,6 +14,10 @@ return [
     |
     */
 
+    'resend' => [
+        'key' => env('RESEND_API_KEY'),
+    ],
+
     'mailgun' => [
         'domain' => env('MAILGUN_DOMAIN'),
         'secret' => env('MAILGUN_SECRET'),

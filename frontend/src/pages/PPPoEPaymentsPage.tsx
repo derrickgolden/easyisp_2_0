@@ -15,6 +15,16 @@ const formatTimestamp = (value: string | null | undefined): string => {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 };
 
+type DarajaQuery = {
+  phase: 'submitting' | 'pending' | 'completed' | 'failed' | 'timeout';
+  receipt: string;
+  conversationId?: string;
+  result?: Awaited<ReturnType<typeof paymentsApi.getDarajaTransactionStatusResult>>;
+  message?: string;
+};
+
+const delay = (milliseconds: number) => new Promise(resolve => window.setTimeout(resolve, milliseconds));
+
 const extractPaymentsList = (payload: any): Payment[] => {
   if (Array.isArray(payload?.data)) {
     return payload.data as Payment[];
@@ -45,8 +55,17 @@ export const PPPoEPaymentsPage: React.FC = () => {
   const [completedTotalPages, setCompletedTotalPages] = useState(1);
   const [pendingTotalPages, setPendingTotalPages] = useState(1);
   const [pendingTotal, setPendingTotal] = useState<number | null>(null);
+  const [darajaQuery, setDarajaQuery] = useState<DarajaQuery | null>(null);
   const paymentRequestId = useRef(0);
+  const isMountedRef = useRef(true);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const currentPage = activeTab === 'completed' ? completedCurrentPage : pendingCurrentPage;
   const rowsPerPage = activeTab === 'completed' ? completedRowsPerPage : pendingRowsPerPage;
@@ -90,6 +109,53 @@ export const PPPoEPaymentsPage: React.FC = () => {
       paymentRequestId.current += 1;
     };
   }, [fetchPayments]);
+
+  const queryDaraja = async (receiptValue: string) => {
+    const receipt = receiptValue.trim();
+    if (!/^[A-Za-z0-9]{1,32}$/.test(receipt)) {
+      toast.error('Enter a valid M-Pesa receipt code using letters and numbers only.');
+      return;
+    }
+
+    setDarajaQuery({ phase: 'submitting', receipt });
+
+    try {
+      const submitted = await paymentsApi.queryDarajaTransactionStatus(receipt);
+      if (!isMountedRef.current) return;
+
+      setDarajaQuery({
+        phase: 'pending',
+        receipt,
+        conversationId: submitted.conversation_id,
+        message: submitted.message,
+      });
+
+      for (let attempt = 0; attempt < 20; attempt++) {
+        await delay(3000);
+        if (!isMountedRef.current) return;
+
+        const result = await paymentsApi.getDarajaTransactionStatusResult(submitted.conversation_id);
+        if (result.query_status && result.query_status !== 'pending') {
+          const phase = result.query_status === 'completed' ? 'completed' : 'failed';
+          setDarajaQuery({ phase, receipt, conversationId: submitted.conversation_id, result });
+          return;
+        }
+      }
+
+      setDarajaQuery({
+        phase: 'timeout',
+        receipt,
+        conversationId: submitted.conversation_id,
+        message: 'No result yet. You can check again shortly.',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to query Daraja.';
+      if (isMountedRef.current) {
+        setDarajaQuery({ phase: 'failed', receipt, message });
+        toast.error(message);
+      }
+    }
+  };
 
   const completedPayments = payments.filter(p => p.status === 'completed' && (
     p.mpesaCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -190,17 +256,77 @@ export const PPPoEPaymentsPage: React.FC = () => {
           </button>
         </div>
 
-        <div className="relative w-full lg:w-96">
-          <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-          </span>
-          <input 
-            type="text" 
-            placeholder={`Search this page's ${activeTab} records...`}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl text-sm shadow-sm focus:ring-2 focus:ring-blue-500 transition-all text-gray-900 dark:text-white"
-          />
+        <div className="flex-col items-center gap-2 px-1">
+          <h3 className="text-sm font-black text-green-600 dark:text-green-500 uppercase tracking-widest">Check a receipt with Daraja</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Enter an M-Pesa receipt code to check its transaction status directly with Daraja. Press Enter or select Query Daraja.
+          </p>
+        </div>
+        <div className="w-full lg:w-[32rem] space-y-3">
+          <div className="relative">
+            <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            </span>
+            <input
+              type="text"
+              placeholder="Query M-Pesa using receipt code"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  void queryDaraja(searchTerm);
+                }
+              }}
+              className="w-full pl-10 pr-36 py-2.5 bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 rounded-2xl text-sm shadow-sm focus:ring-2 focus:ring-green-500 transition-all text-gray-900 dark:text-white"
+            />
+            <button
+              type="button"
+              onClick={() => void queryDaraja(searchTerm)}
+              disabled={!/^[A-Za-z0-9]{1,32}$/.test(searchTerm.trim()) || darajaQuery?.phase === 'submitting' || darajaQuery?.phase === 'pending'}
+              title="Query this M-Pesa receipt with Daraja"
+              className="absolute right-1.5 top-1.5 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {darajaQuery?.phase === 'submitting' || darajaQuery?.phase === 'pending' ? (
+                <span className="h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+              ) : (
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              )}
+              {darajaQuery?.phase === 'pending' ? 'Checking…' : 'Query Daraja'}
+            </button>
+          </div>
+          {darajaQuery && (
+            <div
+              role={darajaQuery.phase === 'failed' ? 'alert' : 'status'}
+              className={`rounded-xl border px-4 py-3 ${
+                darajaQuery.phase === 'failed'
+                  ? 'border-red-200 bg-red-50 dark:border-red-900/40 dark:bg-red-950/20'
+                  : darajaQuery.phase === 'timeout'
+                    ? 'border-amber-200 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-950/20'
+                      : 'border-blue-200 bg-blue-50 dark:border-blue-900/40 dark:bg-blue-950/20'
+              }`}
+            >
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p className="text-xs font-bold text-gray-900 dark:text-white">
+                  Receipt <span className="font-mono">{darajaQuery.receipt}</span>
+                </p>
+                <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                  {darajaQuery.phase === 'submitting' && 'Sending query to Daraja…'}
+                  {darajaQuery.phase === 'pending' && 'Waiting for Daraja response…'}
+                  {darajaQuery.phase === 'completed' && (darajaQuery.result?.transaction_status || 'Status query complete')}
+                  {darajaQuery.phase === 'failed' && (darajaQuery.result?.transaction_status || 'Unable to verify receipt')}
+                  {darajaQuery.phase === 'timeout' && 'No response received yet'}
+                </p>
+              </div>
+              {(darajaQuery.result?.result_description || darajaQuery.message) && (
+                <p className="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-300">
+                  {darajaQuery.result?.result_description || darajaQuery.message}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

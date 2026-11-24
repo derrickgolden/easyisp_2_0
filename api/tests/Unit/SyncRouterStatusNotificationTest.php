@@ -8,6 +8,7 @@ use App\Models\Organization;
 use App\Models\Site;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use ReflectionMethod;
 use Tests\TestCase;
@@ -46,6 +47,9 @@ class SyncRouterStatusNotificationTest extends TestCase
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('organization_id');
+            $table->boolean('is_super_admin')->default(false);
+            $table->string('email')->nullable();
+            $table->string('phone')->nullable();
         });
     }
 
@@ -102,5 +106,76 @@ class SyncRouterStatusNotificationTest extends TestCase
             [0, 0],
             DB::table('admin_notifications_states')->orderBy('admin_id')->pluck('is_read')->all()
         );
+    }
+
+    public function test_offline_site_emails_super_admin_login_email_even_without_phone(): void
+    {
+        DB::table('users')->insert([
+            ['id' => 11, 'organization_id' => 42, 'is_super_admin' => true, 'email' => 'admin@example.com'],
+            ['id' => 12, 'organization_id' => 42, 'is_super_admin' => false, 'email' => 'staff@example.com'],
+        ]);
+
+        $organization = new Organization;
+        $organization->id = 42;
+
+        $site = new Site([
+            'organization_id' => 42,
+            'name' => 'Main office',
+            'ip_address' => '192.0.2.10',
+            'location' => 'Nairobi',
+            'last_seen' => '2026-11-20 12:00:00',
+        ]);
+        $site->id = 7;
+        $site->setRelation('organization', $organization);
+
+        config(['mail.default' => 'array']);
+        Mail::purge('array');
+
+        $command = new SyncRouterStatus;
+        $notifySiteStatus = new ReflectionMethod($command, 'notifySiteStatus');
+        $notifySiteStatus->invoke($command, $site, false);
+
+        $messages = Mail::mailer()->getSymfonyTransport()->messages();
+        $this->assertCount(1, $messages);
+
+        $message = $messages->first()->getOriginalMessage();
+        $this->assertSame('admin@example.com', $message->getTo()[0]->getAddress());
+        $this->assertSame('Site offline: Main office', $message->getSubject());
+        $this->assertStringContainsString('192.0.2.10', $message->getTextBody());
+        $this->assertStringContainsString('Nairobi', $message->getTextBody());
+    }
+
+    public function test_site_recovery_emails_super_admin(): void
+    {
+        DB::table('users')->insert([
+            ['id' => 11, 'organization_id' => 42, 'is_super_admin' => true, 'email' => 'admin@example.com'],
+        ]);
+
+        $organization = new Organization;
+        $organization->id = 42;
+
+        $site = new Site([
+            'organization_id' => 42,
+            'name' => 'Main office',
+            'ip_address' => '192.0.2.10',
+        ]);
+        $site->id = 7;
+        $site->setRelation('organization', $organization);
+
+        config(['mail.default' => 'array']);
+        Mail::purge('array');
+
+        $command = new SyncRouterStatus;
+        $notifySiteStatus = new ReflectionMethod($command, 'notifySiteStatus');
+        $notifySiteStatus->invoke($command, $site, true);
+
+        $messages = Mail::mailer()->getSymfonyTransport()->messages();
+        $this->assertCount(1, $messages);
+
+        $message = $messages->first()->getOriginalMessage();
+        $this->assertSame('admin@example.com', $message->getTo()[0]->getAddress());
+        $this->assertSame('Site recovered: Main office', $message->getSubject());
+        $this->assertStringContainsString('192.0.2.10', $message->getTextBody());
+        $this->assertStringContainsString('back ONLINE', $message->getTextBody());
     }
 }

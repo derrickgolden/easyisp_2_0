@@ -56,10 +56,8 @@ export const TechnicalSpecCard = ({technicalSpecs, customer, revokeSession, onRe
       const pollTraffic = async () => {
         try {
           if (isPolling) return; // Prevent overlapping requests
-          console.log('Polling user traffic for:', trafficUsername, 'on NAS:', nasIpAddress);
           setIsPolling(true);
           const data = await customersApi.getUserTraffic(trafficUsername, nasIpAddress);
-console.log('Fetched user traffic:', data);
           if (isActive) {
             setTraffic(data);
           }

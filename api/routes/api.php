@@ -90,6 +90,7 @@ Route::post('/payments/payhero/hotspot/{token}/stk/callback', [PayheroHotspotCon
 
 // PPPOE CALLBACK ROUTES
 Route::post('/payments/daraja/{token}/stk/callback', [DarajaPaymentController::class, 'stkCallback']);
+Route::post('/payments/daraja/{token}/transaction-status/callback', [PaymentController::class, 'darajaTransactionStatusCallback']);
 Route::post('/payments/kopokopo/{token}/stk/callback', [KopokopoTillController::class, 'stkCallback']);
 Route::post('/payments/payhero/{token}/stk/callback', [PayheroPaymentController::class, 'stkCallback']);
 
@@ -241,6 +242,9 @@ Route::middleware(['auth:sanctum', 'ability:access-admin', 'permissions.team'])-
     // Payment management
     Route::post('/payments/payhero/stkpush', [PayheroPaymentController::class, 'stkPush']);
     Route::post('/payments/daraja/stkpush', [DarajaPaymentController::class, 'adminStkPush']);
+    Route::post('/payments/daraja/transaction-status', [PaymentController::class, 'checkDarajaTransactionStatus']);
+    Route::get('/payments/daraja/transaction-status/{conversationId}', [PaymentController::class, 'getDarajaTransactionStatusResult'])
+        ->where('conversationId', '[A-Za-z0-9._-]+');
     Route::post('/payments/kopokopo/stkpush', [KopokopoTillController::class, 'adminStkPush']);
     Route::get('/payments/payhero/check-status', [PaymentController::class, 'checkPaymentStatus']);
     Route::get('/payments/pending', [PaymentController::class, 'pending']);

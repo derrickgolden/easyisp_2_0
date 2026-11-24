@@ -526,6 +526,30 @@ export const paymentsApi = {
     return response.data;
   },
 
+  queryDarajaTransactionStatus: async (receipt: string) => {
+    const response = await axiosInstance.post<{
+      success: boolean;
+      status: 'pending';
+      receipt: string;
+      conversation_id: string;
+      message: string;
+    }>('/payments/daraja/transaction-status', { receipt });
+    return response.data;
+  },
+
+  getDarajaTransactionStatusResult: async (conversationId: string) => {
+    const response = await axiosInstance.get<{
+      status: string;
+      receipt?: string;
+      conversation_id?: string;
+      query_status?: 'pending' | 'completed' | 'failed' | 'unknown';
+      transaction_status?: string | null;
+      result_description?: string | null;
+      result_code?: string | number | null;
+    }>(`/payments/daraja/transaction-status/${encodeURIComponent(conversationId)}`);
+    return response.data;
+  },
+
   getByCustomer: async (customerId: string) => {
     const response = await axiosInstance.get(`/payments/customer/${customerId}`);
     return response.data;

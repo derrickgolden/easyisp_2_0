@@ -8,6 +8,7 @@ use App\Models\Site;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use App\Services\SmsProviderService;
 use RouterOS\Client;
 
@@ -130,8 +131,6 @@ class SyncRouterStatus extends Command
 
             $users = $organization->users()
                 ->where('is_super_admin', true)
-                ->whereNotNull('phone')
-                ->where('phone', '!=', '')
                 ->get();
             if ($users->isEmpty()) {
                 return;
@@ -142,7 +141,7 @@ class SyncRouterStatus extends Command
 
             foreach ($users as $user) {
                 try {
-                    if ($smsConfig) {
+                    if ($smsConfig && !empty($user->phone)) {
                         $this->sendSiteStatusSms($user, $site, $smsConfig, $organization, $isOnline);
                     }
                 } catch (\Throwable $e) {
@@ -150,6 +149,17 @@ class SyncRouterStatus extends Command
                         'site_id' => $site->id,
                         'user_id' => $user->id,
                     ]);
+                }
+
+                if (!empty($user->email)) {
+                    try {
+                        $this->sendSiteStatusEmail($user, $site, $isOnline);
+                    } catch (\Throwable $e) {
+                        Log::warning("Failed to email user {$user->id} about site status: {$e->getMessage()}", [
+                            'site_id' => $site->id,
+                            'user_id' => $user->id,
+                        ]);
+                    }
                 }
             }
 
@@ -170,7 +180,7 @@ class SyncRouterStatus extends Command
                 $title = $isOnline ? 'Site recovered' : 'Site offline';
                 $body = $isOnline
                     ? "Site '{$site->name}' ({$site->ip_address}) is back online."
-                    : "Site '{$site->name}' ({$site->ip_address}) is offline.";
+                    : "Site '{$site->name}' ({$site->ip_address}) is offline. Last seen: {$site->last_seen}.";
 
                 $notification = Notification::create([
                     'type' => 'site_status',
@@ -269,5 +279,23 @@ class SyncRouterStatus extends Command
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    private function sendSiteStatusEmail($user, Site $site, bool $isOnline): void
+    {
+        $status = $isOnline ? 'online' : 'offline';
+
+        $body = $isOnline
+            ? "Site '{$site->name}' ({$site->ip_address}) is back ONLINE at {$site->last_seen}.\n"
+                . "Location: {$site->location}"
+            : "Site '{$site->name}' ({$site->ip_address}) is OFFLINE.\n"
+                . "Location: {$site->location}\n"
+                . "Last seen: {$site->last_seen}";
+
+        Mail::raw($body, function ($message) use ($user, $site, $isOnline): void {
+            $message->to($user->email)
+                ->subject(($isOnline ? 'Site recovered' : 'Site offline') . ": {$site->name}");
+        });
+
     }
 }

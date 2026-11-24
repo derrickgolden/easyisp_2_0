@@ -218,20 +218,6 @@ class DarajaPaymentController extends Controller
                 ?? ''
             );
 
-            Log::info('Daraja STK push response', [
-                'organization_id' => $organization->id,
-                'status' => $stkResponse->status(),
-                'accepted' => $isAccepted,
-                'response_code' => $responseCode,
-                'response_message' => $responseMessage,
-                'merchant_request_id' => $stkPayload['MerchantRequestID'] ?? null,
-                'checkout_request_id' => $stkPayload['CheckoutRequestID'] ?? null,
-                'phone' => $normalizedPhone,
-                'amount' => $amount,
-                'callback_url' => $callbackUrl,
-                'response_body_preview' => mb_substr($stkResponseBody, 0, 600),
-            ]);
-
             if (!$isAccepted) {
                 return response()->json([
                     'success' => false,

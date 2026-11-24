@@ -13,6 +13,7 @@ use App\Services\SubscriptionService;
 use App\Services\CustomerMessagingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
@@ -28,6 +29,7 @@ class PaymentController extends Controller
             'getByCustomer',
             'c2bValidation',
             'c2bConfirmation',
+            'darajaTransactionStatusCallback',
         ]);
         $this->middleware('permission:view-payments')->only([
             'index',
@@ -51,13 +53,6 @@ class PaymentController extends Controller
                 'ResultDesc' => 'Invalid token',
             ], 401);
         }
-
-        Log::info('C2B Validation endpoint called', [
-            'organization_id' => $organization->id,
-            'payload' => $request->all(),
-            'ip' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-        ]);
 
         // Basic validation endpoint for M-Pesa C2B
         return response()->json([
@@ -364,6 +359,213 @@ class PaymentController extends Controller
                 'message' => 'Error registering C2B URLs: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    public function checkDarajaTransactionStatus(Request $request)
+    {
+        $validated = $request->validate([
+            'receipt' => ['required', 'string', 'max:32', 'regex:/^[A-Za-z0-9]+$/'],
+        ]);
+
+        $organization = $request->user()->organization;
+        if (!$organization) {
+            return response()->json(['message' => 'Organization not found.'], 404);
+        }
+
+        $gateway = $organization->paymentGateways()
+            ->where('provider', 'mpesa')
+            ->where('active', true)
+            ->orderByDesc('is_default')
+            ->first();
+
+        if (!$gateway) {
+            return response()->json(['message' => 'An active M-Pesa gateway is not configured.'], 422);
+        }
+
+        $settings = (array) ($gateway->config ?? []);
+        $consumerKey = trim((string) data_get($settings, 'consumer_key', ''));
+        $consumerSecret = trim((string) data_get($settings, 'consumer_secret', ''));
+        $shortCode = trim((string) data_get($settings, 'paybill', ''));
+        $initiatorName = trim((string) data_get($settings, 'initiator_name', ''));
+        $securityCredential = trim((string) data_get($settings, 'security_credential', ''));
+        $environment = strtolower(trim((string) data_get($settings, 'environment', 'production')));
+
+        if (!$consumerKey || !$consumerSecret || !$shortCode || !$initiatorName || !$securityCredential) {
+            return response()->json([
+                'message' => 'Daraja transaction-status settings are incomplete. Configure the initiator name and security credential.',
+            ], 422);
+        }
+
+        $appUrl = rtrim((string) config('app.url'), '/');
+        if ($appUrl === '' || empty($organization->callback_token)) {
+            return response()->json([
+                'message' => 'The application URL and organization callback token must be configured.',
+            ], 422);
+        }
+
+        $baseUrl = str_contains($environment, 'sandbox')
+            ? 'https://sandbox.safaricom.co.ke'
+            : 'https://api.safaricom.co.ke';
+        $callbackUrl = $appUrl . '/api/payments/daraja/'
+            . urlencode((string) $organization->callback_token)
+            . '/transaction-status/callback';
+Log::info('Daraja transaction-status callback URL', [
+            'organization_id' => $organization->id,
+            'callback_url' => $callbackUrl,
+        ]);
+        try {
+            $tokenResponse = Http::acceptJson()
+                ->timeout(30)
+                ->withBasicAuth($consumerKey, $consumerSecret)
+                ->get($baseUrl . '/oauth/v1/generate?grant_type=client_credentials');
+
+            $accessToken = $tokenResponse->json('access_token');
+            if (!$tokenResponse->ok() || !$accessToken) {
+                Log::error('Daraja transaction-status OAuth request failed', [
+                    'organization_id' => $organization->id,
+                    'http_status' => $tokenResponse->status(),
+                ]);
+
+                return response()->json([
+                    'message' => 'Failed to authenticate with Daraja.',
+                ], 502);
+            }
+
+            $darajaResponse = Http::acceptJson()
+                ->timeout(30)
+                ->withToken($accessToken)
+                ->post($baseUrl . '/mpesa/transactionstatus/v1/query', [
+                    'Initiator' => $initiatorName,
+                    'SecurityCredential' => $securityCredential,
+                    'CommandID' => 'TransactionStatusQuery',
+                    'TransactionID' => $validated['receipt'],
+                    'PartyA' => $shortCode,
+                    'IdentifierType' => '4',
+                    'ResultURL' => $callbackUrl,
+                    'QueueTimeOutURL' => $callbackUrl,
+                    'Remarks' => 'Payment status verification',
+                    'Occasion' => 'Payment verification',
+                ]);
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            Log::error('Daraja transaction-status request could not connect', [
+                'organization_id' => $organization->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json(['message' => 'Could not connect to Daraja.'], 502);
+        }
+
+        Log::info('Daraja transaction-status query response', [
+            'organization_id' => $organization->id,
+            'http_status' => $darajaResponse->status(),
+            'response_body' => $darajaResponse->body(),
+        ]);
+
+        $darajaPayload = $darajaResponse->json() ?? [];
+        $conversationId = (string) data_get($darajaPayload, 'OriginatorConversationID', '');
+        if (!$darajaResponse->successful() || (string) data_get($darajaPayload, 'ResponseCode') !== '0' || $conversationId === '') {
+            Log::warning('Daraja rejected transaction-status query', [
+                'organization_id' => $organization->id,
+                'http_status' => $darajaResponse->status(),
+                'response_code' => data_get($darajaPayload, 'ResponseCode'),
+            ]);
+
+            return response()->json([
+                'message' => data_get($darajaPayload, 'errorMessage')
+                    ?? data_get($darajaPayload, 'ResponseDescription')
+                    ?? 'Daraja did not accept the transaction-status query.',
+            ], 502);
+        }
+
+        Cache::add(
+            $this->darajaTransactionStatusCacheKey($organization->id, $conversationId),
+            [
+                'status' => 'pending',
+                'receipt' => $validated['receipt'],
+                'conversation_id' => $conversationId,
+            ],
+            now()->addHour()
+        );
+
+        return response()->json([
+            'success' => true,
+            'status' => 'pending',
+            'receipt' => $validated['receipt'],
+            'conversation_id' => $conversationId,
+            'message' => 'Daraja accepted the status query. Poll for the result shortly.',
+        ], 202);
+    }
+
+    public function getDarajaTransactionStatusResult(Request $request, string $conversationId)
+    {
+        $organizationId = $request->user()->organization_id;
+        $result = Cache::get($this->darajaTransactionStatusCacheKey($organizationId, $conversationId));
+
+        if (!$result) {
+            return response()->json(['message' => 'Transaction-status query not found or expired.'], 404);
+        }
+
+        return response()->json($result);
+    }
+
+    public function darajaTransactionStatusCallback(Request $request, string $token)
+    {
+        $organization = Organization::where('callback_token', $token)->first();
+        if (!$organization) {
+            Log::warning('Daraja transaction-status callback received with invalid token', [
+                'ip' => $request->ip(),
+            ]);
+
+            return response()->json([
+                'ResultCode' => 1,
+                'ResultDesc' => 'Invalid token',
+            ], 401);
+        }
+
+        $result = (array) $request->input('Result', []);
+        $conversationId = (string) (
+            data_get($result, 'OriginatorConversationID')
+            ?? $request->input('OriginatorConversationID', '')
+        );
+
+        if ($conversationId !== '') {
+            $cacheKey = $this->darajaTransactionStatusCacheKey($organization->id, $conversationId);
+            $cachedResult = Cache::get($cacheKey);
+            $resultCode = data_get($result, 'ResultCode');
+            $parameters = collect(data_get($result, 'ResultParameters.ResultParameter', []));
+            $transactionStatus = $parameters->firstWhere('Key', 'TransactionStatus')['Value'] ?? null;
+            $queryStatus = $resultCode === null
+                ? 'unknown'
+                : ((string) $resultCode === '0' ? 'completed' : 'failed');
+            $callbackResult = [
+                'status' => $transactionStatus
+                    ?? ($queryStatus === 'failed' ? 'query_failed' : 'unknown'),
+                'query_status' => $queryStatus,
+                'result_code' => $resultCode,
+                'result_description' => data_get($result, 'ResultDesc'),
+                'transaction_status' => $transactionStatus,
+            ];
+
+            Cache::put(
+                $cacheKey,
+                array_merge($cachedResult ?? ['conversation_id' => $conversationId], $callbackResult),
+                now()->addHour()
+            );
+        } else {
+            Log::warning('Daraja transaction-status callback is missing its conversation ID', [
+                'organization_id' => $organization->id,
+            ]);
+        }
+
+        return response()->json([
+            'ResultCode' => 0,
+            'ResultDesc' => 'Accepted',
+        ]);
+    }
+
+    private function darajaTransactionStatusCacheKey(int $organizationId, string $conversationId): string
+    {
+        return "daraja.transaction-status.{$organizationId}.{$conversationId}";
     }
 
     public function pending(Request $request)

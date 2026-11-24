@@ -7,6 +7,21 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Daraja transaction status
+
+The authenticated `POST /api/payments/daraja/transaction-status` endpoint accepts
+`{ "receipt": "M-Pesa receipt" }`. Daraja processes transaction-status queries
+asynchronously: the endpoint returns a `conversation_id` with status `pending`.
+Poll `GET /api/payments/daraja/transaction-status/{conversation_id}` until the
+callback result is available; `status` then contains the transaction status
+reported by Daraja and `query_status` indicates whether Daraja completed the
+query. Query results are kept in the application cache for one hour.
+
+The active M-Pesa gateway must include `initiator_name` and the Daraja
+certificate-generated `security_credential`, in addition to the consumer
+credentials and paybill. The application must have a public HTTPS `APP_URL`
+and an organization callback token for Daraja's result callback.
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:

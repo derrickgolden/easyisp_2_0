@@ -151,6 +151,8 @@ const NotificationModal: FC<NotificationModalProps> = ({
           ? notificationsResult.value.data
           : [];
         items.forEach(notification => {
+          console.log('Processing notification:', notification);
+          
           const isSite = notification.type === 'site_status';
           const isOffline = isSite && notification.data?.status === 'offline';
           const severity = getNotificationSeverity(notification.data?.severity);

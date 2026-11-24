@@ -40,6 +40,8 @@ const PaymentGatewayCard: React.FC<{ onSave: (message: string) => void }>  = ({ 
         consumer_key: '',
         consumer_secret: '',
         passkey: '',
+        initiator_name: '',
+        security_credential: '',
         environment: 'Production',
         confirmation_url: '',
         validation_url: '',
@@ -66,7 +68,7 @@ const PaymentGatewayCard: React.FC<{ onSave: (message: string) => void }>  = ({ 
                     } if (e.provider === 'kopokopo') {
                         setKopokopoForm({ id: e.id, provider: 'kopokopo', client_id: e.config?.client_id || '', client_secret: e.config?.client_secret || '', api_key: e.config?.api_key || '', till_number: e.config?.till_number || '', environment: e.config?.environment || 'Production', is_active: e.active || false, is_default: e.is_default || false });
                     } if (e.provider === 'mpesa') {
-                        setMpesaForm({ id: e.id, provider: 'mpesa', paybill: e.config?.paybill || '', consumer_key: e.config?.consumer_key || '', consumer_secret: e.config?.consumer_secret || '', passkey: e.config?.passkey || '', environment: e.config?.environment || 'Production', confirmation_url: e.config?.confirmation_url || '', validation_url: e.config?.validation_url || '', is_active: e.active || false, is_default: e.is_default || false });
+                        setMpesaForm({ id: e.id, provider: 'mpesa', paybill: e.config?.paybill || '', consumer_key: e.config?.consumer_key || '', consumer_secret: e.config?.consumer_secret || '', passkey: e.config?.passkey || '', initiator_name: e.config?.initiator_name || '', security_credential: e.config?.security_credential || '', environment: e.config?.environment || 'Production', confirmation_url: e.config?.confirmation_url || '', validation_url: e.config?.validation_url || '', is_active: e.active || false, is_default: e.is_default || false });
                     }
                 });
             } catch (err) {
@@ -105,6 +107,8 @@ const PaymentGatewayCard: React.FC<{ onSave: (message: string) => void }>  = ({ 
                         consumer_key: mpesaForm.consumer_key,
                         consumer_secret: mpesaForm.consumer_secret,
                         passkey: mpesaForm.passkey,
+                        initiator_name: mpesaForm.initiator_name,
+                        security_credential: mpesaForm.security_credential,
                         environment: mpesaForm.environment,
                         confirmation_url: mpesaForm.confirmation_url,
                         validation_url: mpesaForm.validation_url,
@@ -349,6 +353,27 @@ const PaymentGatewayCard: React.FC<{ onSave: (message: string) => void }>  = ({ 
                                 placeholder="••••••••••••••••" 
                                 className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono" 
                             />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Transaction-status initiator name</label>
+                            <input
+                                type="text"
+                                value={mpesaForm.initiator_name}
+                                onChange={e => setMpesaForm({ ...mpesaForm, initiator_name: e.target.value })}
+                                placeholder="Daraja API initiator"
+                                className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Transaction-status security credential</label>
+                            <input
+                                type="password"
+                                value={mpesaForm.security_credential}
+                                onChange={e => setMpesaForm({ ...mpesaForm, security_credential: e.target.value })}
+                                placeholder="••••••••••••••••"
+                                className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white font-mono"
+                            />
+                            <p className="text-[9px] text-gray-400 italic">Use the encrypted security credential generated with the Daraja certificate.</p>
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Environment</label>
