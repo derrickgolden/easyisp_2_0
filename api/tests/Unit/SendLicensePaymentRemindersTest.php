@@ -106,4 +106,31 @@ class SendLicensePaymentRemindersTest extends TestCase
 
         $this->assertCount(2, Mail::mailer()->getSymfonyTransport()->messages());
     }
+
+    public function test_it_does_not_remind_suspended_organizations(): void
+    {
+        DB::table('organizations')->insert([
+            'id' => 1,
+            'name' => 'Suspended ISP',
+            'status' => 'suspended',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('users')->insert([
+            'id' => 1,
+            'organization_id' => 1,
+            'is_super_admin' => true,
+            'email' => 'admin@example.com',
+        ]);
+        DB::table('organization_license_snapshots')->insert([
+            'organization_id' => 1,
+            'snapshot_month' => '2026-10-01',
+            'total_amount' => 1250,
+            'status' => 'billed',
+        ]);
+
+        Artisan::call('license:send-payment-reminders');
+
+        $this->assertCount(0, Mail::mailer()->getSymfonyTransport()->messages());
+    }
 }

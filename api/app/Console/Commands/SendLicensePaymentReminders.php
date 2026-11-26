@@ -17,6 +17,10 @@ class SendLicensePaymentReminders extends Command
     {
         $today = now()->toDateString();
         $organizations = Organization::query()
+            ->where(function ($query): void {
+                $query->whereNull('status')
+                    ->orWhere('status', '<>', 'suspended');
+            })
             ->whereHas('licenseSnapshots', fn ($query) => $query->where('status', 'billed'))
             ->where(function ($query) use ($today): void {
                 $query->whereNull('license_reminder_sent_at')
@@ -36,6 +40,10 @@ class SendLicensePaymentReminders extends Command
         $sendFailed = false;
 
         foreach ($organizations as $organization) {
+            if (strtolower((string) ($organization->status ?? '')) === 'suspended') {
+                continue;
+            }
+
             if ($organization->users->isEmpty()) {
                 Log::warning('License payment reminder skipped: organization has no super-admin email.', [
                     'organization_id' => $organization->id,

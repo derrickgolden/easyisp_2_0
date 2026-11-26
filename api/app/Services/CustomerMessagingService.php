@@ -321,6 +321,11 @@ class CustomerMessagingService
             return false;
         }
 
+        $organization = $customer->organization;
+        if ($organization && strtolower((string) ($organization->status ?? '')) === 'suspended') {
+            return true;
+        }
+
         $packageAmount = (float) ($customer->effective_package_price ?? 0);
         if ($packageAmount <= 0) {
             return false;
